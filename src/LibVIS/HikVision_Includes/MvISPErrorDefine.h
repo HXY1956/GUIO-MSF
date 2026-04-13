@@ -1,0 +1,71 @@
+#ifndef _MV_ISP_ERROR_DEFINE_H_
+#define _MV_ISP_ERROR_DEFINE_H_
+
+#define MV_ALG_OK                   0x00000000
+#define MV_ALG_ERR                  0x10000000
+#define MV_ALG_E_ABILITY_ARG        0x10000001
+#define MV_ALG_E_MEM_NULL           0x10000002
+#define MV_ALG_E_MEM_ALIGN          0x10000003
+#define MV_ALG_E_MEM_LACK           0x10000004
+#define MV_ALG_E_MEM_SIZE_ALIGN     0x10000005
+#define MV_ALG_E_MEM_ADDR_ALIGN     0x10000006
+#define MV_ALG_E_IMG_FORMAT         0x10000007
+#define MV_ALG_E_IMG_SIZE           0x10000008
+#define MV_ALG_E_IMG_STEP           0x10000009
+#define MV_ALG_E_IMG_DATA_NULL      0x1000000A
+#define MV_ALG_E_CFG_TYPE           0x1000000B
+#define MV_ALG_E_CFG_SIZE           0x1000000C
+#define MV_ALG_E_PRC_TYPE           0x1000000D
+#define MV_ALG_E_PRC_SIZE           0x1000000E
+#define MV_ALG_E_FUNC_TYPE          0x1000000F
+#define MV_ALG_E_FUNC_SIZE          0x10000010
+#define MV_ALG_E_PARAM_INDEX        0x10000011
+#define MV_ALG_E_PARAM_VALUE        0x10000012
+#define MV_ALG_E_PARAM_NUM          0x10000013
+#define MV_ALG_E_NULL_PTR           0x10000014
+#define MV_ALG_E_OVER_MAX_MEM       0x10000015
+#define MV_ALG_E_CALL_BACK          0x10000016
+#define MV_ALG_E_ENCRYPT            0x10000017
+#define MV_ALG_E_EXPIRE             0x10000018
+#define MV_ALG_E_BAD_ARG            0x10000019
+#define MV_ALG_E_DATA_SIZE          0x1000001A
+#define MV_ALG_E_STEP               0x1000001B
+#define MV_ALG_E_CPUID              0x1000001C
+#define MV_ALG_WARNING              0x1000001D
+#define MV_ALG_E_TIME_OUT           0x1000001E
+#define MV_ALG_E_LIB_VERSION        0x1000001F
+#define MV_ALG_E_MODEL_VERSION      0x10000020
+#define MV_ALG_E_GPU_MEM_ALLOC      0x10000021
+#define MV_ALG_E_FILE_NON_EXIST     0x10000022
+#define MV_ALG_E_NONE_STRING        0x10000023
+#define MV_ALG_E_IMAGE_CODEC        0x10000024
+#define MV_ALG_E_FILE_OPEN          0x10000025
+#define MV_ALG_E_FILE_READ          0x10000026
+#define MV_ALG_E_FILE_WRITE         0x10000027
+#define MV_ALG_E_FILE_READ_SIZE     0x10000028
+#define MV_ALG_E_FILE_TYPE          0x10000029
+#define MV_ALG_E_MODEL_TYPE         0x1000002A
+#define MV_ALG_E_MALLOC_MEM         0x1000002B
+#define MV_ALG_E_BIND_CORE_FAILED   0x1000002C
+
+#define MV_ALG_E_DENOISE_NE_IMG_FORMAT       0x10402001
+#define MV_ALG_E_DENOISE_NE_FEATURE_TYPE     0x10402002
+#define MV_ALG_E_DENOISE_NE_PROFILE_NUM      0x10402003
+#define MV_ALG_E_DENOISE_NE_GAIN_NUM         0x10402004
+#define MV_ALG_E_DENOISE_NE_GAIN_VAL         0x10402005
+#define MV_ALG_E_DENOISE_NE_BIN_NUM          0x10402006
+#define MV_ALG_E_DENOISE_NE_INIT_GAIN        0x10402007
+#define MV_ALG_E_DENOISE_NE_NOT_INIT         0x10402008
+#define MV_ALG_E_DENOISE_COLOR_MODE          0x10402009
+#define MV_ALG_E_DENOISE_ROI_NUM             0x1040200a
+#define MV_ALG_E_DENOISE_ROI_ORI_PT          0x1040200b
+#define MV_ALG_E_DENOISE_ROI_SIZE            0x1040200c
+#define MV_ALG_E_DENOISE_GAIN_NOT_EXIST      0x1040200d
+#define MV_ALG_E_DENOISE_GAIN_BEYOND_RANGE   0x1040200e
+#define MV_ALG_E_DENOISE_NP_BUF_SIZE         0x1040200f
+
+#define MV_ALG_E_PFC_ROI_PT                 0x10405000
+#define MV_ALG_E_PFC_ROI_SIZE               0x10405001
+#define MV_ALG_E_PFC_KERNEL_SIZE            0x10405002
+
+#endif

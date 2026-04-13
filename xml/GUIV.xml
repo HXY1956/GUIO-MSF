@@ -1,0 +1,543 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?> 
+<!DOCTYPE config>
+
+<config>
+
+ <inputs>
+    <rinexo> 
+   GNSS\Rover\HX01.obs
+   GNSS\Base\R29300CHN_R_20231020100_09H_01S_MO.obs
+   </rinexo>
+   <rinexn> GNSS\Product\BRDM00DLR_S_20231020000_01D_MN.rnx </rinexn> 
+   <atx>    model/igs_absolute_14.atx </atx>
+   <blq> model/oceanload </blq>
+   <de>  model/jpleph_de405_great </de>
+   <eop> model/poleut1 </eop>
+   <leapsecond> model/leap_seconds </leapsecond>
+   <imu> 
+   imu/2/adis.txt   
+   imu/1/adis.txt 
+   imu/5/adis.txt
+   </imu>
+ </inputs>
+
+ <outputs append="false" verb="1">
+   <log type="BASIC" name="LOGRT.log" />
+   <ppp> result/SEPT-GEC-GI_mimu_stack.ppp </ppp>
+   <flt> result/SEPT-GEC-GI_mimu_stack.flt </flt>
+   <ins> analysis/result/GI_mimu_stack.ins </ins>
+   <kml> result/SEPT-GEC-GI_mimu_stack.kml </kml>
+ </outputs>
+
+ <receiver>
+	<rec id="R293" X="-2267776.01115" Y="5009357.43174" Z="3220982.10379"/>
+</receiver>
+
+<gnss>
+   <gen>
+    <beg> "2023-04-12 06:52:35" </beg>
+	  <end> "2023-04-12 09:03:00" </end>
+    <sys > GPS BDS GAL GLO</sys> 
+    <rec>  HX01 R293  </rec>
+    <base> R293 </base>
+    <rover> HX01</rover>
+    <int>  1   </int> 
+    <sat_rm> E34 </sat_rm>
+   </gen>
+
+  <process>
+    <bds_code_bias_corr> true </bds_code_bias_corr>
+    <phase> true </phase>
+    <iono> false </iono>
+    <tropo> false </tropo>
+    <tropo_gradient> false </tropo_gradient>
+    <doppler> false </doppler>
+    <pos_kin> true </pos_kin>
+    <sd_sat> false </sd_sat>
+    <ambfix> false </ambfix>
+    <sig_init_crd> 30 </sig_init_crd>
+    <sig_init_vel> 10 </sig_init_vel>
+    <sig_init_ztd> 10 </sig_init_ztd>
+    <sig_init_amb> 30 </sig_init_amb>
+    <sig_init_gal> 10 </sig_init_gal>
+    <sig_init_glo> 10 </sig_init_glo>
+    <sig_init_bds> 10 </sig_init_bds>
+    <sig_init_qzs> 10 </sig_init_qzs>
+    <sig_init_vion> 100 </sig_init_vion>
+    <sig_init_grd>  </sig_init_grd>
+    <minimum_elev> 7 </minimum_elev>
+    <max_res_norm> 3 </max_res_norm>
+    <min_sat> 4 </min_sat>
+    <frequency> 2 </frequency>
+    <basepos> cfile </basepos>  <!-- rinexh; cfile; kin2kin; external -->
+    <mean_pole_model> cubic </mean_pole_model>  <!-- linear;cubic -->
+    <tropo_mf> gmf </tropo_mf> <!-- default; cosz; gmf; no_mf -->
+    <iono_mf> icosz </iono_mf> <!-- default; icosz; qfaz; none -->
+    <obs_combination> raw_all </obs_combination> <!-- default; iono_free; raw_single; raw_double; raw_all; mw_combin; raw_mix; if_p1; wl_combin; ewl_combin -->
+    <obs_weight> sinel </obs_weight> <!-- default; equal; sinel; sinel2; sinel4; codpha; mltpth; partele; snr -->
+    <attitudes> default </attitudes> <!-- default; nominal; rtcm -->
+    <residuals> res_norm </residuals> <!-- default; res_norm; res_orig; res_all -->
+    <grad_mf> default </grad_mf> <!-- default; tilting; chen_herring; bar_sever -->
+    <ztd_model> sto </ztd_model> <!-- default; pwc; sto -->
+    <tropo_model> saastamoinen </tropo_model> <!-- default; saastamoinen; davis; hopfield; mops; gptw; gpt2w; gal27; galtrop027; extern -->
+    <ion_model> default </ion_model> <!-- default; sion; vion -->
+    <slip_model> turboedit </slip_model> <!-- default; turboedit -->
+  </process>
+
+  <filter>
+    <method_flt> kalman </method_flt> <!-- kalman; srcf -->
+    <noise_crd> 40 </noise_crd>
+    <noise_vel> 20 </noise_vel> 
+    <noise_clk> 1000 </noise_clk>
+    <noise_dclk> 100 </noise_dclk> 
+    <rndwk_glo> 20 </rndwk_glo>
+    <rndwk_gal> 20 </rndwk_gal>
+    <rndwk_gps> 20 </rndwk_gps>
+    <rndwk_bds> 20 </rndwk_bds>
+    <rndwk_qzs> 20 </rndwk_qzs>
+    <rndwk_grd> 0.3 </rndwk_grd>
+    <rndwk_ztd> 6 </rndwk_ztd> 
+    <rndwk_amb> 0 </rndwk_amb> 
+    <smooth> false </smooth>
+    <update> ekf </update> <!-- ekf; ukf; ckf; pf; vbakf; gstm; gstm_1; gstm_2 -->
+    <proc_noise> 0.05 </proc_noise>
+  </filter>
+
+  <turboedit>
+    <lite_mode> true </lite_mode>
+    <smooth_win> 30 </smooth_win>  
+    <amb_output valid ="false" />
+    <ephemeris valid="true"  />      
+    <check_pc valid="false" pc_limit="250.0" /> 
+    <check_mw valid="true" mw_limit="1" />
+    <check_gf valid="true" gf_limit="0.01"/>
+    <check_sf valid="true" sf_limit="1"/>
+    <check_short valid="false" short_limit="10"/>     
+    <check_statistics valid="false" min_percent="60" min_mean_nprn="4" max_mean_namb="3"/>                
+    <check_gap valid="true" gap_limit="30"/>  
+  </turboedit>
+
+  <ambiguity>
+    <upd> none </upd> <!-- none; wl; ewl; ewl24; ewl25; ewl_epoch; nl; ifcb -->
+    <amb_type> dd </amb_type> <!-- dd; sd; ud -->
+    <fix_mode> search </fix_mode> <!-- no; round; search; hold -->
+    <upd_mode> upd </upd_mode> <!-- upd; irc; osb -->
+    <dd_mode> if_cb_wn </dd_mode> <!-- if_cb_wn; raw_cb_wn; raw_cb_2; raw_cb; none -->
+    <part_fix> true </part_fix>   
+    <add_leo> false </add_leo>
+    <all_baselines> false </all_baselines>
+	  <part_fix_num> 4 </part_fix_num>   
+    <ratio> 2.0 </ratio>         
+    <min_common_time> 0 </min_common_time>               
+    <baseline_length_limit> 3500 </baseline_length_limit>
+    <widelane_interval> 30 </widelane_interval>       
+    <FixFixSep> 0 </FixFixSep>
+    <FloatFixSep> 0 </FloatFixSep>     
+    <extra_widelane_decision maxdev = "0.07" maxsig = "0.10" alpha = "1000" />
+    <widelane_decision maxdev = "0.275" maxsig = "0.10" alpha = "1000" />
+    <narrowlane_decision maxdev = "0.375" maxsig = "0.10" alpha = "1000" />
+  </ambiguity>
+  
+  <npp> 
+    <npp_delaunay> false </npp_delaunay>
+    <comp_aug> true </comp_aug>
+    <grid_aug> true </grid_aug>
+    <reset_amb_ppprtk> false </reset_amb_ppprtk>
+    <self_cor> false </self_cor>
+    <obs_level> 3 </obs_level>
+    <cor_obs> true </cor_obs>
+    <npp_model> no </npp_model> <!-- no; vrs; upd; urtk; ppp_rtk-->
+  </npp>
+
+  <ionest>
+    <n_ses> 13 </n_ses>
+    <order> 15 </order>
+    <minlat> -90 </minlat>
+    <maxlat> 90 </maxlat>
+    <minlon> -180 </minlon>
+    <maxlon> 180 </maxlon>
+    <step> 2.5 </step>
+    <sessLength> 7200 </sessLength>
+    <maglat> 79.93 </maglat>
+    <maglon> -71.96 </maglon>
+    <ion_dir> ./ion </ion_dir>
+    <type> iono_pl </type> <!-- iono_p; iono_pl; iono_ppp; iono_sion; iono_ppp_ar -->
+  </ionest>
+
+  <ionogrid>
+    <mask> </mask>
+    <id> 00 </id>
+    <rec_ref> none </rec_ref>
+    <ref_lon> 0 </ref_lon>
+    <ref_lat> 0 </ref_lat>
+    <space_lon> 0 </space_lon>
+    <space_lat> 0 </space_lat>
+    <count_lon> 0 </count_lon>
+    <count_lat> 0 </count_lat>
+    <min_site> 5 </min_site>
+    <bias_sigma> 0.06 </bias_sigma>
+    <bias_baseline> 0.5 </bias_baseline>
+  </ionogrid>
+
+  <bds sigma_C="3" sigma_L="0.03" >
+    <freq> 1  2 </freq>
+    <band> 2  7 </band>
+    <sat> C01 C02 C03 C04 C05 C06 C07 C08 C09 C10 C11 C12 C13 C14 C15 C16 </sat>
+  </bds>
+
+  <gps sigma_C="2" sigma_L="0.02" >
+    <freq> 1  2 </freq>
+    <band> 1  2  </band>
+  </gps>
+ 
+  <gal sigma_C="3" sigma_L="0.03" >
+    <freq> 1  2 </freq>
+    <band> 1  7  </band>
+  </gal>
+ 
+  <glo sigma_C="4" sigma_L="0.04" >
+    <freq> 1  2 </freq>
+    <band> 1  2  </band>
+  </glo>
+ 
+  <qzs sigma_C="0.6" sigma_L="0.01" >
+    <freq> 1  2 </freq>
+    <band> 1  2  </band>
+  </qzs>
+
+</gnss>
+
+<ins>
+	<ProcTime Start="283955" End="286000"/>
+
+	<DataFormat>
+		<AxisOrder Type="garfu"  Format="garfu/gaflu/gafrd/starneto/unicore" />
+		<GyroUnit Type="DPS" Format="DPS/RPS/RAD/DPH/RPH" />
+		<AcceUnit Type="MPS2" Format="MPS/MPS2" />
+		<MagUnit Type = "DPS" Format="DPS/RPS/RAD/DPH/RPH" />
+        <AttUnit Type = "RAD" Format="DPS/RPS/RAD/DPH/RPH" />
+		<Frequency Value ="100" Description="Hz" />
+		<Resample Value ="100" Description="Hz" />
+	</DataFormat>
+	                
+	<InitialStates>
+		<Position Type="Cartesian" Format="OFF/Cartesian/Geodetic"  X="-2265818.335"  Y="5008659.464"  Z="3223406.825" Description="m"  />
+		<Velocity Type="Cartesian" Format="OFF/Cartesian"  X="-2.153" Y="-0.749"  Z="-0.435"  Description="m/s" />
+		<Attitude Type="ON" Format="OFF/ON" Pitch="0.3064865838" Roll="0.8971659635" Yaw="-100.2794686447" Description="deg" />
+		<GyroBias Type="OFF" Format="OFF/ON/Mean" X="401" Y="32"  Z="-85" Description="deg/h" />
+		<AcceBias Type="OFF" Format="OFF/ON/Mean" X="0" Y="0"  Z="0" Description="mg" />
+		<GyroScale Type="OFF" Format="OFF/Const" X="1" Y="1" Z="1" Description="#"/>
+		<AcceScale Type="OFF" Format="OFF/Const" X="1" Y="1" Z="1" Description="#"/>
+	</InitialStates> 
+	
+	<Estimator Type="Forward" Format="Forward/Backward/FBS/RTS" >
+		<IMUErrorModel Type="ADIS 16470"   Format="Customize/SPAN FSAS/SPAN CPT/ADIS 16470/StarNeto"   />
+		<Attitude InitialSTD="1,1,20" ProcNoiseSD="3,3,3" Description="deg" />
+		<Velocity InitialSTD="1,1,1" ProcNoiseSD="1,1,1" Description="m/s" />
+		<Position InitialSTD="3,3,3" ProcNoiseSD="0,0,0" Description="m" />
+		<GyroBias InitialSTD="50,50,50" ProcNoiseSD="1,1,1" Description="deg/h" />
+		<AcceBias InitialSTD="5,5,5" ProcNoiseSD="0,0,0" Description="mg" />
+	</Estimator>
+
+	<Compensation Type="Poly" Format="OFF/Poly/Cone" Subsample="1" />
+	
+	<Installation Type="OFF" Format="OFF/ON" Description="Take the left rear wheel as the origin">
+		<Rotation Roll="0" Pitch="0"  Yaw="0" />
+		<Rotation Roll="0" Pitch="0"  Yaw="0" />
+		<Lever X="0.91" Y="-0.503"  Z="-1.915" />
+	</Installation>
+
+	<ins_auxiliary>
+        <fuse_type> virtual </fuse_type> <!-- virtual; stack-->
+        <num_of_ins_auxiliary> 2 </num_of_ins_auxiliary>
+        <r2p> false </r2p>
+        <port_list> COM4,COM5,COM6</port_list>
+        <R_imu1_imu0> -9.99960275e-01 -8.22711870e-03  3.42968560e-03
+				8.22871811e-03 -9.99966041e-01  4.52493402e-04
+				3.42584641e-03  4.80697343e-04  9.99994016e-01
+        </R_imu1_imu0>	 
+        <p_imu1_imu0> -0.2134 0.0072 0.035 </p_imu1_imu0>
+        <t_imu1_imu0> 0 </t_imu1_imu0>
+        <R_imu2_imu0>
+         0.88017353  0.47460263 -0.00684806
+       -0.4746413   0.88015907 -0.00597162
+        0.00319323  0.00850644  0.99995872
+        </R_imu2_imu0>
+        <p_imu2_imu0> 0.0038, 0.1658, -0.027 </p_imu2_imu0>
+        <t_imu2_imu0> 0 </t_imu2_imu0>
+
+        <estimate_imui_extrinsic> false </estimate_imui_extrinsic>
+        <estimate_imui_t> false </estimate_imui_t>
+        <initial_t_cov> 1e-4 </initial_t_cov>
+        <initial_extrinsic_rotation_cov> 1 1 1 </initial_extrinsic_rotation_cov> 
+        <initial_extrinsic_translation_cov> 0.01 0.01 0.01 </initial_extrinsic_translation_cov>
+        <enf_R_std> 0.01 0.01 0.01 </enf_R_std>
+        <enf_p_std> 0.01 0.01 0.01 </enf_p_std>
+    </ins_auxiliary>
+
+</ins>
+
+<uwb>
+  <start> </start>
+  <end> </end>
+  <outdoor_anchor_list>  </outdoor_anchor_list>
+  <indoor_anchor_list> 2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,28,29 </indoor_anchor_list>
+  <anchor_list> 2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,28,29 </anchor_list>
+  <!-- GSTM SETTINGS -->
+  <filter> ekf </filter>  <!-- ekf; ukf; ckf; pf; vbakf; gstm; gstm_1; gstm_2 -->
+  <kappa_sig> 0 </kappa_sig>
+  <alpha_sig> 0.001 </alpha_sig>
+  <num_particles> 500 </num_particles>
+  <tau> 1000 </tau>
+  <e0> 0.85 </e0>
+  <g0> 0.85 </g0>
+  <dof1> 15 </dof1>
+  <dof2> 1 </dof2>
+  <proc_noise> 0.06 </proc_noise>
+  <!-- SDP SETTINGS -->
+  <estimate_nlos> false </estimate_nlos>
+  <penal> sigmoid </penal>
+  <exp_parameter> 1 </exp_parameter>
+  <log_parameter> 1 </log_parameter>
+  <sigmoid_threshold> 2 </sigmoid_threshold>
+  <sigmoid_parameter> 2 </sigmoid_parameter>
+  <gama> 1 </gama>
+  <alpha> 0 </alpha>
+  <tolerance> 1 </tolerance>
+  <pred_constraint> false </pred_constraint>
+  <!-- UPDATE SETTINGS -->
+  <ts> 0.5 </ts>
+  <iter> 20 </iter>
+  <posterior> true </posterior>
+  <weight> snr </weight> <!-- snr; equal; antirange; successrate -->
+  <max_res_norm> 4 </max_res_norm>
+  <meas_range_std> 0.5 </meas_range_std>
+  <best_range_std> 0.03 </best_range_std>
+  <range_lim> 18 </range_lim>
+  <snr_lim> 6 </snr_lim>
+  <barrior> 9.0 </barrior>
+  <!-- PREPROCESS SETTINGS -->
+  <order> nooploop </order>
+  <smooth> true </smooth>
+  <smooth_point> 5 </smooth_point>
+  <sample> 10 </sample>
+  <interpolation> false </interpolation>
+  <interpolation_noise> 0.2 </interpolation_noise>
+  <addnoise> false </addnoise>
+  <!-- PURE-PROC SETTINGS -->
+  <initial_pos_std> 0,0,0 </initial_pos_std>
+  <pos_psd> 0.7,0.7,0.7 </pos_psd>
+  <pos> -2267397.378,5009339.160,3221231.839 </pos>
+  <nq> 3 </nq>
+  <move> true </move>
+  <!--OUTPUT SETTINGS-->
+  <output_res> true </output_res>
+  <result_file> uwb.txt </result_file>
+  <res_file> res.txt </res_file>
+</uwb>
+
+<vis>
+
+<camera_list> 0,1 </camera_list>
+
+<cam_group id="0" name="HBS">
+  <!-- Basic Settings -->
+  <start> </start>
+  <end> </end>
+  <freq> 10 </freq>
+  <num_of_cam> 1 </num_of_cam>
+  <processer> cpu </processer> <!-- cpu; gpu -->
+  <gstpath> \\?\usb#vid_15aa&pid_1555&mi_00#6&2558686a&0&0000#{e5323777-f976-4f5b-9b55-b94699c46e44}\global </gstpath>
+  <!-- Extra-Param Settings -->
+  <estimate_extrinsic> false </estimate_extrinsic>
+  <estimate_t> false </estimate_t>
+  <initial_extrinsic_rotation_cov> 1,1,1 </initial_extrinsic_rotation_cov>
+  <initial_extrinsic_translation_cov> 9e-2,9e-2,1e-10 </initial_extrinsic_translation_cov>
+  <initial_t_cov> 1e-4 </initial_t_cov>
+  <!-- Distortion Settings -->
+  <cam0_distortion_model> radtan </cam0_distortion_model> <!-- radtan; equidistant-->
+  <cam0_resolution> 1024,768 </cam0_resolution>
+  <cam0_intrinsics> 889.6271750208587, 889.1914697182664, 512.1579858342865, 401.1021821341284 </cam0_intrinsics>
+  <cam0_distortion_coeffs> -0.1348036101300633, 0.09550648535809657, -0.0005991687609841002, 4.574341913191656e-05 </cam0_distortion_coeffs>
+  <cam1_distortion_model> radtan </cam1_distortion_model>
+  <cam1_resolution> 1024,768 </cam1_resolution>
+  <cam1_intrinsics> 889.6271750208587, 889.1914697182664, 512.1579858342865, 401.1021821341284 </cam1_intrinsics>
+  <cam1_distortion_coeffs> -0.1348036101300633, 0.09550648535809657, -0.0005991687609841002, 4.574341913191656e-05 </cam1_distortion_coeffs>
+  <!-- Translation Settings -->
+  <R_cam0_imu> 0.896834251613572, -0.000249547306657685, -0.442366754782231, 
+  0.442323468584325, -0.0134939219695628, 0.896754113622906, 
+  0.00619304049194049, -0.999908962380467, -0.0119914308053585 
+  </R_cam0_imu>
+  <t_cam0_imu> -0.247934628936975, 0.825306811707153, 0.00301760999156399 </t_cam0_imu>
+  <dt_cam0_imu> 0.0 </dt_cam0_imu>
+  <R_cam0_cam1> 0.896834251613572, -0.000249547306657685, -0.442366754782231, 
+  0.442323468584325, -0.0134939219695628, 0.896754113622906, 
+  0.00619304049194049, -0.999908962380467, -0.0119914308053585 
+  </R_cam0_cam1>
+  <t_cam0_cam1> -0.247934628936975, 0.825306811707153, 0.00301760999156399 </t_cam0_cam1>
+  <dt_cam0_cam1> 0.0 </dt_cam0_cam1>
+  <!-- Feature Detect Settings -->
+  <grid_row> 7 </grid_row>
+  <grid_col> 8 </grid_col>
+  <grid_min_feature_num> 3 </grid_min_feature_num> <!--Min Number of Feature Point In One Grid-->
+  <grid_max_feature_num> 8 </grid_max_feature_num> <!--Max Number of Feature Point In One Grid-->
+  <maxcnt> 350 </maxcnt>  <!-- Max Good Point In AddNewFeature() -->
+  <equalize> 0 </equalize>
+  <usingstereorecify> false </usingstereorecify>
+  <!-- Feature Tracking Settings -->
+  <pyramid_levels> 3 </pyramid_levels>
+  <patch_size> 15 </patch_size>
+  <fast_threshold> 5 </fast_threshold>
+  <ransac_threshold> 3 </ransac_threshold>
+  <stereo_threshold> 5 </stereo_threshold>
+  <max_iteration> 30 </max_iteration> <!-- Pyramid LK Search Max Iteration() -->
+  <track_precision> 0.01 </track_precision>
+  <position_std_threshold> 8 </position_std_threshold>
+  <rotation_threshold> 0.2618 </rotation_threshold>
+  <!-- Triangulation Settings -->
+  <huber_epsilon> 0.01 </huber_epsilon> 
+  <translation_threshold> 0.2 </translation_threshold>
+  <estimation_precision> 0.0000005 </estimation_precision>
+  <initial_damping> 0.001 </initial_damping>
+  <outler_loop_max_iteration> 10 </outler_loop_max_iteration>
+  <inner_loop_max_iteration> 10 </inner_loop_max_iteration>
+  <!-- MSCKF Settings -->
+  <minparallex> 15 </minparallex> <!-- KF Threshould In KeyFrameCheck() -->
+  <stereo> false </stereo>
+  <max_cam_state_size> 10 </max_cam_state_size>
+  <feature_observation_noise> 0.008 </feature_observation_noise>
+  <cam_update_skip> 0 </cam_update_skip>
+  <clone_type> camera </clone_type> <!-- camera; imu -->
+  <static_threshold> 1.2 </static_threshold>
+  <!-- Filter Settings -->
+  <filter> EKF </filter>  <!-- ekf; ukf; ckf; pf; vbakf; gstm; gstm_1; gstm_2 -->
+  <proc_noise> 0.06 </proc_noise>
+  <max_res_norm> 1.2 </max_res_norm>
+  <barrior> 9 </barrior>
+</cam_group>
+
+<yolo>
+  <detect> true </detect>
+  <modelpath> model/best.xml </modelpath>
+  <inputsize> 640,640 </inputsize>
+  <conf> 0.75 </conf>
+  <nms> 0.45 </nms>
+  <cls> 1 </cls>
+  <numpred> 8400 </numpred>
+  <clsname> Ball </clsname>
+</yolo>
+
+</vis>
+
+<tracker>
+  <pickrate>30</pickrate>
+  <camskip>5</camskip>
+  <rot_noise>10</rot_noise>
+  <trans_noise>0.0001</trans_noise>
+  <mindist>10</mindist>
+  <canny>30</canny>
+  <acc>20</acc>
+  <minradius>3</minradius>
+  <maxradius>15</maxradius>
+  <type>BGR</type>
+  <R_t_i>0,0,1,0,1,0,1,0,0</R_t_i>
+  <t_t_i>-0.18, 0.025, -0.10</t_t_i>
+  <interval>0.5</interval>
+</tracker>
+
+<integration Type="GI_TCI" Format="VIO;LIO;GI;UI;UVI;GVI;GUI;GUVI" FuseType = "Normal" Format="Normal/InEKF" inflation = "1" static = "false">
+	
+	<Alignment Type="OFF"  Format="OFF/STATIC/POS/VEL/MULTI_ANT/VINS/NONE">
+		<PositionVector Value="5" Description="m" />
+		<VelocityVector Value="1" Description="m/s" />
+		<CoarseAlignTime Value="100" Description="s" />
+    <StartEnv Value="outdoor" Format="outdoor/indoor" />
+	</Alignment>
+	
+	<GNSS Type="ON" Format="OFF/ON">
+		<AntennaLever Name="HX01" Type="RFU" Format="RFU/FLU/FRD"  X="0.1625" Y="0.235" Z="0.14" Description="m" /> 
+		<SolSource Type="SyncSol" Format="SyncSol/SolFile-GREAT/SolFile-RTKLIB" />
+		<Frequency Value ="1" Description="Hz" />
+		<DelayTime Value="0.002" Description="s"/>
+		<LCISetting MinSat="5" MaxPDOP="3" />
+		<VIOSetting Type="OFF"/>
+	</GNSS>
+
+  <UltraWideBand Type="OFF" Format="OFF/ON">
+		<AntennaLever Type="RFU" Format="RFU/FLU/FRD" X="0.01" Y="-0.273" Z="0.009" Description="m" /> 
+		<DataFormat Type="NoopLoop" Format="NoopLoop/Other" />
+		<Frequency Value ="10" Description="Hz" />
+	</UltraWideBand>
+	
+	<Vision Type="OFF" Format="OFF/ON">
+	</Vision>
+	
+	<Odometer Type="OFF" Format="OFF/ON">
+		<Installation Type="Left" Format="Left/Right" />
+		<DelayTime Value="0.001" Description="s"/>
+		<Frequency Value ="1" Description="Hz" />
+		<WheelRadius Value ="1" Description="m"   />
+		<Scale Value="1.0150" Description="#" /> 
+		<NoiseSD Value ="0.07" Description="m/s" />
+	</Odometer>
+	
+	<NHC Type="OFF" Format="OFF/ON">
+		<Frequency Value ="1" Description="Hz" />
+		<NoiseSD Value ="0.1" Description="m/s" />
+	</NHC>
+	
+	<ZUPT Type="OFF" Format="OFF/ON">
+		<Frequency Value ="1" Description="Hz" />
+		<VelNoiseSD Value ="0.01" Description="m/s" />
+		<ZIHRNoiseSD Value ="0.01" Description="deg" />
+		<YawNoiseSD Value ="0.001" Description="deg" />
+	</ZUPT>
+	
+	<Attitude Type="ON" Format="OFF/ON/Multi_Ant">
+		<mode Type="Direct" Format="Direct/Baseline"/>
+		<max_res_norm Value="20"/>
+		<precision_L Value="0.001"/>
+		<Unit Value ="deg" Description="deg/rad" />
+		<Frequency Value ="1" Description="Hz" />
+		<NoiseSD Value ="1,1,1" Description=" pitch roll yaw(deg)" />
+		<MaxNorm Value ="100" Description="#" />
+	</Attitude>
+
+	<Azimuth Type="OFF" Format="OFF/ON">
+	</Azimuth>
+	
+  <Hgt Type="OFF" Value="15.5" Format="OFF/ON">
+    <Time Start="466100" End="466322"/>
+    <STD Value="0.3"/>
+  </Hgt>
+
+  <Tracker Type="OFF" Value="15.5" Format="OFF/ON">
+    <Time Start="466100" End="466322"/>
+    <STD Value="0.1"/>
+  </Tracker>
+
+	<ExtraStates>
+		<IMUInstallation Type="OFF" Format="OFF/Translation/Rotation/TransRot">
+			<Translation InitialSTD="1" ProcNoiseSD="0" Description="m" />
+			<Rotation InitialSTD="10" ProcNoiseSD="0"  Description="deg" />
+		</IMUInstallation>
+		<IMUScale Type="OFF" Format="OFF/ON">
+			<GyroScale InitialSTD="0.01,0.01,0.01" ProcNoiseSD="0,0,0" Description="#" />
+			<AcceScale InitialSTD="0.01,0.01,0.01" ProcNoiseSD="0,0,0" Description="#" />
+		</IMUScale>
+		<IMU_GNSS_Lever Type="OFF" Format="OFF/ON" InitialSTD="1" ProcNoiseSD="0" Description="m" />
+		<IMU_UWB_Lever Type="OFF" Format="OFF/ON" InitialSTD="1" ProcNoiseSD="0" Description="m" />
+		<OdometerScale Type="OFF" Format="OFF/ON" InitialSTD="0.01" ProcNoiseSD="0.0001" Description="#" />
+		<DblAntOffset Type="OFF" Format="OFF/ON" InitialSTD="10" ProcNoiseSD="0"  Description="deg" />
+	</ExtraStates>
+	
+</integration>
+
+<!--FOR REALTIME-->
+<rt-process>    
+  <InsInterval>0.1</InsInterval>
+  <VisInterval>0.2</VisInterval>
+</rt-process>
+
+</config>
+ 

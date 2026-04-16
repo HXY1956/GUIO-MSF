@@ -189,7 +189,7 @@ namespace hwa_vis {
 
         ~vis_mono_lk_cpu() {}
 
-        virtual PointCloud ProcessBatch(const double& t);
+        virtual PointCloud ProcessBatch();
 
         bool Initialize();
 

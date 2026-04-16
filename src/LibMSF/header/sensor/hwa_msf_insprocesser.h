@@ -47,8 +47,7 @@ namespace hwa_msf {
 		MEAS_TYPE meas_state();
 		void UpdateViewer();
 		bool MimuMeas() { return _num_of_imu_axiliary > 0 && FuseType == STACK; }
-		double dTime() { return _sins->t;}
-		double iTime() { return int(_sins->t); }
+		double dsec() { return _sins->t - int(_sins->t); }
 		double _delay() { return _shm->delay; }
 		void prt_sins(std::ostringstream& os);
 		void write_sins(std::ostringstream& os) { if(_fins) _fins->write(os.str().c_str(), os.str().size()); }
@@ -96,8 +95,6 @@ namespace hwa_msf {
 		bool R2P;
 		Triple _enf_R_std;
 		Triple _enf_p_std;
-		std::vector<Triple> _wm;
-		std::vector<Triple> _vm;
 		std::map<int, std::vector<Triple>> _wm_mimu;
 		std::map<int, std::vector<Triple>> _vm_mimu;
 		std::unique_ptr<Triple> mean_ang_vel;

@@ -67,12 +67,12 @@ bool hwa_vis::vis_mono_lk_gpu::TrackPointsPyrLK_CUDA(
 hwa_vis::PointCloud hwa_vis::vis_mono_lk_gpu::ProcessBatch()
 {
     base_scopedtimer timer("ProcessBatch()", TimeCostDebugOutFile, TimeCostOut);
-    width = imageSingle.second.cols;
-    height = imageSingle.second.rows;
+    width = imageGroup.second.first.cols;
+    height = imageGroup.second.first.rows;
     grid_height = height / grid_row;
     grid_width = width / grid_col;
-    curr_img_t = imageSingle.first;
-    d_curr0 = imageSingle.second;
+    curr_img_t = imageGroup.first;
+    d_curr0 = imageGroup.second.first;
     out_img = std::make_shared<cv::cuda::GpuMat>(height, width, CV_8UC3);
     cv::cuda::cvtColor(d_curr0, out_img->colRange(0, width), cv::COLOR_GRAY2BGR);
 

@@ -305,8 +305,8 @@ namespace hwa_msf {
         _sins->t = _shm->t;
 
         for (int j = 0; j < _shm->nSamples; j++) {
-            wmm = wmm + _wm[j] - _sins->eb * _shm->ts;
-            vmm = vmm + _vm[j] - _sins->db * _shm->ts;
+            wmm = wmm + _sins->_wm[j] - _sins->eb * _shm->ts;
+            vmm = vmm + _sins->_vm[j] - _sins->db * _shm->ts;
             _align_count++;
         }
         if (abs(_align_count - _shm->align_time * _shm->freq) < 1e-5)
@@ -480,8 +480,8 @@ namespace hwa_msf {
     {
         Eigen::Vector3d wmm = Eigen::Vector3d::Zero(3), vmm = Eigen::Vector3d::Zero(3);
         double nts = _shm->nSamples * _shm->ts;
-        for (auto wm : _wm)wmm = wmm + wm;
-        for (auto vm : _vm)vmm = vmm + vm;
+        for (auto wm : _sins->_wm) wmm = wmm + wm;
+        for (auto vm : _sins->_vm) vmm = vmm + vm;
         Eigen::Vector3d wbib = wmm / nts;
         Eigen::Vector3d fbib = vmm / nts;
         Vector r(5);
@@ -704,7 +704,7 @@ namespace hwa_msf {
             Ft.block(3, 0, 3, 3) = hwa_base::askew(_sins->eth.Cen * _sins->fn);  // vel-att
             Ft.block(3, 3, 3, 3) = -2 * hwa_base::askew(_sins->eth.weie);      // vel-vel
             Ft.block(3, 12, 3, 3) = _sins->Ceb;                              // vel-db
-            if (FuseType == hwa_ins::VIRTUAL) {
+            if (FuseType == hwa_ins::VIRTUAL && _num_of_imu_axiliary > 0) {
                 Ft.block(3, 9, 3, 3) = _sins->jacobian_v_bg;
             }
             Ft.block(6, 3, 3, 3) = SO3::Identity();              // pos-vel
@@ -732,7 +732,7 @@ namespace hwa_msf {
     }
 
     bool insprocesser::load_data() {
-        bool ok = insdata->load(_wm, _vm, _shm->t, _shm->ts, _shm->nSamples, _shm->Status);
+        bool ok = insdata->load(_sins->_wm, _sins->_vm, _shm->t, _shm->ts, _shm->nSamples, _shm->Status);
 
         //TimeStamp.add_dsec(_shm->ts);
         TimeStamp = base_time(TimeStamp.gwk(), _shm->t);
@@ -766,7 +766,7 @@ namespace hwa_msf {
     }
 
     void insprocesser::MeasCrt() {
-        _sins->_imu.Update(_wm, _vm, *_shm);
+        _sins->_imu.Update(_sins->_wm, _sins->_vm, *_shm);
         for (int imui = 0; imui <= _num_of_imu_axiliary; imui++)
         {
             sins_mimu[imui]->_imu.Update(_wm_mimu[imui], _vm_mimu[imui], _shm_mimu[imui]);

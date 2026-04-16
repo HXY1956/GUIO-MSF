@@ -422,7 +422,7 @@ namespace hwa_gnss
     {
         if (_mapsp3.find(sat) == _mapsp3.end() || _mapsp3[sat].size() == 0 ||
             _mapclk.find(sat) == _mapclk.end() || _mapclk[sat].size() == 0) {
-            /*_gmutex.unlock();*/ return -1;
+            /**/ return -1;
         }
 
         auto pv_itLast = _mapsp3[sat].lower_bound(t); // 1st equal|greater [than t]
@@ -2198,10 +2198,10 @@ namespace hwa_gnss
     int gnss_all_prec::_get_delta_pos_vel(const std::string &sat, const base_time &t, int iod, base_time &tRef, hwa_map_iv &orbcorr)
     {
 
-        /*_gmutex.lock();*/
+        /**/
         if (_mapsp3.find(sat) == _mapsp3.end() || _mapsp3[sat].size() == 0)
         {
-            /*_gmutex.unlock();*/ return -1;
+            /**/ return -1;
         }
 
         std::map<base_time, hwa_map_iv>::iterator itLast = _mapsp3[sat].lower_bound(t); // 1st equal|greater [than t]
@@ -2212,17 +2212,17 @@ namespace hwa_gnss
         {
             tRef = itLast->first;
             orbcorr = itLast->second;
-            /*_gmutex.unlock();*/ return 1;
+            /**/ return 1;
         }
         else if (itPrev != _mapsp3[sat].end() && int(itPrev->second["IOD"]) == iod)
         {
             tRef = itPrev->first;
             orbcorr = itPrev->second;
-            /*_gmutex.unlock();*/ return 1;
+            /**/ return 1;
         }
         else
         {
-            /*_gmutex.unlock(); */ return -1;
+            /* */ return -1;
         }
     }
 
@@ -2391,11 +2391,11 @@ namespace hwa_gnss
     int gnss_all_prec::_get_delta_clk(const std::string &sat, const base_time &t, int iod, base_time &tRef, hwa_map_iv &clkcorr)
     {
 
-        //_gmutex.lock();
+        //
 
         if (_mapclk.find(sat) == _mapclk.end() || _mapclk[sat].size() == 0)
         {
-            /*_gmutex.unlock();*/ return -1;
+            /**/ return -1;
         }
         std::map<base_time, hwa_map_iv>::iterator itLast = _mapclk[sat].lower_bound(t); // 1st equal|greater [than t]
 
@@ -2405,17 +2405,17 @@ namespace hwa_gnss
         {
             tRef = itLast->first;
             clkcorr = itLast->second;
-            /*_gmutex.unlock();*/ return 1;
+            /**/ return 1;
         }
         else if (itPrev != _mapclk[sat].end() && int(itPrev->second["IOD"]) == iod)
         {
             tRef = itPrev->first;
             clkcorr = itPrev->second;
-            /*_gmutex.unlock();*/ return 1;
+            /**/ return 1;
         }
         else
         {
-            /*_gmutex.unlock();*/ return -1;
+            /**/ return -1;
         }
     }
 

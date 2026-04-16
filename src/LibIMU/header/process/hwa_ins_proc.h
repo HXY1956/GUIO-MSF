@@ -103,6 +103,9 @@ namespace hwa_ins {
         SO3 Faa, Fav, Fap, Fva, Fvv, Fvp, Fpv, Fpp;   /// Error Matrix
         SO3 Fng;                        /// transfer Matrix from d_enu to d_blh
 
+        std::vector<Triple> _wm;
+        std::vector<Triple> _vm;
+
         Eigen::Quaterniond orientation, orientation_store;
         Triple position;
         Triple velocity, velocity_store;

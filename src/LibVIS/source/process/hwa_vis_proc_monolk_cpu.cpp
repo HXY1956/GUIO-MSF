@@ -15,9 +15,9 @@ n_id(0)
 
 }
 
-PointCloud vis_mono_lk_cpu::ProcessBatch(const double& t)
+PointCloud vis_mono_lk_cpu::ProcessBatch()
 {
-    cv::Mat _img0 = cv::imread(cur_img_path.img0_path, 0);
+    cv::Mat _img0 = imageGroup.second.first;
     ONE_FRAME _img_msg;
     _img_msg.t = cur_img_path.t;
     _img_msg.img0 = make_shared<cv::Mat>(_img0);

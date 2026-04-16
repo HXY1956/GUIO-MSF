@@ -12,6 +12,7 @@ hwa_vis::vis_base::vis_base(hwa_set::set_base* _set, int cam_group_id) :cam_stat
     R_cam0_cam1 = dynamic_cast<set_vis*>(_set)->R_cam0_cam1(cam_group_id);
     t_cam0_cam1 = dynamic_cast<set_vis*>(_set)->t_cam0_cam1(cam_group_id);
     T_cam0_cam1 = dynamic_cast<set_vis*>(_set)->T_cam0_cam1(cam_group_id);
+    vis_feature::read_Tc0c1(T_cam0_cam1);
     usingstereorecity = dynamic_cast<set_vis*>(_set)->usingstereorecify(cam_group_id);
     cam0_intrinsics = dynamic_cast<set_vis*>(_set)->cam0_intrinsics(cam_group_id);
     num_of_cam = dynamic_cast<set_vis*>(_set)->num_of_cam(cam_group_id);
@@ -708,6 +709,7 @@ bool hwa_vis::vis_base::featureJacobian(const FeatureIDType& feature_id,
         std::cout << "Residual_big" << std::endl;
         return false;
     }*/
+    if (H_fj.rows() == 0) return false;
 
     Eigen::JacobiSVD<Matrix> svd_helper(H_fj, Eigen::ComputeFullU | Eigen::ComputeThinV);
     Matrix A = svd_helper.matrixU().rightCols(

@@ -19,6 +19,7 @@ namespace hwa_gnss
           _n_NPD_smt(0),
           _n_all_smt(0)
     {
+        _param = std::make_shared<base_allpar>();
 
         gnss_proc_spp::_get_settings();
 
@@ -71,38 +72,38 @@ namespace hwa_gnss
         // Add coordinates parameters
         if (_crd_est != CONSTRPAR::FIX)
         {
-            _param.addParam(base_par(_site, par_type::CRD_X, ++ipar, ""));
-            _param.addParam(base_par(_site, par_type::CRD_Y, ++ipar, ""));
-            _param.addParam(base_par(_site, par_type::CRD_Z, ++ipar, ""));
+            _param->addParam(base_par(_site, par_type::CRD_X, ++ipar, ""));
+            _param->addParam(base_par(_site, par_type::CRD_Y, ++ipar, ""));
+            _param->addParam(base_par(_site, par_type::CRD_Z, ++ipar, ""));
         }
 
         // Add receiver clock parameter
-        _param.addParam(base_par(_site, par_type::CLK, ++ipar, ""));
+        _param->addParam(base_par(_site, par_type::CLK, ++ipar, ""));
 
         // Add tropospheric wet delay parameter
         if (_tropo_est)
         {
             base_par par_trp(_site, par_type::TRP, ++ipar, "");
             par_trp.setMF(_ztd_mf);
-            _param.addParam(par_trp);
+            _param->addParam(par_trp);
         }
 
         // Filling init parameter covariance matrix
-        _Qx.resize(_param.parNumber());
+        _Qx.resize(_param->parNumber());
         _Qx.matrixW().setZero();
         double crdInit = _sig_init_crd;
         double ztdInit = _sig_init_ztd;
-        for (unsigned int i = 0; i < _param.parNumber(); i++)
+        for (unsigned int i = 0; i < _param->parNumber(); i++)
         {
-            if (_param[i - 1].parType == par_type::CRD_X)
+            if (_param->operator[](i).parType == par_type::CRD_X)
                 _Qx.matrixW()(i, i) = crdInit * crdInit;
-            else if (_param[i - 1].parType == par_type::CRD_Y)
+            else if (_param->operator[](i).parType == par_type::CRD_Y)
                 _Qx.matrixW()(i, i) = crdInit * crdInit;
-            else if (_param[i - 1].parType == par_type::CRD_Z)
+            else if (_param->operator[](i).parType == par_type::CRD_Z)
                 _Qx.matrixW()(i, i) = crdInit * crdInit;
-            else if (_param[i - 1].parType == par_type::CLK)
+            else if (_param->operator[](i).parType == par_type::CLK)
                 _Qx.matrixW()(i, i) = _clkStoModel->getQ() * _clkStoModel->getQ();
-            else if (_param[i - 1].parType == par_type::TRP)
+            else if (_param->operator[](i).parType == par_type::TRP)
                 _Qx.matrixW()(i, i) = ztdInit * ztdInit;
         }
 
@@ -128,6 +129,8 @@ namespace hwa_gnss
           _n_NPD_smt(0),
           _n_all_smt(0)
     {
+        _param = std::make_shared<base_allpar>();
+
         gnss_proc_spp::_get_settings();
         _smooth = dynamic_cast<set_flt *>(_set)->smooth();
         std::string fltModStr(dynamic_cast<set_flt *>(_set)->method_flt());
@@ -175,38 +178,38 @@ namespace hwa_gnss
         // Add coordinates parameters
         if (_crd_est != CONSTRPAR::FIX)
         {
-            _param.addParam(base_par(_site, par_type::CRD_X, ++ipar, ""));
-            _param.addParam(base_par(_site, par_type::CRD_Y, ++ipar, ""));
-            _param.addParam(base_par(_site, par_type::CRD_Z, ++ipar, ""));
+            _param->addParam(base_par(_site, par_type::CRD_X, ++ipar, ""));
+            _param->addParam(base_par(_site, par_type::CRD_Y, ++ipar, ""));
+            _param->addParam(base_par(_site, par_type::CRD_Z, ++ipar, ""));
         }
 
         // Add receiver clock parameter
-        _param.addParam(base_par(_site, par_type::CLK, ++ipar, ""));
+        _param->addParam(base_par(_site, par_type::CLK, ++ipar, ""));
 
         // Add tropospheric wet delay parameter
         if (_tropo_est)
         {
             base_par par_trp(_site, par_type::TRP, ++ipar, "");
             par_trp.setMF(_ztd_mf);
-            _param.addParam(par_trp);
+            _param->addParam(par_trp);
         }
 
         // Filling init parameter covariance matrix
-        _Qx.resize(_param.parNumber());
+        _Qx.resize(_param->parNumber());
         _Qx.setZero();
         double crdInit = _sig_init_crd;
         double ztdInit = _sig_init_ztd;
-        for (unsigned int i = 0; i < _param.parNumber(); i++)
+        for (unsigned int i = 0; i < _param->parNumber(); i++)
         {
-            if (_param[i].parType == par_type::CRD_X)
+            if (_param->operator[](i).parType == par_type::CRD_X)
                 _Qx.matrixW()(i, i) = crdInit * crdInit;
-            else if (_param[i].parType == par_type::CRD_Y)
+            else if (_param->operator[](i).parType == par_type::CRD_Y)
                 _Qx.matrixW()(i, i) = crdInit * crdInit;
-            else if (_param[i].parType == par_type::CRD_Z)
+            else if (_param->operator[](i).parType == par_type::CRD_Z)
                 _Qx.matrixW()(i, i) = crdInit * crdInit;
-            else if (_param[i].parType == par_type::CLK)
+            else if (_param->operator[](i).parType == par_type::CLK)
                 _Qx.matrixW()(i, i) = _clkStoModel->getQ() * _clkStoModel->getQ();
-            else if (_param[i].parType == par_type::TRP)
+            else if (_param->operator[](i).parType == par_type::TRP)
                 _Qx.matrixW()(i, i) = ztdInit * ztdInit;
         }
 
@@ -307,7 +310,7 @@ namespace hwa_gnss
         base_time begT(beg);
         base_time endT(end);
 
-        _param.setSite(_site);
+        _param->setSite(_site);
         Triple xyz, neu, ell;
 
         double subint = 0.1;
@@ -375,7 +378,7 @@ namespace hwa_gnss
             if (_spdlog)
                 SPDLOG_LOGGER_DEBUG(_spdlog, _site + now.str_ymdhms(" processing epoch: "));
 
-            if (_param.getCrdParam(_site, xyz) <= 0)
+            if (_param->getCrdParam(_site, xyz) <= 0)
             {
                 if (_spdlog)
                     SPDLOG_LOGGER_DEBUG(_spdlog, _site + now.str_ymdhms(" No coordinates included in params: "));
@@ -385,11 +388,11 @@ namespace hwa_gnss
 
             double clk = 0.0;
             double clk_std = 0.0;
-            int iclk = _param.getParam(_site, par_type::CLK, "", FIRST_TIME, LAST_TIME);
+            int iclk = _param->getParam(_site, par_type::CLK, "", FIRST_TIME, LAST_TIME);
             if (iclk >= 0)
             {
-                clk_std = _Qx.matrixW()(_param[iclk].index, _param[iclk].index);
-                clk = _param[iclk].value();
+                clk_std = _Qx.matrixW()(_param->operator[](iclk).index, _param->operator[](iclk).index);
+                clk = _param->operator[](iclk).value();
             }
 
             xyz2ell(xyz, ell, false);
@@ -495,7 +498,7 @@ namespace hwa_gnss
 #endif
 
             QsavBP.matrixW() = _Qx.matrixR();
-            XsavBP = _param;
+            XsavBP = *_param;
             _predict();
 
             if (_data.size() < _minsat)
@@ -508,7 +511,7 @@ namespace hwa_gnss
 
             Triple groundEll, groundXYZ;
 
-            if (_param.getCrdParam(_site, groundXYZ, FIRST_TIME, LAST_TIME) > 0)
+            if (_param->getCrdParam(_site, groundXYZ, FIRST_TIME, LAST_TIME) > 0)
             {
             }
             else if (_valid_crd_xml)
@@ -547,7 +550,7 @@ namespace hwa_gnss
             std::cout.flush();
 #endif
 
-            unsigned int nPar = _param.parNumber();
+            unsigned int nPar = _param->parNumber();
             A.resize(nObs, nPar);
             A.setZero();
             l.resize(nObs);
@@ -620,11 +623,11 @@ namespace hwa_gnss
             _filter->update(A, P, l, dx, _Qx);
 
             // increasing variance after update in case of introducing new ambiguity
-            for (size_t iPar = 0; iPar < _param.parNumber(); iPar++)
+            for (size_t iPar = 0; iPar < _param->parNumber(); iPar++)
             {
-                if (_param[iPar].parType == par_type::AMB_IF)
+                if (_param->operator[](iPar).parType == par_type::AMB_IF)
                 {
-                    std::string sat = _param[iPar].prn;
+                    std::string sat = _param->operator[](iPar).prn;
                     if (_newAMB.find(sat) != _newAMB.end() && _cntrep == 1)
                     {
                         if (_newAMB[sat] == 1)
@@ -672,8 +675,8 @@ namespace hwa_gnss
                 std::cout << _data[i].sat() << " ";
             std::cout << std::endl;
             std::cout << "Used parameters: ";
-            for (unsigned int i = 0; i < _param.parNumber(); i++)
-                std::cout << _param[i].str_type() << "_" << _param[i].prn << " ";
+            for (unsigned int i = 0; i < _param->parNumber(); i++)
+                std::cout << _param->operator[](i).str_type() << "_" << _param->operator[](i).prn << " ";
             std::cout << std::endl;
             std::cout << std::fixed << setprecision(3)
                  << _epoch.str_ymdhms() << std::endl
@@ -692,8 +695,8 @@ namespace hwa_gnss
                  << std::endl;
             std::cout.flush();
 
-            // for(int i = 1; i <= _param.parNumber(); i++) std::cout << _param[_param.getParam(i)].str_type() << " "; std::cout << std::endl;
-            // for(int i = 1; i <= _param.parNumber(); i++) std::cout << _param[_param.getParam(i)].str_type() << " " << Corr.row(i) << " "; std::cout << std::endl;
+            // for(int i = 1; i <= _param->parNumber(); i++) std::cout << _param[_param->getParam(i)].str_type() << " "; std::cout << std::endl;
+            // for(int i = 1; i <= _param->parNumber(); i++) std::cout << _param[_param->getParam(i)].str_type() << " " << Corr.row(i) << " "; std::cout << std::endl;
 
             //int ooo; cin >> ooo;
 #endif
@@ -743,7 +746,7 @@ namespace hwa_gnss
         // edit and save ZHD - for post-fit residual
         // (Must be before updating crd due to maintain consistency with a priory)
         Triple Ell, XYZ;
-        if (_param.getCrdParam(_site, XYZ) > 0)
+        if (_param->getCrdParam(_site, XYZ) > 0)
         {
         }
         else if (_valid_crd_xml)
@@ -751,19 +754,19 @@ namespace hwa_gnss
             XYZ = _grec->crd_arp(_epoch);
         }
         xyz2ell(XYZ, Ell, false);
-        int itrp = _param.getParam(_site, par_type::TRP, "");
+        int itrp = _param->getParam(_site, par_type::TRP, "");
         if (itrp >= 0)
         {
             if (_gModel->tropoModel() != 0)
             {
-                _param[itrp].apriori(_gModel->tropoModel()->getZHD(Ell, _epoch));
+                _param->operator[](itrp).apriori(_gModel->tropoModel()->getZHD(Ell, _epoch));
             }
         }
 
         // Edit and save parematres
-        for (unsigned int iPar = 0; iPar < _param.parNumber(); iPar++)
+        for (unsigned int iPar = 0; iPar < _param->parNumber(); iPar++)
         {
-            _param[iPar].value(_param[iPar].value() + dx(_param[iPar].index));
+            _param->operator[](iPar).value(_param->operator[](iPar).value() + dx(_param->operator[](iPar).index));
         }
 
         return 1;
@@ -838,7 +841,7 @@ namespace hwa_gnss
 #endif
 
             Matrix_addRC(A, A.rows() + 1, 0);
-            int i = _param.getParam(_site, par_type::TRP, "");
+            int i = _param->getParam(_site, par_type::TRP, "");
             A(A.rows(), i + 1) = 1;
 
             // tropo (wet part) is constrained to this value
@@ -848,7 +851,7 @@ namespace hwa_gnss
 
             // Reduced measurement
             addR(l, l.rows() + 1);
-            l(l.rows()) = _param[i].value() - TRP_fix;
+            l(l.rows()) = _param->operator[](i).value() - TRP_fix;
 
             // weight matrix
             P.Matrix_addRC(P.rows() + 1);
@@ -1027,7 +1030,7 @@ namespace hwa_gnss
         double modObsP = 0.0;
         if (_observ == OBSCOMBIN::IONO_FREE)
         {
-            modObsP = _gModel->cmpObs(_epoch, _param, satdata, gobs1, com);
+            modObsP = _gModel->cmpObs(_epoch, *_param, satdata, gobs1, com);
             if (modObsP < 0)
                 return -1;
             _applyDCB(satdata, PIF, &gobs1, &gobs2);
@@ -1038,7 +1041,7 @@ namespace hwa_gnss
         }
         else if (_observ == OBSCOMBIN::RAW_SINGLE)
         {
-            modObsP = _gModel->cmpObs(_epoch, _param, satdata, gobs1, com);
+            modObsP = _gModel->cmpObs(_epoch, *_param, satdata, gobs1, com);
             if (modObsP < 0)
                 return -1;
             _applyDCB(satdata, P1, &gobs1);
@@ -1046,12 +1049,12 @@ namespace hwa_gnss
         }
         else if (_observ == OBSCOMBIN::RAW_DOUBLE)
         {
-            modObsP = _gModel->cmpObs(_epoch, _param, satdata, gobs1, com);
+            modObsP = _gModel->cmpObs(_epoch, *_param, satdata, gobs1, com);
             if (modObsP < 0)
                 return -1;
             _applyDCB(satdata, P1, &gobs1);
             l(iobs) = P1 - modObsP;
-            modObsP = _gModel->cmpObs(_epoch, _param, satdata, gobs2, com);
+            modObsP = _gModel->cmpObs(_epoch, *_param, satdata, gobs2, com);
             if (modObsP < 0)
                 return -1;
             _applyDCB(satdata, P2, &gobs2);
@@ -1064,29 +1067,29 @@ namespace hwa_gnss
                 double Pi = 0.0;
                 if (i == 0)
                 {
-                    modObsP = _gModel->cmpObs(_epoch, _param, satdata, gobs1, com);
+                    modObsP = _gModel->cmpObs(_epoch, *_param, satdata, gobs1, com);
                     _applyDCB(satdata, P1, &gobs1);
                     Pi = P1;
                 }
                 if (i == 1)
                 {
-                    modObsP = _gModel->cmpObs(_epoch, _param, satdata, gobs2, com);
+                    modObsP = _gModel->cmpObs(_epoch, *_param, satdata, gobs2, com);
                     _applyDCB(satdata, P2, &gobs2);
                     Pi = P2;
                 }
                 if (i == 2)
                 {
-                    modObsP = _gModel->cmpObs(_epoch, _param, satdata, gobs3, com);
+                    modObsP = _gModel->cmpObs(_epoch, *_param, satdata, gobs3, com);
                     Pi = P3;
                 }
                 if (i == 3)
                 {
-                    modObsP = _gModel->cmpObs(_epoch, _param, satdata, gobs4, com);
+                    modObsP = _gModel->cmpObs(_epoch, *_param, satdata, gobs4, com);
                     Pi = P4;
                 }
                 if (i == 4)
                 {
-                    modObsP = _gModel->cmpObs(_epoch, _param, satdata, gobs5, com);
+                    modObsP = _gModel->cmpObs(_epoch, *_param, satdata, gobs5, com);
                     Pi = P5;
                 }
                 if (double_eq(modObsP, -1.0) || double_eq(Pi, 0.0))
@@ -1103,24 +1106,24 @@ namespace hwa_gnss
             gs == QZS)
         {
 
-            for (unsigned int ipar = 0; ipar < _param.parNumber(); ipar++)
+            for (unsigned int ipar = 0; ipar < _param->parNumber(); ipar++)
             {
-                A(iobs, ipar) = _param[ipar].partial(satdata, _epoch, ell, gobs1);
+                A(iobs, ipar) = _param->operator[](ipar).partial(satdata, _epoch, ell, gobs1);
                 if (_observ == OBSCOMBIN::RAW_DOUBLE ||
                     _observ == OBSCOMBIN::RAW_ALL)
-                    A(iobs + 1, ipar) = _param[ipar].partial(satdata, _epoch, ell, gobs2);
+                    A(iobs + 1, ipar) = _param->operator[](ipar).partial(satdata, _epoch, ell, gobs2);
                 if (_observ == OBSCOMBIN::RAW_MIX && addIobs == 1)
-                    A(iobs + 1, ipar) = _param[ipar].partial(satdata, _epoch, ell, gobs2);
+                    A(iobs + 1, ipar) = _param->operator[](ipar).partial(satdata, _epoch, ell, gobs2);
                 if (_observ == OBSCOMBIN::RAW_ALL)
                 {
                     for (int i = 2; i <= addIobs; i++)
                     {
                         if (i == 2)
-                            A(iobs + i, ipar) = _param[ipar].partial(satdata, _epoch, ell, gobs3);
+                            A(iobs + i, ipar) = _param->operator[](ipar).partial(satdata, _epoch, ell, gobs3);
                         if (i == 3)
-                            A(iobs + i, ipar) = _param[ipar].partial(satdata, _epoch, ell, gobs4);
+                            A(iobs + i, ipar) = _param->operator[](ipar).partial(satdata, _epoch, ell, gobs4);
                         if (i == 4)
-                            A(iobs + i, ipar) = _param[ipar].partial(satdata, _epoch, ell, gobs5);
+                            A(iobs + i, ipar) = _param->operator[](ipar).partial(satdata, _epoch, ell, gobs5);
                     }
                 }
             }
@@ -1398,7 +1401,7 @@ namespace hwa_gnss
                         xyz_r = _vBanc.segment(0, 3);
                     }
                     else
-                        _param.getCrdParam(_site, xyz_r);
+                        _param->getCrdParam(_site, xyz_r);
                 }
             }
             else
@@ -1562,12 +1565,12 @@ namespace hwa_gnss
         double crdInit = _sig_init_crd;
         double ztdInit = _sig_init_ztd;
 
-        i = _param.getParam(_site, par_type::CRD_X, "");
+        i = _param->getParam(_site, par_type::CRD_X, "");
         if (i >= 0)
         {
             if (!_initialized || _Qx.matrixW()(i, i) == 0.0)
             {
-                _param[i].value(_vBanc(0));
+                _param->operator[](i).value(_vBanc(0));
                 _Qx.matrixW()(i, i) = crdInit * crdInit;
             }
             else
@@ -1580,7 +1583,7 @@ namespace hwa_gnss
                 else
                 {
                     if (_pos_kin)
-                        _param[i].value(_vBanc(0));
+                        _param->operator[](i).value(_vBanc(0));
                     if (_cntrep == 1 && _success)
                         _Qx.matrixW()(i, i) += _crdStoModel->getQ() * _crdStoModel->getQ();
                     if (_smooth)
@@ -1589,12 +1592,12 @@ namespace hwa_gnss
             }
         }
 
-        i = _param.getParam(_site, par_type::CRD_Y, "");
+        i = _param->getParam(_site, par_type::CRD_Y, "");
         if (i >= 0)
         {
             if (!_initialized || _Qx.matrixW()(i, i) == 0.0)
             {
-                _param[i].value(_vBanc(1));
+                _param->operator[](i).value(_vBanc(1));
                 _Qx.matrixW()(i, i) = crdInit * crdInit;
             }
             else
@@ -1607,7 +1610,7 @@ namespace hwa_gnss
                 else
                 {
                     if (_pos_kin)
-                        _param[i].value(_vBanc(1));
+                        _param->operator[](i).value(_vBanc(1));
                     if (_cntrep == 1 && _success)
                         _Qx.matrixW()(i, i) += _crdStoModel->getQ() * _crdStoModel->getQ();
                     if (_smooth)
@@ -1616,12 +1619,12 @@ namespace hwa_gnss
             }
         }
 
-        i = _param.getParam(_site, par_type::CRD_Z, "");
+        i = _param->getParam(_site, par_type::CRD_Z, "");
         if (i >= 0)
         {
             if (!_initialized || _Qx.matrixW()(i, i) == 0.0)
             {
-                _param[i].value(_vBanc(2));
+                _param->operator[](i).value(_vBanc(2));
                 _Qx.matrixW()(i, i) = crdInit * crdInit;
             }
             else
@@ -1634,7 +1637,7 @@ namespace hwa_gnss
                 else
                 {
                     if (_pos_kin)
-                        _param[i].value(_vBanc(2));
+                        _param->operator[](i).value(_vBanc(2));
                     if (_cntrep == 1 && _success)
                         _Qx.matrixW()(i, i) += _crdStoModel->getQ() * _crdStoModel->getQ();
                     if (_smooth)
@@ -1643,18 +1646,18 @@ namespace hwa_gnss
             }
         }
 
-        i = _param.getParam(_site, par_type::CLK, "");
+        i = _param->getParam(_site, par_type::CLK, "");
         if (i >= 0)
         {
-            _param[i].value(_vBanc(3));
-            for (unsigned int jj = 0; jj < _param.parNumber(); jj++)
+            _param->operator[](i).value(_vBanc(3));
+            for (unsigned int jj = 0; jj < _param->parNumber(); jj++)
                 _Qx.matrixW()(i, jj) = 0.0;
             _Qx.matrixW()(i, i) = _clkStoModel->getQ() * _clkStoModel->getQ();
             if (_smooth)
                 _Noise.matrixW()(i, i) = _clkStoModel->getQ() * _clkStoModel->getQ();
         }
 
-        i = _param.getParam(_site, par_type::GLO_ISB, "");
+        i = _param->getParam(_site, par_type::GLO_ISB, "");
         if (i >= 0)
         {
             if (!_initialized || _Qx.matrixW()(i, i) == 0.0)
@@ -1670,7 +1673,7 @@ namespace hwa_gnss
             }
         }
 
-        i = _param.getParam(_site, par_type::GLO_ifcb, "", FIRST_TIME, LAST_TIME);
+        i = _param->getParam(_site, par_type::GLO_ifcb, "", FIRST_TIME, LAST_TIME);
         if (i >= 0)
         {
             if (!_initialized || _Qx.matrixW()(i, i) == 0.0)
@@ -1686,7 +1689,7 @@ namespace hwa_gnss
             }
         }
 
-        i = _param.getParam(_site, par_type::GAL_ISB, "");
+        i = _param->getParam(_site, par_type::GAL_ISB, "");
         if (i >= 0)
         {
             if (!_initialized || _Qx.matrixW()(i, i) == 0.0)
@@ -1702,7 +1705,7 @@ namespace hwa_gnss
             }
         }
 
-        i = _param.getParam(_site, par_type::BDS_ISB, "");
+        i = _param->getParam(_site, par_type::BDS_ISB, "");
         if (i >= 0)
         {
             if (!_initialized || _Qx.matrixW()(i, i) == 0.0)
@@ -1718,7 +1721,7 @@ namespace hwa_gnss
             }
         }
 
-        i = _param.getParam(_site, par_type::QZS_ISB, "");
+        i = _param->getParam(_site, par_type::QZS_ISB, "");
         if (i >= 0)
         {
             if (!_initialized || _Qx.matrixW()(i, i) == 0.0)
@@ -1734,12 +1737,12 @@ namespace hwa_gnss
             }
         }
 
-        i = _param.getParam(_site, par_type::TRP, "");
+        i = _param->getParam(_site, par_type::TRP, "");
         if (i >= 0)
         {
             Triple Ell, XYZ;
 
-            if (_param.getCrdParam(_site, XYZ) > 0)
+            if (_param->getCrdParam(_site, XYZ) > 0)
             {
             }
             else if (_valid_crd_xml)
@@ -1750,20 +1753,20 @@ namespace hwa_gnss
             // ZTD apriori (=ZHD) is updated every epoch
             if (_gModel->tropoModel() != 0)
             {
-                _param[i].apriori(_gModel->tropoModel()->getZHD(Ell, _epoch));
+                _param->operator[](i).apriori(_gModel->tropoModel()->getZHD(Ell, _epoch));
             }
 
             if (!_initialized || _Qx.matrixW()(i, i) == 0.0)
             {
                 if (_valid_ztd_xml)
                 {
-                    _param[i].value(_aprox_ztd_xml - _gModel->tropoModel()->getZHD(Ell, _epoch));
+                    _param->operator[](i).value(_aprox_ztd_xml - _gModel->tropoModel()->getZHD(Ell, _epoch));
                 }
                 else
                 {
                     if (_gModel->tropoModel() != 0)
                     {
-                        _param[i].value(_gModel->tropoModel()->getZWD(Ell, _epoch));
+                        _param->operator[](i).value(_gModel->tropoModel()->getZWD(Ell, _epoch));
                     }
                 }
 
@@ -1790,7 +1793,7 @@ namespace hwa_gnss
         std::vector<gnss_data_sats>::iterator it;
         for (it = _data.begin(); it != _data.end(); it++)
         {
-            i = _param.getParam(_site, par_type::VION, it->sat());
+            i = _param->getParam(_site, par_type::VION, it->sat());
             if (i >= 0)
             {
                 if (_gion)
@@ -1799,7 +1802,7 @@ namespace hwa_gnss
                     Triple site_ell(0.0, 0.0, 0.0);
                     Triple ipp_ell(0.0, 0.0, 0.0);
 
-                    _param.getCrdParam(_site, site_xyz);
+                    _param->getCrdParam(_site, site_xyz);
                     if (site_xyz.isZero())
                         site_xyz = _vBanc.segment(0, 3);
                     xyz2ell(site_xyz, site_ell, false);
@@ -1809,7 +1812,7 @@ namespace hwa_gnss
                     //      double ionomodel = _gion->iono(ipp_ell[0] * R2D, ipp_ell[1] * R2D, it->epoch());
                     double ionomodel = 1.0; // ( ionomodel * 40.28 * 1e16 ) / (G01_F*G01_F);
 
-                    _param[i].apriori(ionomodel);
+                    _param->operator[](i).apriori(ionomodel);
                 }
 
                 if (_cntrep == 1 &&
@@ -1828,7 +1831,7 @@ namespace hwa_gnss
                 // }
             }
 
-            i = _param.getParam(_site, par_type::SION, it->sat());
+            i = _param->getParam(_site, par_type::SION, it->sat());
             if (i >= 0)
             {
                 if (_cntrep == 1 && !double_eq(_Qx.matrixW()(i, i), _sig_init_vion * _sig_init_vion))
@@ -1841,7 +1844,7 @@ namespace hwa_gnss
         // predict inter-frequency clock bias
         for (it = _data.begin(); it != _data.end(); it++)
         {
-            i = _param.getParam(_site, par_type::IFCB_F3, it->sat());
+            i = _param->getParam(_site, par_type::IFCB_F3, it->sat());
             if (i >= 0)
             {
                 if (_cntrep == 1)
@@ -1849,7 +1852,7 @@ namespace hwa_gnss
                 if (_smooth)
                     _Noise.matrixW()(i, i) = 0.001;
             }
-            i = _param.getParam(_site, par_type::IFCB_F4, it->sat());
+            i = _param->getParam(_site, par_type::IFCB_F4, it->sat());
             if (i >= 0)
             {
                 if (_cntrep == 1)
@@ -1857,7 +1860,7 @@ namespace hwa_gnss
                 if (_smooth)
                     _Noise.matrixW()(i, i) = 0.001;
             }
-            i = _param.getParam(_site, par_type::IFCB_F5, it->sat());
+            i = _param->getParam(_site, par_type::IFCB_F5, it->sat());
             if (i >= 0)
             {
                 if (_cntrep == 1)
@@ -1873,7 +1876,7 @@ namespace hwa_gnss
     void gnss_proc_sppflt::_restore(const Symmetric &QsavBP, const base_allpar &XsavBP)
     {
         _Qx = QsavBP;
-        _param = XsavBP;
+        *_param = XsavBP;
     }
 
     // Satelite position
@@ -1996,28 +1999,28 @@ namespace hwa_gnss
         bool parGal = false;
         bool parBds = false;
         bool parQzs = false;
-        for (unsigned int i = 0; i < _param.parNumber(); i++)
+        for (unsigned int i = 0; i < _param->parNumber(); i++)
         {
-            if (_param[i].site != _site)
+            if (_param->operator[](i).site != _site)
                 continue;
-            if (_param[i].parType == par_type::GLO_ISB)
+            if (_param->operator[](i).parType == par_type::GLO_ISB)
                 parGlo = true;
-            if (_param[i].parType == par_type::GAL_ISB)
+            if (_param->operator[](i).parType == par_type::GAL_ISB)
                 parGal = true;
-            if (_param[i].parType == par_type::BDS_ISB)
+            if (_param->operator[](i).parType == par_type::BDS_ISB)
                 parBds = true;
-            if (_param[i].parType == par_type::QZS_ISB)
+            if (_param->operator[](i).parType == par_type::QZS_ISB)
                 parQzs = true;
         }
 
         // Add GLO ISB parameter
         if (!parGlo && obsGlo && !onlyGlo)
         {
-            base_par newPar(_data.begin()->site(), par_type::GLO_ISB, _param.parNumber() + 1, "");
+            base_par newPar(_data.begin()->site(), par_type::GLO_ISB, _param->parNumber() + 1, "");
             newPar.value(0.0);
-            _param.addParam(newPar);
-            _Qx.Matrix_addRC(_param.parNumber() - 1, _param.parNumber() - 1);
-            _Qx.matrixW()(_param.parNumber() - 1, _param.parNumber() - 1) = _sig_init_glo * _sig_init_glo;
+            _param->addParam(newPar);
+            _Qx.Matrix_addRC(_param->parNumber() - 1, _param->parNumber() - 1);
+            _Qx.matrixW()(_param->parNumber() - 1, _param->parNumber() - 1) = _sig_init_glo * _sig_init_glo;
 #ifdef DEBUG
             std::cout << "GLO_ISB was added!"
                  << " Epoch: "
@@ -2028,11 +2031,11 @@ namespace hwa_gnss
         // Add GAL ISB parameter
         if (!parGal && obsGal && !onlyGal)
         {
-            base_par newPar(_data.begin()->site(), par_type::GAL_ISB, _param.parNumber() + 1, "");
+            base_par newPar(_data.begin()->site(), par_type::GAL_ISB, _param->parNumber() + 1, "");
             newPar.value(0.0);
-            _param.addParam(newPar);
-            _Qx.Matrix_addRC(_param.parNumber() - 1, _param.parNumber() - 1);
-            _Qx.matrixW()(_param.parNumber() - 1, _param.parNumber() - 1) = _sig_init_gal * _sig_init_gal;
+            _param->addParam(newPar);
+            _Qx.Matrix_addRC(_param->parNumber() - 1, _param->parNumber() - 1);
+            _Qx.matrixW()(_param->parNumber() - 1, _param->parNumber() - 1) = _sig_init_gal * _sig_init_gal;
 #ifdef DEBUG
             std::cout << "GAL_ISB was added!"
                  << " Epoch: "
@@ -2043,11 +2046,11 @@ namespace hwa_gnss
         // Add BDS ISB parameter
         if (!parBds && obsBds && !onlyBds)
         {
-            base_par newPar(_data.begin()->site(), par_type::BDS_ISB, _param.parNumber() + 1, "");
+            base_par newPar(_data.begin()->site(), par_type::BDS_ISB, _param->parNumber() + 1, "");
             newPar.value(0.0);
-            _param.addParam(newPar);
-            _Qx.Matrix_addRC(_param.parNumber() - 1, _param.parNumber() - 1);
-            _Qx.matrixW()(_param.parNumber() - 1, _param.parNumber() - 1) = _sig_init_bds * _sig_init_bds;
+            _param->addParam(newPar);
+            _Qx.Matrix_addRC(_param->parNumber() - 1, _param->parNumber() - 1);
+            _Qx.matrixW()(_param->parNumber() - 1, _param->parNumber() - 1) = _sig_init_bds * _sig_init_bds;
 #ifdef DEBUG
             std::cout << "BDS_ISB was added!"
                  << " Epoch: "
@@ -2058,11 +2061,11 @@ namespace hwa_gnss
         // Add QZS ISB parameter
         if (!parQzs && obsQzs && !onlyQzs)
         {
-            base_par newPar(_data.begin()->site(), par_type::QZS_ISB, _param.parNumber() + 1, "");
+            base_par newPar(_data.begin()->site(), par_type::QZS_ISB, _param->parNumber() + 1, "");
             newPar.value(0.0);
-            _param.addParam(newPar);
-            _Qx.Matrix_addRC(_param.parNumber() - 1, _param.parNumber() - 1);
-            _Qx.matrixW()(_param.parNumber() - 1, _param.parNumber() - 1) = _sig_init_qzs * _sig_init_qzs;
+            _param->addParam(newPar);
+            _Qx.Matrix_addRC(_param->parNumber() - 1, _param->parNumber() - 1);
+            _Qx.matrixW()(_param->parNumber() - 1, _param->parNumber() - 1) = _sig_init_qzs * _sig_init_qzs;
 #ifdef DEBUG
             std::cout << "QZS_ISB was added!"
                  << " Epoch: "
@@ -2073,10 +2076,10 @@ namespace hwa_gnss
         // Remove GLO ISB paremeter
         if (parGlo && !obsGlo)
         {
-            int i = _param.getParam(_data.begin()->site(), par_type::GLO_ISB, "");
-            Matrix_remRC(_Qx.matrixW(), _param[i].index, _param[i].index);
-            _param.delParam(i);
-            _param.reIndex();
+            int i = _param->getParam(_data.begin()->site(), par_type::GLO_ISB, "");
+            Matrix_remRC(_Qx.matrixW(), _param->operator[](i).index, _param->operator[](i).index);
+            _param->delParam(i);
+            _param->reIndex();
 #ifdef DEBUG
             std::cout << "GLO_ISB was removed!"
                  << " Epoch: "
@@ -2087,10 +2090,10 @@ namespace hwa_gnss
         // Remove GAL ISB paremeter
         if (parGal && !obsGal)
         {
-            int i = _param.getParam(_data.begin()->site(), par_type::GAL_ISB, "");
-            Matrix_remRC(_Qx.matrixW(), _param[i].index, _param[i].index);
-            _param.delParam(i);
-            _param.reIndex();
+            int i = _param->getParam(_data.begin()->site(), par_type::GAL_ISB, "");
+            Matrix_remRC(_Qx.matrixW(), _param->operator[](i).index, _param->operator[](i).index);
+            _param->delParam(i);
+            _param->reIndex();
 #ifdef DEBUG
             std::cout << "GAL_ISB was removed!"
                  << " Epoch: "
@@ -2101,10 +2104,10 @@ namespace hwa_gnss
         // Remove BDS ISB paremeter
         if (parBds && !obsBds)
         {
-            int i = _param.getParam(_data.begin()->site(), par_type::BDS_ISB, "");
-            Matrix_remRC(_Qx.matrixW(), _param[i].index, _param[i].index);
-            _param.delParam(i);
-            _param.reIndex();
+            int i = _param->getParam(_data.begin()->site(), par_type::BDS_ISB, "");
+            Matrix_remRC(_Qx.matrixW(), _param->operator[](i).index, _param->operator[](i).index);
+            _param->delParam(i);
+            _param->reIndex();
 #ifdef DEBUG
             std::cout << "BDS_ISB was removed!"
                  << " Epoch: "
@@ -2115,10 +2118,10 @@ namespace hwa_gnss
         // Remove QZS ISB paremeter
         if (parQzs && !obsQzs)
         {
-            int i = _param.getParam(_data.begin()->site(), par_type::QZS_ISB, "");
-            Matrix_remRC(_Qx.matrixW(), _param[i].index, _param[i].index);
-            _param.delParam(i);
-            _param.reIndex();
+            int i = _param->getParam(_data.begin()->site(), par_type::QZS_ISB, "");
+            Matrix_remRC(_Qx.matrixW(), _param->operator[](i).index, _param->operator[](i).index);
+            _param->delParam(i);
+            _param->reIndex();
 #ifdef DEBUG
             std::cout << "QZS_ISB was removed!"
                  << " Epoch: "
@@ -2132,7 +2135,7 @@ namespace hwa_gnss
     void gnss_proc_sppflt::_syncIono()
     {
 
-        _param.reIndex();
+        _param->reIndex();
 
         // Add ionosphere parameter and appropriate rows/columns covar. matrix
         std::set<std::string> mapPRN;
@@ -2149,9 +2152,9 @@ namespace hwa_gnss
             {
                 /*
                 // add ionosphere vertical delay - not in case of single frequency
-                if (_param.getParam(_site, par_type::VION, it->sat()) < 0 && _iono_est)
+                if (_param->getParam(_site, par_type::VION, it->sat()) < 0 && _iono_est)
                 {
-                    base_par parVION(it->site(), par_type::VION, _param.parNumber() + 1, it->sat());
+                    base_par parVION(it->site(), par_type::VION, _param->parNumber() + 1, it->sat());
                     if (_gion)
                     {
                         // apriori from iono model
@@ -2159,7 +2162,7 @@ namespace hwa_gnss
                         Triple site_ell(0.0, 0.0, 0.0);
                         Triple ipp_ell(0.0, 0.0, 0.0);
 
-                        _param.getCrdParam(_site, site_xyz);
+                        _param->getCrdParam(_site, site_xyz);
                         if (site_xyz.isZero()) site_xyz[_vBanc);
                         xyz2ell(site_xyz, site_ell, false);
                         ell2ipp(*it, site_ell, ipp_ell);
@@ -2179,63 +2182,63 @@ namespace hwa_gnss
                         parVION.value(0.0);
                     }
 
-                    _param.addParam(parVION);
-                    _Qx.Matrix_addRC(_param.parNumber(), _param.parNumber());
-                    _Qx.matrixW()(_param.parNumber(), _param.parNumber()) = _sig_init_vion * _sig_init_vion;
-                    //        std::cout << "Pridavam VION " << it->sat() << " " << it->epoch().str_hms() << " " << parVION.apriori() << " " << _Qx.matrixW()(_param.parNumber(), _param.parNumber()) << std::endl;
+                    _param->addParam(parVION);
+                    _Qx.Matrix_addRC(_param->parNumber(), _param->parNumber());
+                    _Qx.matrixW()(_param->parNumber(), _param->parNumber()) = _sig_init_vion * _sig_init_vion;
+                    //        std::cout << "Pridavam VION " << it->sat() << " " << it->epoch().str_hms() << " " << parVION.apriori() << " " << _Qx.matrixW()(_param->parNumber(), _param->parNumber()) << std::endl;
                 }
                 */
                 // add ionosphere vertical delay - not in case of single frequency
                 //std::cout << _iono_est << std::endl;
-                if (_param.getParam(_site, par_type::SION, it->sat()) < 0 && _iono_est)
+                if (_param->getParam(_site, par_type::SION, it->sat()) < 0 && _iono_est)
                 {
-                    base_par parSION(it->site(), par_type::SION, _param.parNumber() + 1, it->sat());
+                    base_par parSION(it->site(), par_type::SION, _param->parNumber() + 1, it->sat());
 
                     parSION.apriori(1.0); // apriori as a std::fixed value = 1 m
                     parSION.value(0.0);
 
-                    _param.addParam(parSION);
-                    _Qx.Matrix_addRC(_param.parNumber() - 1, _param.parNumber() - 1);
-                    _Qx.matrixW()(_param.parNumber() - 1, _param.parNumber() - 1) = _sig_init_vion * _sig_init_vion;
-                    //     std::cout << "Pridavam SION " << it->sat() << " " << it->epoch().str_hms() << " " << parSION.value() << " " << _Qx.matrixW()(_param.parNumber(), _param.parNumber()) << std::endl;
+                    _param->addParam(parSION);
+                    _Qx.Matrix_addRC(_param->parNumber() - 1, _param->parNumber() - 1);
+                    _Qx.matrixW()(_param->parNumber() - 1, _param->parNumber() - 1) = _sig_init_vion * _sig_init_vion;
+                    //     std::cout << "Pridavam SION " << it->sat() << " " << it->epoch().str_hms() << " " << parSION.value() << " " << _Qx.matrixW()(_param->parNumber(), _param->parNumber()) << std::endl;
                 }
             }
 
         } // end loop over all observations
 
         // Remove params and appropriate rows/columns covar. matrix
-        for (unsigned int i = 0; i <= _param.parNumber() - 1; i++)
+        for (unsigned int i = 0; i <= _param->parNumber() - 1; i++)
         {
-            if (_param[i].parType == par_type::VION)
+            if (_param->operator[](i).parType == par_type::VION)
             {
-                std::string sat = _param[i].prn;
+                std::string sat = _param->operator[](i).prn;
 
                 std::set<std::string>::iterator prnITER = mapPRN.find(sat);
                 if (prnITER == mapPRN.end())
                 {
 
-                    Matrix_remRC(_Qx.matrixW(), _param[i].index, _param[i].index);
-                    _param.delParam(i);
-                    _param.reIndex();
+                    Matrix_remRC(_Qx.matrixW(), _param->operator[](i).index, _param->operator[](i).index);
+                    _param->delParam(i);
+                    _param->reIndex();
                     i--;
                 }
             }
         }
-        for (unsigned int i = 0; i <= _param.parNumber() - 1; i++)
+        for (unsigned int i = 0; i <= _param->parNumber() - 1; i++)
         {
-            if (_param[i].parType == par_type::SION)
+            if (_param->operator[](i).parType == par_type::SION)
             {
-                if (_param[i].site != _site)
+                if (_param->operator[](i).site != _site)
                     continue;
-                std::string sat = _param[i].prn;
+                std::string sat = _param->operator[](i).prn;
 
                 std::set<std::string>::iterator prnITER = mapPRN.find(sat);
                 if (prnITER == mapPRN.end())
                 {
 
-                    Matrix_remRC(_Qx.matrixW(), _param[i].index, _param[i].index);
-                    _param.delParam(i);
-                    _param.reIndex();
+                    Matrix_remRC(_Qx.matrixW(), _param->operator[](i).index, _param->operator[](i).index);
+                    _param->delParam(i);
+                    _param->reIndex();
                     i--;
                 }
             }
@@ -2275,27 +2278,27 @@ namespace hwa_gnss
         bool parBds = false;
         bool parQzs = false;
 
-        for (unsigned int i = 0; i < _param.parNumber(); i++)
+        for (unsigned int i = 0; i < _param->parNumber(); i++)
         {
 
-            if (_param[i].parType == par_type::IFB_GPS)
+            if (_param->operator[](i).parType == par_type::IFB_GPS)
                 parGps = true;
-            if (_param[i].parType == par_type::IFB_GAL)
+            if (_param->operator[](i).parType == par_type::IFB_GAL)
                 parGal = true;
-            if (_param[i].parType == par_type::IFB_BDS)
+            if (_param->operator[](i).parType == par_type::IFB_BDS)
                 parBds = true;
-            if (_param[i].parType == par_type::IFB_QZS)
+            if (_param->operator[](i).parType == par_type::IFB_QZS)
                 parQzs = true;
         }
 
         // Add GLO ISB parameter
         if (!parGps && obsGps)
         {
-            base_par newPar(_data.begin()->site(), par_type::IFB_GPS, _param.parNumber() + 1, "");
+            base_par newPar(_data.begin()->site(), par_type::IFB_GPS, _param->parNumber() + 1, "");
             newPar.value(0.0);
-            _param.addParam(newPar);
-            _Qx.Matrix_addRC(_param.parNumber() - 1, _param.parNumber() - 1);
-            _Qx.matrixW()(_param.parNumber() - 1, _param.parNumber() - 1) = 3000.0 * 3000;
+            _param->addParam(newPar);
+            _Qx.Matrix_addRC(_param->parNumber() - 1, _param->parNumber() - 1);
+            _Qx.matrixW()(_param->parNumber() - 1, _param->parNumber() - 1) = 3000.0 * 3000;
 #ifdef DEBUG
             std::cout << "GPS_IFB was added!"
                  << " Epoch: "
@@ -2306,11 +2309,11 @@ namespace hwa_gnss
         // Add GAL ISB parameter
         if (!parGal && obsGal)
         {
-            base_par newPar(_data.begin()->site(), par_type::IFB_GAL, _param.parNumber() + 1, "");
+            base_par newPar(_data.begin()->site(), par_type::IFB_GAL, _param->parNumber() + 1, "");
             newPar.value(0.0);
-            _param.addParam(newPar);
-            _Qx.Matrix_addRC(_param.parNumber() - 1, _param.parNumber() - 1);
-            _Qx.matrixW()(_param.parNumber() - 1, _param.parNumber() - 1) = 3000.0 * 3000;
+            _param->addParam(newPar);
+            _Qx.Matrix_addRC(_param->parNumber() - 1, _param->parNumber() - 1);
+            _Qx.matrixW()(_param->parNumber() - 1, _param->parNumber() - 1) = 3000.0 * 3000;
             ;
 #ifdef DEBUG
             std::cout << "GAL_IFB was added!"
@@ -2322,11 +2325,11 @@ namespace hwa_gnss
         // Add BDS ISB parameter
         if (!parBds && obsBds)
         {
-            base_par newPar(_data.begin()->site(), par_type::IFB_BDS, _param.parNumber() + 1, "");
+            base_par newPar(_data.begin()->site(), par_type::IFB_BDS, _param->parNumber() + 1, "");
             newPar.value(0.0);
-            _param.addParam(newPar);
-            _Qx.Matrix_addRC(_param.parNumber() - 1, _param.parNumber() - 1);
-            _Qx.matrixW()(_param.parNumber() - 1, _param.parNumber() - 1) = 3000 * 3000;
+            _param->addParam(newPar);
+            _Qx.Matrix_addRC(_param->parNumber() - 1, _param->parNumber() - 1);
+            _Qx.matrixW()(_param->parNumber() - 1, _param->parNumber() - 1) = 3000 * 3000;
             ;
 #ifdef DEBUG
             std::cout << "BDS_IFB was added!"
@@ -2338,11 +2341,11 @@ namespace hwa_gnss
         // Add QZS ISB parameter
         if (!parQzs && obsQzs)
         {
-            base_par newPar(_data.begin()->site(), par_type::IFB_QZS, _param.parNumber() + 1, "");
+            base_par newPar(_data.begin()->site(), par_type::IFB_QZS, _param->parNumber() + 1, "");
             newPar.value(0.0);
-            _param.addParam(newPar);
-            _Qx.Matrix_addRC(_param.parNumber() - 1, _param.parNumber() - 1);
-            _Qx.matrixW()(_param.parNumber() - 1, _param.parNumber() - 1) = 3000.0 * 3000;
+            _param->addParam(newPar);
+            _Qx.Matrix_addRC(_param->parNumber() - 1, _param->parNumber() - 1);
+            _Qx.matrixW()(_param->parNumber() - 1, _param->parNumber() - 1) = 3000.0 * 3000;
             ;
 #ifdef DEBUG
             std::cout << "QZS_QZS was added!"
@@ -2354,10 +2357,10 @@ namespace hwa_gnss
         // Remove GLO ISB paremeter
         if (parGps && !obsGps)
         {
-            int i = _param.getParam(_data.begin()->site(), par_type::IFB_GPS, "");
-            Matrix_remRC(_Qx.matrixW(), _param[i].index, _param[i].index);
-            _param.delParam(i);
-            _param.reIndex();
+            int i = _param->getParam(_data.begin()->site(), par_type::IFB_GPS, "");
+            Matrix_remRC(_Qx.matrixW(), _param->operator[](i).index, _param->operator[](i).index);
+            _param->delParam(i);
+            _param->reIndex();
 #ifdef DEBUG
             std::cout << "GPS_IFB was removed!"
                  << " Epoch: "
@@ -2368,10 +2371,10 @@ namespace hwa_gnss
         // Remove GAL ISB paremeter
         if (parGal && !obsGal)
         {
-            int i = _param.getParam(_data.begin()->site(), par_type::IFB_GAL, "");
-            Matrix_remRC(_Qx.matrixW(), _param[i].index, _param[i].index);
-            _param.delParam(i);
-            _param.reIndex();
+            int i = _param->getParam(_data.begin()->site(), par_type::IFB_GAL, "");
+            Matrix_remRC(_Qx.matrixW(), _param->operator[](i).index, _param->operator[](i).index);
+            _param->delParam(i);
+            _param->reIndex();
 #ifdef DEBUG
             std::cout << "GAL_IFB was removed!"
                  << " Epoch: "
@@ -2382,10 +2385,10 @@ namespace hwa_gnss
         // Remove BDS ISB paremeter
         if (parBds && !obsBds)
         {
-            int i = _param.getParam(_data.begin()->site(), par_type::IFB_BDS, "");
-            Matrix_remRC(_Qx.matrixW(), _param[i].index, _param[i].index);
-            _param.delParam(i);
-            _param.reIndex();
+            int i = _param->getParam(_data.begin()->site(), par_type::IFB_BDS, "");
+            Matrix_remRC(_Qx.matrixW(), _param->operator[](i).index, _param->operator[](i).index);
+            _param->delParam(i);
+            _param->reIndex();
 #ifdef DEBUG
             std::cout << "BDS_IFB was removed!"
                  << " Epoch: "
@@ -2396,10 +2399,10 @@ namespace hwa_gnss
         // Remove QZS ISB paremeter
         if (parQzs && !obsQzs)
         {
-            int i = _param.getParam(_data.begin()->site(), par_type::IFB_QZS, "");
-            Matrix_remRC(_Qx.matrixW(), _param[i].index, _param[i].index);
-            _param.delParam(i);
-            _param.reIndex();
+            int i = _param->getParam(_data.begin()->site(), par_type::IFB_QZS, "");
+            Matrix_remRC(_Qx.matrixW(), _param->operator[](i).index, _param->operator[](i).index);
+            _param->delParam(i);
+            _param->reIndex();
 #ifdef DEBUG
             std::cout << "QZS_IFB was removed!"
                  << " Epoch: "
@@ -2431,28 +2434,28 @@ namespace hwa_gnss
         bool parBds = false;
         bool parQzs = false;
 
-        for (unsigned int i = 0; i < _param.parNumber(); i++) {
-            if (_param[i].site != _site)
+        for (unsigned int i = 0; i < _param->parNumber(); i++) {
+            if (_param->operator[](i).site != _site)
                 continue;
-            if (_param[i].parType == par_type::RCB_GPS_1 || _param[i].parType == par_type::RCB_GPS_2) parGps = true;
-            if (_param[i].parType == par_type::RCB_GAL_1 || _param[i].parType == par_type::RCB_GAL_2) parGal = true;
-            if (_param[i].parType == par_type::RCB_BDS_1 || _param[i].parType == par_type::RCB_BDS_2) parBds = true;
-            if (_param[i].parType == par_type::RCB_QZS_1 || _param[i].parType == par_type::RCB_QZS_2) parQzs = true;
+            if (_param->operator[](i).parType == par_type::RCB_GPS_1 || _param->operator[](i).parType == par_type::RCB_GPS_2) parGps = true;
+            if (_param->operator[](i).parType == par_type::RCB_GAL_1 || _param->operator[](i).parType == par_type::RCB_GAL_2) parGal = true;
+            if (_param->operator[](i).parType == par_type::RCB_BDS_1 || _param->operator[](i).parType == par_type::RCB_BDS_2) parBds = true;
+            if (_param->operator[](i).parType == par_type::RCB_QZS_1 || _param->operator[](i).parType == par_type::RCB_QZS_2) parQzs = true;
         }
 
         // Add GPS RCB parameter
         if (!parGps && obsGps) {
-            base_par newPar1(_data.begin()->site(), par_type::RCB_GPS_1, _param.parNumber() + 1, "");
+            base_par newPar1(_data.begin()->site(), par_type::RCB_GPS_1, _param->parNumber() + 1, "");
             newPar1.value(0.0);
-            _param.addParam(newPar1);
-            _Qx.Matrix_addRC(_param.parNumber() - 1, _param.parNumber() - 1);
-            _Qx.matrixW()(_param.parNumber() - 1, _param.parNumber() - 1) = 3000 * 3000;
+            _param->addParam(newPar1);
+            _Qx.Matrix_addRC(_param->parNumber() - 1, _param->parNumber() - 1);
+            _Qx.matrixW()(_param->parNumber() - 1, _param->parNumber() - 1) = 3000 * 3000;
 
-            base_par newPar2(_data.begin()->site(), par_type::RCB_GPS_2, _param.parNumber() + 1, "");
+            base_par newPar2(_data.begin()->site(), par_type::RCB_GPS_2, _param->parNumber() + 1, "");
             newPar2.value(0.0);
-            _param.addParam(newPar2);
-            _Qx.Matrix_addRC(_param.parNumber() - 1, _param.parNumber() - 1);
-            _Qx.matrixW()(_param.parNumber() - 1, _param.parNumber() - 1) = 3000 * 3000;
+            _param->addParam(newPar2);
+            _Qx.Matrix_addRC(_param->parNumber() - 1, _param->parNumber() - 1);
+            _Qx.matrixW()(_param->parNumber() - 1, _param->parNumber() - 1) = 3000 * 3000;
 #ifdef DEBUG   
             std::cout << "GPS_RCB was added!" << " Epoch: "
                 << _epoch.str_ymdhms() << std::endl;
@@ -2461,17 +2464,17 @@ namespace hwa_gnss
 
         // Add GAL RCB parameter
         if (!parGal && obsGal) {
-            base_par newPar1(_data.begin()->site(), par_type::RCB_GAL_1, _param.parNumber() + 1, "");
+            base_par newPar1(_data.begin()->site(), par_type::RCB_GAL_1, _param->parNumber() + 1, "");
             newPar1.value(0.0);
-            _param.addParam(newPar1);
-            _Qx.Matrix_addRC(_param.parNumber() - 1, _param.parNumber() - 1);
-            _Qx.matrixW()(_param.parNumber() - 1, _param.parNumber() - 1) = 3000 * 3000;
+            _param->addParam(newPar1);
+            _Qx.Matrix_addRC(_param->parNumber() - 1, _param->parNumber() - 1);
+            _Qx.matrixW()(_param->parNumber() - 1, _param->parNumber() - 1) = 3000 * 3000;
 
-            base_par newPar2(_data.begin()->site(), par_type::RCB_GAL_2, _param.parNumber() + 1, "");
+            base_par newPar2(_data.begin()->site(), par_type::RCB_GAL_2, _param->parNumber() + 1, "");
             newPar2.value(0.0);
-            _param.addParam(newPar2);
-            _Qx.Matrix_addRC(_param.parNumber() - 1, _param.parNumber() - 1);
-            _Qx.matrixW()(_param.parNumber() - 1, _param.parNumber() - 1) = 3000 * 3000;
+            _param->addParam(newPar2);
+            _Qx.Matrix_addRC(_param->parNumber() - 1, _param->parNumber() - 1);
+            _Qx.matrixW()(_param->parNumber() - 1, _param->parNumber() - 1) = 3000 * 3000;
 #ifdef DEBUG   
             std::cout << "GAL_RCB was added!" << " Epoch: "
                 << _epoch.str_ymdhms() << std::endl;
@@ -2480,17 +2483,17 @@ namespace hwa_gnss
 
         // Add BDS RCB parameter
         if (!parBds && obsBds) {
-            base_par newPar1(_data.begin()->site(), par_type::RCB_BDS_1, _param.parNumber() + 1, "");
+            base_par newPar1(_data.begin()->site(), par_type::RCB_BDS_1, _param->parNumber() + 1, "");
             newPar1.value(0.0);
-            _param.addParam(newPar1);
-            _Qx.Matrix_addRC(_param.parNumber() - 1, _param.parNumber() - 1);
-            _Qx.matrixW()(_param.parNumber() - 1, _param.parNumber() - 1) = 3000 * 3000;
+            _param->addParam(newPar1);
+            _Qx.Matrix_addRC(_param->parNumber() - 1, _param->parNumber() - 1);
+            _Qx.matrixW()(_param->parNumber() - 1, _param->parNumber() - 1) = 3000 * 3000;
 
-            base_par newPar2(_data.begin()->site(), par_type::RCB_BDS_2, _param.parNumber() + 1, "");
+            base_par newPar2(_data.begin()->site(), par_type::RCB_BDS_2, _param->parNumber() + 1, "");
             newPar1.value(0.0);
-            _param.addParam(newPar2);
-            _Qx.Matrix_addRC(_param.parNumber() - 1, _param.parNumber() - 1);
-            _Qx.matrixW()(_param.parNumber() - 1, _param.parNumber() - 1) = 3000 * 3000;
+            _param->addParam(newPar2);
+            _Qx.Matrix_addRC(_param->parNumber() - 1, _param->parNumber() - 1);
+            _Qx.matrixW()(_param->parNumber() - 1, _param->parNumber() - 1) = 3000 * 3000;
 #ifdef DEBUG   
             std::cout << "BDS_RCB was added!" << " Epoch: "
                 << _epoch.str_ymdhms() << std::endl;
@@ -2499,17 +2502,17 @@ namespace hwa_gnss
 
         // Add QZS RCB parameter
         if (!parQzs && obsQzs) {
-            base_par newPar1(_data.begin()->site(), par_type::RCB_QZS_1, _param.parNumber() + 1, "");
+            base_par newPar1(_data.begin()->site(), par_type::RCB_QZS_1, _param->parNumber() + 1, "");
             newPar1.value(0.0);
-            _param.addParam(newPar1);
-            _Qx.Matrix_addRC(_param.parNumber() - 1, _param.parNumber() - 1);
-            _Qx.matrixW()(_param.parNumber() - 1, _param.parNumber() - 1) = 3000 * 3000;
+            _param->addParam(newPar1);
+            _Qx.Matrix_addRC(_param->parNumber() - 1, _param->parNumber() - 1);
+            _Qx.matrixW()(_param->parNumber() - 1, _param->parNumber() - 1) = 3000 * 3000;
 
-            base_par newPar2(_data.begin()->site(), par_type::RCB_QZS_2, _param.parNumber() + 1, "");
+            base_par newPar2(_data.begin()->site(), par_type::RCB_QZS_2, _param->parNumber() + 1, "");
             newPar2.value(0.0);
-            _param.addParam(newPar2);
-            _Qx.Matrix_addRC(_param.parNumber() - 1, _param.parNumber() - 1);
-            _Qx.matrixW()(_param.parNumber() - 1, _param.parNumber() - 1) = 3000 * 3000;
+            _param->addParam(newPar2);
+            _Qx.Matrix_addRC(_param->parNumber() - 1, _param->parNumber() - 1);
+            _Qx.matrixW()(_param->parNumber() - 1, _param->parNumber() - 1) = 3000 * 3000;
 #ifdef DEBUG   
             std::cout << "QZS_RCB was added!" << " Epoch: "
                 << _epoch.str_ymdhms() << std::endl;
@@ -2518,15 +2521,15 @@ namespace hwa_gnss
 
         // Remove GPS ISB paremeter
         if (parGps && !obsGps) {
-            int i = _param.getParam(_data.begin()->site(), par_type::RCB_GPS_1, "");
-            Matrix_remRC(_Qx.matrixW(), _param[i].index, _param[i].index);
-            _param.delParam(i);
-            _param.reIndex();
+            int i = _param->getParam(_data.begin()->site(), par_type::RCB_GPS_1, "");
+            Matrix_remRC(_Qx.matrixW(), _param->operator[](i).index, _param->operator[](i).index);
+            _param->delParam(i);
+            _param->reIndex();
 
-            i = _param.getParam(_data.begin()->site(), par_type::RCB_GPS_2, "");
-            Matrix_remRC(_Qx.matrixW(), _param[i].index, _param[i].index);
-            _param.delParam(i);
-            _param.reIndex();
+            i = _param->getParam(_data.begin()->site(), par_type::RCB_GPS_2, "");
+            Matrix_remRC(_Qx.matrixW(), _param->operator[](i).index, _param->operator[](i).index);
+            _param->delParam(i);
+            _param->reIndex();
 #ifdef DEBUG   
             std::cout << "GPS_RCB was removed!" << " Epoch: "
                 << _epoch.str_ymdhms() << std::endl;
@@ -2535,15 +2538,15 @@ namespace hwa_gnss
 
         // Remove BDS ISB paremeter
         if (parBds && !obsBds) {
-            int i = _param.getParam(_data.begin()->site(), par_type::RCB_BDS_1, "");
-            Matrix_remRC(_Qx.matrixW(), _param[i].index, _param[i].index);
-            _param.delParam(i);
-            _param.reIndex();
+            int i = _param->getParam(_data.begin()->site(), par_type::RCB_BDS_1, "");
+            Matrix_remRC(_Qx.matrixW(), _param->operator[](i).index, _param->operator[](i).index);
+            _param->delParam(i);
+            _param->reIndex();
 
-            i = _param.getParam(_data.begin()->site(), par_type::RCB_BDS_2, "");
-            Matrix_remRC(_Qx.matrixW(), _param[i].index, _param[i].index);
-            _param.delParam(i);
-            _param.reIndex();
+            i = _param->getParam(_data.begin()->site(), par_type::RCB_BDS_2, "");
+            Matrix_remRC(_Qx.matrixW(), _param->operator[](i).index, _param->operator[](i).index);
+            _param->delParam(i);
+            _param->reIndex();
 #ifdef DEBUG   
             std::cout << "BDS_RCB was removed!" << " Epoch: "
                 << _epoch.str_ymdhms() << std::endl;
@@ -2552,15 +2555,15 @@ namespace hwa_gnss
 
         // Remove GAL ISB paremeter
         if (parGal && !obsGal) {
-            int i = _param.getParam(_data.begin()->site(), par_type::RCB_GAL_1, "");
-            Matrix_remRC(_Qx.matrixW(), _param[i].index, _param[i].index);
-            _param.delParam(i);
-            _param.reIndex();
+            int i = _param->getParam(_data.begin()->site(), par_type::RCB_GAL_1, "");
+            Matrix_remRC(_Qx.matrixW(), _param->operator[](i).index, _param->operator[](i).index);
+            _param->delParam(i);
+            _param->reIndex();
 
-            i = _param.getParam(_data.begin()->site(), par_type::RCB_GAL_2, "");
-            Matrix_remRC(_Qx.matrixW(), _param[i].index, _param[i].index);
-            _param.delParam(i);
-            _param.reIndex();
+            i = _param->getParam(_data.begin()->site(), par_type::RCB_GAL_2, "");
+            Matrix_remRC(_Qx.matrixW(), _param->operator[](i).index, _param->operator[](i).index);
+            _param->delParam(i);
+            _param->reIndex();
 #ifdef DEBUG   
             std::cout << "GAL_RCB was removed!" << " Epoch: "
                 << _epoch.str_ymdhms() << std::endl;
@@ -2569,15 +2572,15 @@ namespace hwa_gnss
 
         // Remove QZS ISB paremeter
         if (parQzs && !obsQzs) {
-            int i = _param.getParam(_data.begin()->site(), par_type::RCB_QZS_1, "");
-            Matrix_remRC(_Qx.matrixW(), _param[i].index, _param[i].index);
-            _param.delParam(i);
-            _param.reIndex();
+            int i = _param->getParam(_data.begin()->site(), par_type::RCB_QZS_1, "");
+            Matrix_remRC(_Qx.matrixW(), _param->operator[](i).index, _param->operator[](i).index);
+            _param->delParam(i);
+            _param->reIndex();
 
-            i = _param.getParam(_data.begin()->site(), par_type::RCB_QZS_2, "");
-            Matrix_remRC(_Qx.matrixW(), _param[i].index, _param[i].index);
-            _param.delParam(i);
-            _param.reIndex();
+            i = _param->getParam(_data.begin()->site(), par_type::RCB_QZS_2, "");
+            Matrix_remRC(_Qx.matrixW(), _param->operator[](i).index, _param->operator[](i).index);
+            _param->delParam(i);
+            _param->reIndex();
 #ifdef DEBUG   
             std::cout << "QZS_RCB was removed!" << " Epoch: "
                 << _epoch.str_ymdhms() << std::endl;
@@ -2600,60 +2603,60 @@ namespace hwa_gnss
     //            if (_observ == RAW_ALL) {
     //
     //                // add inter-frequency code bias for FREQ_3 (if not already)
-    //                if (!_ifb3_init && it->contain_freq(FREQ_3) && _param.getParam(_site, par_type::IFB_C3, "") < 0) {
-    //                    base_par parIFB(it->site(), par_type::IFB_C3, _param.parNumber() + 1, "");
+    //                if (!_ifb3_init && it->contain_freq(FREQ_3) && _param->getParam(_site, par_type::IFB_C3, "") < 0) {
+    //                    base_par parIFB(it->site(), par_type::IFB_C3, _param->parNumber() + 1, "");
     //                    parIFB.value(0.0);
-    //                    _param.addParam(parIFB);
-    //                    _Qx.Matrix_addRC(_param.parNumber(), _param.parNumber());
-    //                    _Qx.matrixW()(_param.parNumber(), _param.parNumber()) = 100 * 100;
+    //                    _param->addParam(parIFB);
+    //                    _Qx.Matrix_addRC(_param->parNumber(), _param->parNumber());
+    //                    _Qx.matrixW()(_param->parNumber(), _param->parNumber()) = 100 * 100;
     //                    _ifb3_init = true;
     //                }
     //
     //                // add inter-frequency code bias for FREQ_4 (if not already)
-    //                if (!_ifb4_init && it->contain_freq(FREQ_4) && _param.getParam(_site, par_type::IFB_C4, "") < 0) {
-    //                    base_par parIFB(it->site(), par_type::IFB_C4, _param.parNumber() + 1, "");
+    //                if (!_ifb4_init && it->contain_freq(FREQ_4) && _param->getParam(_site, par_type::IFB_C4, "") < 0) {
+    //                    base_par parIFB(it->site(), par_type::IFB_C4, _param->parNumber() + 1, "");
     //                    parIFB.value(0.0);
-    //                    _param.addParam(parIFB);
-    //                    _Qx.Matrix_addRC(_param.parNumber(), _param.parNumber());
-    //                    _Qx.matrixW()(_param.parNumber(), _param.parNumber()) = 100 * 100;
+    //                    _param->addParam(parIFB);
+    //                    _Qx.Matrix_addRC(_param->parNumber(), _param->parNumber());
+    //                    _Qx.matrixW()(_param->parNumber(), _param->parNumber()) = 100 * 100;
     //                    _ifb4_init = true;
     //                }
     //
     //                // add inter-frequency code bias for FREQ_5 (if not already)
-    //                if (!_ifb5_init && it->contain_freq(FREQ_5) && _param.getParam(_site, par_type::IFB_C5, "") < 0) {
-    //                    base_par parIFB(it->site(), par_type::IFB_C5, _param.parNumber() + 1, "");
+    //                if (!_ifb5_init && it->contain_freq(FREQ_5) && _param->getParam(_site, par_type::IFB_C5, "") < 0) {
+    //                    base_par parIFB(it->site(), par_type::IFB_C5, _param->parNumber() + 1, "");
     //                    parIFB.value(0.0);
-    //                    _param.addParam(parIFB);
-    //                    _Qx.Matrix_addRC(_param.parNumber(), _param.parNumber());
-    //                    _Qx.matrixW()(_param.parNumber(), _param.parNumber()) = 100 * 100;
+    //                    _param->addParam(parIFB);
+    //                    _Qx.Matrix_addRC(_param->parNumber(), _param->parNumber());
+    //                    _Qx.matrixW()(_param->parNumber(), _param->parNumber()) = 100 * 100;
     //                    _ifb5_init = true;
     //                }
     //                // add inter-frequency clock bias for FREQ_3
     //
-    //                if (it->contain_freq(FREQ_3) && _param.getParam(_site, par_type::IFCB_F3, it->sat()) < 0) {
-    //                    base_par parIFCB(it->site(), par_type::IFCB_F3, _param.parNumber() + 1, it->sat());
+    //                if (it->contain_freq(FREQ_3) && _param->getParam(_site, par_type::IFCB_F3, it->sat()) < 0) {
+    //                    base_par parIFCB(it->site(), par_type::IFCB_F3, _param->parNumber() + 1, it->sat());
     //                    parIFCB.value(0.0);
-    //                    _param.addParam(parIFCB);
-    //                    _Qx.Matrix_addRC(_param.parNumber(), _param.parNumber());
-    //                    _Qx.matrixW()(_param.parNumber(), _param.parNumber()) = 1 * 1;
+    //                    _param->addParam(parIFCB);
+    //                    _Qx.Matrix_addRC(_param->parNumber(), _param->parNumber());
+    //                    _Qx.matrixW()(_param->parNumber(), _param->parNumber()) = 1 * 1;
     //                }
     //
     //                // add inter-frequency clock bias for FREQ_4
-    //                if (it->contain_freq(FREQ_4) && _param.getParam(_site, par_type::IFCB_F4, it->sat()) < 0) {
-    //                    base_par parIFCB(it->site(), par_type::IFCB_F4, _param.parNumber() + 1, it->sat());
+    //                if (it->contain_freq(FREQ_4) && _param->getParam(_site, par_type::IFCB_F4, it->sat()) < 0) {
+    //                    base_par parIFCB(it->site(), par_type::IFCB_F4, _param->parNumber() + 1, it->sat());
     //                    parIFCB.value(0.0);
-    //                    _param.addParam(parIFCB);
-    //                    _Qx.Matrix_addRC(_param.parNumber(), _param.parNumber());
-    //                    _Qx.matrixW()(_param.parNumber(), _param.parNumber()) = 1 * 1;
+    //                    _param->addParam(parIFCB);
+    //                    _Qx.Matrix_addRC(_param->parNumber(), _param->parNumber());
+    //                    _Qx.matrixW()(_param->parNumber(), _param->parNumber()) = 1 * 1;
     //                }
     //
     //                // add inter-frequency clock bias for FREQ_5
-    //                if (it->contain_freq(FREQ_5) && _param.getParam(_site, par_type::IFCB_F5, it->sat()) < 0) {
-    //                    base_par parIFCB(it->site(), par_type::IFCB_F5, _param.parNumber() + 1, it->sat());
+    //                if (it->contain_freq(FREQ_5) && _param->getParam(_site, par_type::IFCB_F5, it->sat()) < 0) {
+    //                    base_par parIFCB(it->site(), par_type::IFCB_F5, _param->parNumber() + 1, it->sat());
     //                    parIFCB.value(0.0);
-    //                    _param.addParam(parIFCB);
-    //                    _Qx.Matrix_addRC(_param.parNumber(), _param.parNumber());
-    //                    _Qx.matrixW()(_param.parNumber(), _param.parNumber()) = 1 * 1;
+    //                    _param->addParam(parIFCB);
+    //                    _Qx.Matrix_addRC(_param->parNumber(), _param->parNumber());
+    //                    _Qx.matrixW()(_param->parNumber(), _param->parNumber()) = 1 * 1;
     //                }
     //
     //            }
@@ -2661,19 +2664,19 @@ namespace hwa_gnss
     //        }  // end loop over all satellites
     //
     //        // Remove params and appropriate rows/columns covar. matrix
-    //        for (unsigned int i = 0; i <= _param.parNumber() - 1; i++) {
-    //            if (_param[i].parType == par_type::IFCB_F3 ||
-    //                _param[i].parType == par_type::IFCB_F4 ||
-    //                _param[i].parType == par_type::IFCB_F5) {
+    //        for (unsigned int i = 0; i <= _param->parNumber() - 1; i++) {
+    //            if (_param->operator[](i).parType == par_type::IFCB_F3 ||
+    //                _param->operator[](i).parType == par_type::IFCB_F4 ||
+    //                _param->operator[](i).parType == par_type::IFCB_F5) {
     //
-    //                std::string sat = _param[i].prn;
+    //                std::string sat = _param->operator[](i).prn;
     //
     //                set<std::string>::iterator prnITER = mapPRN.find(sat);
     //                if (prnITER == mapPRN.end()) {
     //
-    //                    Matrix_remRC(_Qx.matrixW(), _param[i].index, _param[i].index);
-    //                    _param.delParam(i);
-    //                    _param.reIndex();
+    //                    Matrix_remRC(_Qx.matrixW(), _param->operator[](i).index, _param->operator[](i).index);
+    //                    _param->delParam(i);
+    //                    _param->reIndex();
     //                    i--;
     //                }
     //            }

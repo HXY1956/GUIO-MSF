@@ -43,7 +43,7 @@ namespace hwa_gnss
         _grdStoModel->setq(dynamic_cast<set_flt *>(_set)->rndwk_grd());
         _ambStoModel->setq(dynamic_cast<set_flt *>(_set)->rndwk_amb());
 
-        int npar = _param.parNumber();
+        int npar = _param->parNumber();
 
         // Add tropospheric gradient parameters
         if (_tropo_grad)
@@ -54,8 +54,8 @@ namespace hwa_gnss
             par_grdN.setMF(_ztd_mf);
             par_grdE.setMF(_grd_mf);
             par_grdE.setMF(_ztd_mf);
-            _param.addParam(par_grdN);
-            _param.addParam(par_grdE);
+            _param->addParam(par_grdN);
+            _param->addParam(par_grdE);
         }
     }
 
@@ -80,7 +80,7 @@ namespace hwa_gnss
         _ambStoModel = new gnss_model_random_walk();
         _grdStoModel->setq(dynamic_cast<set_flt *>(_set)->rndwk_grd());
         _ambStoModel->setq(dynamic_cast<set_flt *>(_set)->rndwk_amb());
-        int npar = _param.parNumber();
+        int npar = _param->parNumber();
 
         if (_tropo_grad)
         {
@@ -90,29 +90,29 @@ namespace hwa_gnss
             par_grdN.setMF(_ztd_mf);
             par_grdE.setMF(_grd_mf);
             par_grdE.setMF(_ztd_mf);
-            _param.addParam(par_grdN);
-            _param.addParam(par_grdE);
+            _param->addParam(par_grdN);
+            _param->addParam(par_grdE);
         }
 
-        npar = _param.parNumber();
+        npar = _param->parNumber();
 
         // Filling init parameter covariance matrix
         Symmetric tmp = _Qx;
-        _Qx.resize(_param.parNumber());
+        _Qx.resize(_param->parNumber());
         _Qx.setZero();
 
         for (int i = 0; i < tmp.rows(); i++)
             _Qx.set(tmp(i, i),i, i);
 
-        for (size_t i = 0; i < _param.parNumber(); i++)
+        for (size_t i = 0; i < _param->parNumber(); i++)
         {
-            if (_param[i].parType == par_type::GRD_N)
+            if (_param->operator[](i).parType == par_type::GRD_N)
                 _Qx.set(_sig_init_grd * _sig_init_grd, i, i);
-            else if (_param[i].parType == par_type::GRD_E)
+            else if (_param->operator[](i).parType == par_type::GRD_E)
                 _Qx.set(_sig_init_grd * _sig_init_grd, i, i);
-            else if (_param[i].parType == par_type::P1P2G_REC)
+            else if (_param->operator[](i).parType == par_type::P1P2G_REC)
                 _Qx.set(100.0 * 100, i, i);
-            else if (_param[i].parType == par_type::P1P2E_REC)
+            else if (_param->operator[](i).parType == par_type::P1P2E_REC)
                 _Qx.set(100.0 * 100, i, i);
         }
 
@@ -216,7 +216,7 @@ namespace hwa_gnss
         // check whether running or not
         _running = true;
         // Confirm the parameters to be estimated and set site name for all pars in gallpar
-        _param.setSite(_site);
+        _param->setSite(_site);
         // intval scale factor and sampling
         double subint = 0.1;
         if (_scale > 0)
@@ -326,7 +326,7 @@ namespace hwa_gnss
             }
 
             // save apriory coordinates
-            _saveApr(obsEpo, _param, _Qx);
+            _saveApr(obsEpo, *_param, _Qx);
 
 #ifdef _WIN32
             if (system("cls") != 0)
@@ -374,7 +374,7 @@ namespace hwa_gnss
             bool savePrd = true;
             if (_smooth)
                 savePrd = false;
-            _prtOut(obsEpo, _param, _Qx, _data, os, line, savePrd);
+            _prtOut(obsEpo, *_param, _Qx, _data, os, line, savePrd);
 
             // Print flt results
             if (_flt && prtOut)
@@ -583,43 +583,43 @@ namespace hwa_gnss
             else
                 type5 = gobs5.gobs();
 
-            for (size_t iPar = 0; iPar < _param.parNumber(); iPar++)
+            for (size_t iPar = 0; iPar < _param->parNumber(); iPar++)
             {
-                if (_param[iPar].prn.compare(satdata.sat()) == 0)
+                if (_param->operator[](iPar).prn.compare(satdata.sat()) == 0)
                 {
 
                     double modObsL = 0.0;
 
                     double obs_L = 0.0;
-                    if (_param[iPar].parType == par_type::AMB_IF)
+                    if (_param->operator[](iPar).parType == par_type::AMB_IF)
                     {
                         obs_L = LIF;
-                        modObsL = _gModel->cmpObs(_epoch, _param, satdata, gobs1, com);
+                        modObsL = _gModel->cmpObs(_epoch, *_param, satdata, gobs1, com);
                     }
-                    else if (_param[iPar].parType == par_type::AMB_L1)
+                    else if (_param->operator[](iPar).parType == par_type::AMB_L1)
                     {
                         obs_L = L1;
-                        modObsL = _gModel->cmpObs(_epoch, _param, satdata, gobs1, com);
+                        modObsL = _gModel->cmpObs(_epoch, *_param, satdata, gobs1, com);
                     }
-                    else if (_param[iPar].parType == par_type::AMB_L2)
+                    else if (_param->operator[](iPar).parType == par_type::AMB_L2)
                     {
                         obs_L = L2;
-                        modObsL = _gModel->cmpObs(_epoch, _param, satdata, gobs2, com);
+                        modObsL = _gModel->cmpObs(_epoch, *_param, satdata, gobs2, com);
                     }
-                    else if (_param[iPar].parType == par_type::AMB_L3)
+                    else if (_param->operator[](iPar).parType == par_type::AMB_L3)
                     {
                         obs_L = L3;
-                        modObsL = _gModel->cmpObs(_epoch, _param, satdata, gobs3, com);
+                        modObsL = _gModel->cmpObs(_epoch, *_param, satdata, gobs3, com);
                     }
-                    else if (_param[iPar].parType == par_type::AMB_L4)
+                    else if (_param->operator[](iPar).parType == par_type::AMB_L4)
                     {
                         obs_L = L4;
-                        modObsL = _gModel->cmpObs(_epoch, _param, satdata, gobs4, com);
+                        modObsL = _gModel->cmpObs(_epoch, *_param, satdata, gobs4, com);
                     }
-                    else if (_param[iPar].parType == par_type::AMB_L5)
+                    else if (_param->operator[](iPar).parType == par_type::AMB_L5)
                     {
                         obs_L = L5;
-                        modObsL = _gModel->cmpObs(_epoch, _param, satdata, gobs5, com);
+                        modObsL = _gModel->cmpObs(_epoch, *_param, satdata, gobs5, com);
                     }
 
                     if (modObsL < 0)
@@ -627,22 +627,22 @@ namespace hwa_gnss
 
                     // Reset ambiguity in case of cycle slip
                     satdata.addslip(false);
-                    if ((_param[iPar].parType == par_type::AMB_L1 && satdata.getlli(type1) >= 1) ||
-                        (_param[iPar].parType == par_type::AMB_L2 && satdata.getlli(type2) >= 1) ||
-                        (_param[iPar].parType == par_type::AMB_L3 && satdata.getlli(type3) >= 1) ||
-                        (_param[iPar].parType == par_type::AMB_L4 && satdata.getlli(type4) >= 1) ||
-                        (_param[iPar].parType == par_type::AMB_L5 && satdata.getlli(type5) >= 1) ||
-                        (_param[iPar].parType == par_type::AMB_IF && (satdata.getlli(type1) >= 1 || satdata.getlli(type2) >= 1)))
+                    if ((_param->operator[](iPar).parType == par_type::AMB_L1 && satdata.getlli(type1) >= 1) ||
+                        (_param->operator[](iPar).parType == par_type::AMB_L2 && satdata.getlli(type2) >= 1) ||
+                        (_param->operator[](iPar).parType == par_type::AMB_L3 && satdata.getlli(type3) >= 1) ||
+                        (_param->operator[](iPar).parType == par_type::AMB_L4 && satdata.getlli(type4) >= 1) ||
+                        (_param->operator[](iPar).parType == par_type::AMB_L5 && satdata.getlli(type5) >= 1) ||
+                        (_param->operator[](iPar).parType == par_type::AMB_IF && (satdata.getlli(type1) >= 1 || satdata.getlli(type2) >= 1)))
                     {
                         satdata.addslip(true);
                         std::string prn = satdata.sat();
-                        _param[iPar].value(obs_L - modObsL);
+                        _param->operator[](iPar).value(obs_L - modObsL);
                         //std::cout << "cycle slip !!!!" << std::endl;
                         _Qx.set(_sigAmbig* _sigAmbig, iPar, iPar);
                         _newAMB[prn] = 1;
                         if (_smooth)
                             _slips.insert(prn);
-                        //              std::cout << "Cycle slip: " << prn << " " << gobs2str(type1) << " " << gobs2str(type2) << " " << _epoch.str_hms() << std::fixed << setprecision(3) << " " << _param[iPar].value() << " " << LIF << " " << modObsL << std::endl;
+                        //              std::cout << "Cycle slip: " << prn << " " << gobs2str(type1) << " " << gobs2str(type2) << " " << _epoch.str_hms() << std::fixed << setprecision(3) << " " << _param->operator[](iPar).value() << " " << LIF << " " << modObsL << std::endl;
                         if (_smooth)
                         {
                             Symmetric Qp = _fltdata.Qp();
@@ -652,26 +652,26 @@ namespace hwa_gnss
                     }
 
                     // Create reduced measurement (prefit residuals)
-                    if (_param[iPar].parType == par_type::AMB_L1 || _param[iPar].parType == par_type::AMB_IF)
+                    if (_param->operator[](iPar).parType == par_type::AMB_L1 || _param->operator[](iPar).parType == par_type::AMB_IF)
                     {
-                        l(iobs) = obs_L - _param[iPar].value() - modObsL;
+                        l(iobs) = obs_L - _param->operator[](iPar).value() - modObsL;
                         /*  std::cout << "obs_L modObsL amb" << setprecision(5)
                           << setw(20) << obs_L
                           << setw(20) << modObsL
-                          << setw(20) << _param[iPar].value() << std::endl;*/
+                          << setw(20) << _param->operator[](iPar).value() << std::endl;*/
                     }
-                    if ((_observ == OBSCOMBIN::RAW_DOUBLE || _observ == OBSCOMBIN::RAW_ALL) && _param[iPar].parType == par_type::AMB_L2)
+                    if ((_observ == OBSCOMBIN::RAW_DOUBLE || _observ == OBSCOMBIN::RAW_ALL) && _param->operator[](iPar).parType == par_type::AMB_L2)
                     {
-                        l(iobs + 1) = obs_L - _param[iPar].value() - modObsL;
+                        l(iobs + 1) = obs_L - _param->operator[](iPar).value() - modObsL;
                     }
                     if (_observ == OBSCOMBIN::RAW_ALL)
                     {
-                        if (_param[iPar].parType == par_type::AMB_L3)
-                            l(iobs + 2) = obs_L - _param[iPar].value() - modObsL;
-                        if (_param[iPar].parType == par_type::AMB_L4)
-                            l(iobs + 3) = obs_L - _param[iPar].value() - modObsL;
-                        if (_param[iPar].parType == par_type::AMB_L5)
-                            l(iobs + 4) = obs_L - _param[iPar].value() - modObsL;
+                        if (_param->operator[](iPar).parType == par_type::AMB_L3)
+                            l(iobs + 2) = obs_L - _param->operator[](iPar).value() - modObsL;
+                        if (_param->operator[](iPar).parType == par_type::AMB_L4)
+                            l(iobs + 3) = obs_L - _param->operator[](iPar).value() - modObsL;
+                        if (_param->operator[](iPar).parType == par_type::AMB_L5)
+                            l(iobs + 4) = obs_L - _param->operator[](iPar).value() - modObsL;
                     }
 
                     // check satellite post shadow period
@@ -681,22 +681,22 @@ namespace hwa_gnss
             }
 
             // Create first design matrix
-            for (unsigned int ipar = 0; ipar < _param.parNumber(); ipar++)
+            for (unsigned int ipar = 0; ipar < _param->parNumber(); ipar++)
             {
-                A(iobs, ipar) = _param[ipar].partial(satdata, _epoch, ell, gobs1);
+                A(iobs, ipar) = _param->operator[](ipar).partial(satdata, _epoch, ell, gobs1);
                 if (_observ == OBSCOMBIN::RAW_DOUBLE ||
                     _observ == OBSCOMBIN::RAW_ALL)
-                    A(iobs + 1, ipar) = _param[ipar - 1].partial(satdata, _epoch, ell, gobs2);
+                    A(iobs + 1, ipar) = _param->operator[](ipar).partial(satdata, _epoch, ell, gobs2);
                 if (_observ == OBSCOMBIN::RAW_ALL)
                 {
                     for (int i = 2; i <= addIobs; i++)
                     {
                         if (i == 2)
-                            A(iobs + i, ipar) = _param[ipar].partial(satdata, _epoch, ell, gobs3);
+                            A(iobs + i, ipar) = _param->operator[](ipar).partial(satdata, _epoch, ell, gobs3);
                         if (i == 3)
-                            A(iobs + i, ipar) = _param[ipar].partial(satdata, _epoch, ell, gobs4);
+                            A(iobs + i, ipar) = _param->operator[](ipar).partial(satdata, _epoch, ell, gobs4);
                         if (i == 4)
-                            A(iobs + i, ipar) = _param[ipar].partial(satdata, _epoch, ell, gobs5);
+                            A(iobs + i, ipar) = _param->operator[](ipar).partial(satdata, _epoch, ell, gobs5);
                     }
                 }
             }
@@ -738,7 +738,7 @@ namespace hwa_gnss
 
         gnss_proc_sppflt::_predict();
 
-        i = _param.getParam(_site, par_type::GRD_N, "");
+        i = _param->getParam(_site, par_type::GRD_N, "");
         if (i >= 0)
         {
             if (_cntrep == 1 && _initialized)
@@ -747,7 +747,7 @@ namespace hwa_gnss
                 _Noise.matrixW()(i, i) = _grdStoModel->getQ();
         }
 
-        i = _param.getParam(_site, par_type::GRD_E, "");
+        i = _param->getParam(_site, par_type::GRD_E, "");
         if (i >= 0)
         {
             if (_cntrep == 1 && _initialized)
@@ -867,21 +867,21 @@ namespace hwa_gnss
             if (_gnav)
                 com = _gnav->com();
 
-            if (_observ == OBSCOMBIN::IONO_FREE && _param.getParam(_site, par_type::AMB_IF, it->sat()) < 0)
+            if (_observ == OBSCOMBIN::IONO_FREE && _param->getParam(_site, par_type::AMB_IF, it->sat()) < 0)
             {
 
-                base_par newPar(it->site(), par_type::AMB_IF, _param.parNumber() + 1, it->sat());
-                double cmpObs = _gModel->cmpObs(_epoch, _param, *it, gobs1, com);
+                base_par newPar(it->site(), par_type::AMB_IF, _param->parNumber() + 1, it->sat());
+                double cmpObs = _gModel->cmpObs(_epoch, *_param, *it, gobs1, com);
                 if (cmpObs < 0)
                     continue;
 
                 newPar.value(LIF - cmpObs); // first ambiguity value
 
-                _param.addParam(newPar);
+                _param->addParam(newPar);
                 _newAMB[it->sat()] = 1;
 
-                _Qx.Matrix_addRC(_param.parNumber() - 1, _param.parNumber() - 1);
-                _Qx.matrixW()(_param.parNumber() - 1, _param.parNumber() - 1) = _sigAmbig * _sigAmbig;
+                _Qx.Matrix_addRC(_param->parNumber() - 1, _param->parNumber() - 1);
+                _Qx.matrixW()(_param->parNumber() - 1, _param->parNumber() - 1) = _sigAmbig * _sigAmbig;
                 //std::cout << "ADD AMB IF " << it->sat() << " " << it->epoch().str_ymdhms() << std::endl;
                 if (_spdlog)
                     SPDLOG_LOGGER_DEBUG(_spdlog, "AMB_IF was added! For Sat PRN " + it->sat() + " Epoch: " + _epoch.str_ymdhms());
@@ -890,16 +890,16 @@ namespace hwa_gnss
             {
                 int newAmb = 0;
                 // add L1 amb - everytime when RAW observations
-                if (_param.getParam(_site, par_type::AMB_L1, it->sat()) < 0)
+                if (_param->getParam(_site, par_type::AMB_L1, it->sat()) < 0)
                 {
-                    double cmpObs = _gModel->cmpObs(_epoch, _param, *it, gobs1, com);
+                    double cmpObs = _gModel->cmpObs(_epoch, *_param, *it, gobs1, com);
                     if (cmpObs < 0)
                         continue;
-                    base_par newPar1(it->site(), par_type::AMB_L1, _param.parNumber() + 1, it->sat());
+                    base_par newPar1(it->site(), par_type::AMB_L1, _param->parNumber() + 1, it->sat());
                     newPar1.value(L1 - cmpObs);
-                    _param.addParam(newPar1);
-                    _Qx.Matrix_addRC(_param.parNumber() - 1, _param.parNumber() - 1);
-                    _Qx.matrixW()(_param.parNumber() - 1, _param.parNumber() - 1) = _sigAmbig * _sigAmbig;
+                    _param->addParam(newPar1);
+                    _Qx.Matrix_addRC(_param->parNumber() - 1, _param->parNumber() - 1);
+                    _Qx.matrixW()(_param->parNumber() - 1, _param->parNumber() - 1) = _sigAmbig * _sigAmbig;
                     //         std::cout << "ADD AMB L1 " << it->sat() << " " << it->epoch().str_ymdhms()  << " " << L1 - cmpObs << std::endl;
                     if (_spdlog)
                         SPDLOG_LOGGER_DEBUG(_spdlog, "RAW AMB_L1 was added! For Sat PRN " + it->sat() + " Epoch: " + _epoch.str_ymdhms());
@@ -907,16 +907,16 @@ namespace hwa_gnss
                 }
 
                 // add L2 amb - when RAW DOUBLE or ALL frequency
-                if (_observ != OBSCOMBIN::RAW_SINGLE && _param.getParam(_site, par_type::AMB_L2, it->sat()) < 0)
+                if (_observ != OBSCOMBIN::RAW_SINGLE && _param->getParam(_site, par_type::AMB_L2, it->sat()) < 0)
                 {
-                    double cmpObs = _gModel->cmpObs(_epoch, _param, *it, gobs2, com);
+                    double cmpObs = _gModel->cmpObs(_epoch, *_param, *it, gobs2, com);
                     if (cmpObs < 0)
                         continue;
-                    base_par newPar2(it->site(), par_type::AMB_L2, _param.parNumber() + 1, it->sat());
+                    base_par newPar2(it->site(), par_type::AMB_L2, _param->parNumber() + 1, it->sat());
                     newPar2.value(L2 - cmpObs);
-                    _param.addParam(newPar2);
-                    _Qx.Matrix_addRC(_param.parNumber() - 1, _param.parNumber() - 1);
-                    _Qx.matrixW()(_param.parNumber() - 1, _param.parNumber() - 1) = _sigAmbig * _sigAmbig;
+                    _param->addParam(newPar2);
+                    _Qx.Matrix_addRC(_param->parNumber() - 1, _param->parNumber() - 1);
+                    _Qx.matrixW()(_param->parNumber() - 1, _param->parNumber() - 1) = _sigAmbig * _sigAmbig;
                     //         std::cout << "ADD AMB L2 " << it->sat() << " " << it->epoch().str_ymdhms() << " " << L2 - cmpObs << std::endl;
                     if (_spdlog)
                         SPDLOG_LOGGER_DEBUG(_spdlog, "RAW AMB_L2 was added! For Sat PRN " + it->sat() + " Epoch: " + _epoch.str_ymdhms());
@@ -924,48 +924,48 @@ namespace hwa_gnss
                 }
 
                 // add L3 amb - when RAW ALL frequency
-                if (_observ != OBSCOMBIN::RAW_SINGLE && _observ != OBSCOMBIN::RAW_DOUBLE && _param.getParam(_site, par_type::AMB_L3, it->sat()) < 0 && L3 > 0.0)
+                if (_observ != OBSCOMBIN::RAW_SINGLE && _observ != OBSCOMBIN::RAW_DOUBLE && _param->getParam(_site, par_type::AMB_L3, it->sat()) < 0 && L3 > 0.0)
                 {
-                    double cmpObs = _gModel->cmpObs(_epoch, _param, *it, gobs3, com);
+                    double cmpObs = _gModel->cmpObs(_epoch, *_param, *it, gobs3, com);
                     if (cmpObs < 0)
                         continue;
-                    base_par newPar3(it->site(), par_type::AMB_L3, _param.parNumber() + 1, it->sat());
+                    base_par newPar3(it->site(), par_type::AMB_L3, _param->parNumber() + 1, it->sat());
                     newPar3.value(L3 - cmpObs);
-                    _param.addParam(newPar3);
-                    _Qx.Matrix_addRC(_param.parNumber() - 1, _param.parNumber() - 1);
-                    _Qx.matrixW()(_param.parNumber() - 1, _param.parNumber() - 1) = _sigAmbig * _sigAmbig;
+                    _param->addParam(newPar3);
+                    _Qx.Matrix_addRC(_param->parNumber() - 1, _param->parNumber() - 1);
+                    _Qx.matrixW()(_param->parNumber() - 1, _param->parNumber() - 1) = _sigAmbig * _sigAmbig;
                     if (_spdlog)
                         SPDLOG_LOGGER_DEBUG(_spdlog, "RAW AMB_L3 was added! For Sat PRN " + it->sat() + " Epoch: " + _epoch.str_ymdhms());
                     newAmb = 1;
                 }
 
                 // add L4 amb - when RAW ALL frequency
-                if (_observ != OBSCOMBIN::RAW_SINGLE && _observ != OBSCOMBIN::RAW_DOUBLE && _param.getParam(_site, par_type::AMB_L4, it->sat()) < 0 && L4 > 0.0)
+                if (_observ != OBSCOMBIN::RAW_SINGLE && _observ != OBSCOMBIN::RAW_DOUBLE && _param->getParam(_site, par_type::AMB_L4, it->sat()) < 0 && L4 > 0.0)
                 {
-                    double cmpObs = _gModel->cmpObs(_epoch, _param, *it, gobs4, com);
+                    double cmpObs = _gModel->cmpObs(_epoch, *_param, *it, gobs4, com);
                     if (cmpObs < 0)
                         continue;
-                    base_par newPar4(it->site(), par_type::AMB_L4, _param.parNumber() + 1, it->sat());
+                    base_par newPar4(it->site(), par_type::AMB_L4, _param->parNumber() + 1, it->sat());
                     newPar4.value(L4 - cmpObs);
-                    _param.addParam(newPar4);
-                    _Qx.Matrix_addRC(_param.parNumber() - 1, _param.parNumber() - 1);
-                    _Qx.matrixW()(_param.parNumber() - 1, _param.parNumber() - 1) = _sigAmbig * _sigAmbig;
+                    _param->addParam(newPar4);
+                    _Qx.Matrix_addRC(_param->parNumber() - 1, _param->parNumber() - 1);
+                    _Qx.matrixW()(_param->parNumber() - 1, _param->parNumber() - 1) = _sigAmbig * _sigAmbig;
                     if (_spdlog)
                         SPDLOG_LOGGER_DEBUG(_spdlog, "RAW AMB_L4 was added! For Sat PRN " + it->sat() + " Epoch: " + _epoch.str_ymdhms());
                     newAmb = 1;
                 }
 
                 // add L5 amb - when RAW ALL frequency
-                if (_observ != OBSCOMBIN::RAW_SINGLE && _observ != OBSCOMBIN::RAW_DOUBLE && _param.getParam(_site, par_type::AMB_L5, it->sat()) < 0 && L5 > 0.0)
+                if (_observ != OBSCOMBIN::RAW_SINGLE && _observ != OBSCOMBIN::RAW_DOUBLE && _param->getParam(_site, par_type::AMB_L5, it->sat()) < 0 && L5 > 0.0)
                 {
-                    double cmpObs = _gModel->cmpObs(_epoch, _param, *it, gobs5, com);
+                    double cmpObs = _gModel->cmpObs(_epoch, *_param, *it, gobs5, com);
                     if (cmpObs < 0)
                         continue;
-                    base_par newPar5(it->site(), par_type::AMB_L5, _param.parNumber() + 1, it->sat());
+                    base_par newPar5(it->site(), par_type::AMB_L5, _param->parNumber() + 1, it->sat());
                     newPar5.value(L5 - cmpObs);
-                    _param.addParam(newPar5);
-                    _Qx.Matrix_addRC(_param.parNumber() - 1, _param.parNumber() - 1);
-                    _Qx.matrixW()(_param.parNumber() - 1, _param.parNumber() - 1) = _sigAmbig * _sigAmbig;
+                    _param->addParam(newPar5);
+                    _Qx.Matrix_addRC(_param->parNumber() - 1, _param->parNumber() - 1);
+                    _Qx.matrixW()(_param->parNumber() - 1, _param->parNumber() - 1) = _sigAmbig * _sigAmbig;
                     if (_spdlog)
                         SPDLOG_LOGGER_DEBUG(_spdlog, "RAW AMB_L5 was added! For Sat PRN " + it->sat() + " Epoch: " + _epoch.str_ymdhms());
                     newAmb = 1;
@@ -979,33 +979,33 @@ namespace hwa_gnss
 
         // Remove ambiguity parameter and appropriate rows/columns covar. matrix
 
-        for (unsigned int i = 0; i < _param.parNumber(); i++)
+        for (unsigned int i = 0; i < _param->parNumber(); i++)
         {
-            if (_param[i].parType == par_type::AMB_IF ||
-                _param[i].parType == par_type::AMB_L1 ||
-                _param[i].parType == par_type::AMB_L2 ||
-                _param[i].parType == par_type::AMB_L3 ||
-                _param[i].parType == par_type::AMB_L4 ||
-                _param[i].parType == par_type::AMB_L5)
+            if (_param->operator[](i).parType == par_type::AMB_IF ||
+                _param->operator[](i).parType == par_type::AMB_L1 ||
+                _param->operator[](i).parType == par_type::AMB_L2 ||
+                _param->operator[](i).parType == par_type::AMB_L3 ||
+                _param->operator[](i).parType == par_type::AMB_L4 ||
+                _param->operator[](i).parType == par_type::AMB_L5)
             {
 
-                set<std::string>::iterator prnITER = mapPRN.find(_param[i].prn);
+                set<std::string>::iterator prnITER = mapPRN.find(_param->operator[](i).prn);
                 if (prnITER == mapPRN.end())
                 {
 
                     if (_spdlog)
-                        SPDLOG_LOGGER_DEBUG(_spdlog, "AMB will be removed! For Sat PRN " + _param[i].prn + " Epoch: " + _epoch.str_ymdhms());
+                        SPDLOG_LOGGER_DEBUG(_spdlog, "AMB will be removed! For Sat PRN " + _param->operator[](i).prn + " Epoch: " + _epoch.str_ymdhms());
 
 #ifdef DEBUG
-                    std::cout << "AMB will be removed! For Sat PRN " << _param[i].prn
+                    std::cout << "AMB will be removed! For Sat PRN " << _param->operator[](i).prn
                         << " Epoch: " << _epoch.str_ymdhms() << std::endl;
 #endif
 
-                    _newAMB.erase(_param[i].prn);
+                    _newAMB.erase(_param->operator[](i).prn);
 
-                    _Qx.Matrix_remRC(_param[i].index, _param[i].index);
-                    _param.delParam(i);
-                    _param.reIndex();
+                    _Qx.Matrix_remRC(_param->operator[](i).index, _param->operator[](i).index);
+                    _param->delParam(i);
+                    _param->reIndex();
                     i--;
                 }
             }
@@ -1029,9 +1029,9 @@ namespace hwa_gnss
 
         // get CRD rms  (XYZ)
         double Xrms = 0.0, Yrms = 0.0, Zrms = 0.0;
-        int icrdx = _param.getParam(_site, par_type::CRD_X, "");
-        int icrdy = _param.getParam(_site, par_type::CRD_Y, "");
-        int icrdz = _param.getParam(_site, par_type::CRD_Z, "");
+        int icrdx = _param->getParam(_site, par_type::CRD_X, "");
+        int icrdy = _param->getParam(_site, par_type::CRD_Y, "");
+        int icrdz = _param->getParam(_site, par_type::CRD_Z, "");
         if (Q(icrdx, icrdx) < 0)
             Xrms = -1;
         else
@@ -1185,7 +1185,7 @@ namespace hwa_gnss
             }
 
             Triple Ell, XYZ;
-            if (_param.getCrdParam(_site, XYZ) > 0)
+            if (_param->getCrdParam(_site, XYZ) > 0)
             {
             }
             else if (_valid_crd_xml)
@@ -1193,9 +1193,9 @@ namespace hwa_gnss
                 XYZ = _grec->crd_arp(_epoch);
             }
             xyz2ell(XYZ, Ell, false);
-            int itrp = _param.getParam(_site, par_type::TRP, "");
+            int itrp = _param->getParam(_site, par_type::TRP, "");
             if (itrp >= 0)
-                _param[itrp].apriori(_gModel->tropoModel()->getZHD(Ell, _epoch));
+                _param->operator[](itrp).apriori(_gModel->tropoModel()->getZHD(Ell, _epoch));
         }
 
         // write params
@@ -1403,7 +1403,7 @@ namespace hwa_gnss
 // ------------------
 void gnss_proc_pppflt::_reset_ambig()
 {
-    std::vector<int> ind = _param.delAmb();
+    std::vector<int> ind = _param->delAmb();
     _Qx.Matrix_rem(ind);
 }
 
@@ -1421,22 +1421,22 @@ void gnss_proc_pppflt::_check_ambig()
     }
 
     //Delete the ambiguity parameter is the satellite is missed in the epoch
-    for (size_t i = 0; i < _param.parNumber(); i++)
+    for (size_t i = 0; i < _param->parNumber(); i++)
     {
-        if (_param[i].parType == par_type::AMB_IF)
+        if (_param->operator[](i).parType == par_type::AMB_IF)
         {
 
-            set<std::string>::iterator prnITER = mapPRN.find(_param[i].prn);
+            set<std::string>::iterator prnITER = mapPRN.find(_param->operator[](i).prn);
             if (prnITER == mapPRN.end())
             {
 
                 if (_spdlog)
-                    SPDLOG_LOGGER_DEBUG(_spdlog, "AMB will be removed for missed Sat PRN " + _param[i].prn + " Epoch: " + _epoch.str_ymdhms());
+                    SPDLOG_LOGGER_DEBUG(_spdlog, "AMB will be removed for missed Sat PRN " + _param->operator[](i).prn + " Epoch: " + _epoch.str_ymdhms());
 
-                _newAMB.erase(_param[i].prn);
-                _Qx.Matrix_remRC(_param[i].index, _param[i].index);
-                _param.delParam(i);
-                _param.reIndex();
+                _newAMB.erase(_param->operator[](i).prn);
+                _Qx.Matrix_remRC(_param->operator[](i).index, _param->operator[](i).index);
+                _param->delParam(i);
+                _param->reIndex();
                 i--; //One ambiguity is deleted, i --
             }
         }
@@ -1447,7 +1447,7 @@ void gnss_proc_pppflt::_check_ambig()
 // ------------------
 void gnss_proc_pppflt::_reset_param()
 {
-    std::vector<int> ind = _param.delAmb();
+    std::vector<int> ind = _param->delAmb();
     _Qx.Matrix_rem(ind);
     _initialized = false;
 }

@@ -30,10 +30,10 @@ namespace hwa_msf {
         double get_pdop() { return _dop.pdop(); }
         Triple get_site_pos() {
             Triple gnss_pos;
-            _param.getCrdParam(_site, gnss_pos);
+            _param->getCrdParam(_site, gnss_pos);
             return gnss_pos; 
         }
-        std::set<std::string> ambs_name(){ return _param.amb_prns(); }
+        std::set<std::string> ambs_name(){ return _param->amb_prns(); }
 
     private:
         Triple lever;

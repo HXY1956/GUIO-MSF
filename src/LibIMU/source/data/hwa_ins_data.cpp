@@ -117,7 +117,7 @@ bool hwa_ins::ins_data::load(vector<Triple>& wm, vector<Triple>& vm, vector<Trip
     wm.clear(); vm.clear(); mm.clear();
 
     if (_imu_forward.size() < nSamples){
-        t = 0; _gmutex.unlock(); status = false; return false;
+        t = 0;  status = false; return false;
     }
     double _pre_time = t;
     for (int j = 0; j < nSamples; j++)
@@ -142,7 +142,7 @@ bool hwa_ins::ins_data::get(vector<Triple>& wm, vector<Triple>& vm, double & t, 
     wm.clear(); vm.clear();
 
     if (_imu_forward.size() < nSamples) {
-        t = 0; _gmutex.unlock(); return false;
+        t = 0;  return false;
     }
     double _pre_time = t;
     for (int j = 0; j < nSamples; j++)

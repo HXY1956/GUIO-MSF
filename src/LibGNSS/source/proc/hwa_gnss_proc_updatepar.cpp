@@ -162,7 +162,7 @@ namespace hwa_gnss
         std::vector<base_par> equ_parlist;
 
         update_info.get(equ_parlist, state_equ_tmp);
-        int newpar_location = allpars.parNumber() + 1 + equ_parlist.size();
+        int newpar_location = allpars.parNumber() + equ_parlist.size();
         par_type par_type = allpars[update_id].parType;
 
         for (int i = 0; i < _state_mode[par_type].order; i++)
@@ -174,15 +174,15 @@ namespace hwa_gnss
         }
 
         // create the state_equation
-        for (int Row = 1; Row <= _state_mode[par_type].order; Row++)
+        for (int Row = 0; Row < _state_mode[par_type].order; Row++)
         {
             std::vector<std::pair<int, double>> B;
             double P;
             // for B
             B.push_back(std::make_pair(update_id + Row, 1.0));
-            for (int Col = Row; Col <= _state_mode[par_type].order; Col++)
+            for (int Col = Row; Col < _state_mode[par_type].order; Col++)
             {
-                B.push_back(std::make_pair(newpar_location + Col - 1, -1.0));
+                B.push_back(std::make_pair(newpar_location + Col, -1.0));
             }
 
             // for P

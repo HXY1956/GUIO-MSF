@@ -33,11 +33,13 @@ namespace hwa_msf {
         bool _extrinsic_init();
         bool align_vins();
         void align_feedback();
+        void load_imuobs();
         int ProcessOneEpoch() override;
         void AddData(base_data* data) override { imgdata = dynamic_cast<vis_data*>(data); };
         bool _init() override { return false; };
         void _feed_back() override;
         bool _time_valid(base_time inst) override;
+        bool load_data() override;
 
     private:
         vis_data* imgdata = nullptr;

@@ -262,6 +262,8 @@ namespace hwa_ins {
             return GLVI_TCI;
         if (tmp == "GULVI_TCI")
             return GULVI_TCI;
+        if (tmp == "DEFAULT")
+            return IGN_DEFAULT;
 
         return PURE_INS;
     }

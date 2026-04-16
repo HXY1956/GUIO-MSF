@@ -20,10 +20,10 @@ IsInitialized(false)
     out_img_IPM = make_shared<cv::Mat>(cv::Mat(100, 100, CV_8UC1));
 }
 
-PointCloud vis_stereo_lk_cpu::ProcessBatch(const double& t)
+PointCloud vis_stereo_lk_cpu::ProcessBatch()
 {
-    cv::Mat _img0 = cv::imread(cur_img_path.img0_path, 0);
-    cv::Mat _img1 = cv::imread(cur_img_path.img1_path, 0);
+    cv::Mat _img0 = imageGroup.second.first;
+    cv::Mat _img1 = imageGroup.second.second;
     ONE_FRAME _img_msg;
     _img_msg.t = cur_img_path.t;
     _img_msg.img0 = make_shared<cv::Mat>(_img0);

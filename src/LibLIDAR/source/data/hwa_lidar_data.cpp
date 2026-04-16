@@ -12,12 +12,12 @@ int hwa_lidar::lidar_data::add_LIDAR(const double& t, const string& lidar_path)
 #ifdef BMUTEX   
     boost::mutex::scoped_lock lock(_mutex);
 #endif
-    _gmutex.lock();
+    
 
     lidarPath tmp = { t,lidar_path};
     _veclidar.push_back(tmp);
 
-    _gmutex.unlock();
+    
     return 0;
 }
 

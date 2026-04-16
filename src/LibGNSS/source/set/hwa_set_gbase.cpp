@@ -317,7 +317,7 @@ namespace hwa_set
 
     //vector<FREQ_SEQ> set_gnss::freqs(GSYS gsys)
     //{
-    //    _gmutex.lock();
+    //    
 
     //    vector<FREQ_SEQ> v_tmp = _freqs(gsys);
 
@@ -327,7 +327,7 @@ namespace hwa_set
     //        v_tmp.push_back(FREQ_2);
     //    }
 
-    //    _gmutex.unlock(); return v_tmp;
+    //     return v_tmp;
     //}
 
     map<GOBSBAND, FREQ_SEQ> set_gnss::freq_index(GSYS gsys)

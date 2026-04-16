@@ -39,6 +39,10 @@ namespace hwa_vis
         bool initializePosition(const CamStateServer& cam_states);
 
         std::vector<std::pair<Triple, Triple>> getCorresponding(int frame_count_l, int frame_count_r);
+
+        static void read_Tc0c1(const SE3& _T ) {
+			T_cam0_cam1 = _T;
+        }
      
     public:
         std::map<CamStateIDType, Eigen::Vector4d, std::less<CamStateIDType>,
@@ -59,7 +63,7 @@ namespace hwa_vis
         double initial_damping=0.001;                ///< initial lambda of Levenberg-Marquart
         int outler_loop_max_iteration=10;        ///< iterations
         int inner_loop_max_iteration=10;            ///< iterations of depth
-        SE3 T_cam0_cam1;            ///< transformation matrix between cam0 and cam1
+        static SE3 T_cam0_cam1;            ///< transformation matrix between cam0 and cam1
         bool stereo;                            ///< stereo or num
 
         int start_frame;

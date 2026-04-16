@@ -14,10 +14,15 @@ hwa_lidar::lidar_proc_segmenter::lidar_proc_segmenter(int N_Scan): N_SCAN(N_Scan
 
 hwa_lidar::lidar_proc_segmenter::~lidar_proc_segmenter()
 {
-    if (allPushedIndX != nullptr) delete allPushedIndX;
-    if (allPushedIndY != nullptr) delete allPushedIndY;
-    if (queueIndX != nullptr) delete queueIndX;
-    if (queueIndY != nullptr) delete queueIndY;
+    try{
+        if (allPushedIndX != nullptr) delete allPushedIndX;
+        if (allPushedIndY != nullptr) delete allPushedIndY;
+        if (queueIndX != nullptr) delete queueIndX;
+        if (queueIndY != nullptr) delete queueIndY;
+    }
+    catch (...) {
+		std::cerr << "DELETE POINTERS FAILED!" << std::endl;
+    }
 }
 
 void hwa_lidar::lidar_proc_segmenter::systemInitialization(int n_scan)

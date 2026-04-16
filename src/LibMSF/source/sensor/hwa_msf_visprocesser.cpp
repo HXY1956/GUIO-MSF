@@ -13,7 +13,7 @@ namespace hwa_msf {
         TimeCostDebugOutFile.open("TimeCost\\TimeCostCamUpdate.txt", std::ios::out | std::ios::trunc);
         beg.from_secs(dynamic_cast<set_vis*>(_gset.get())->start(cam_group_id));
         end.from_secs(dynamic_cast<set_vis*>(_gset.get())->end(cam_group_id));
-        TimeStamp = FIRST_TIME;
+        TimeStamp = beg;
         _Estimator = dynamic_cast<set_ign*>(_gset.get())->fuse_type();
     };
 
@@ -26,7 +26,7 @@ namespace hwa_msf {
         TimeCostDebugOutFile.open("TimeCost\\TimeCostCamUpdate.txt", std::ios::out | std::ios::trunc);
         beg.from_secs(dynamic_cast<set_vis*>(_gset.get())->start(cam_group_id));
         end.from_secs(dynamic_cast<set_vis*>(_gset.get())->end(cam_group_id));
-        TimeStamp = FIRST_TIME;
+        TimeStamp = beg;
         _Estimator = dynamic_cast<set_ign*>(_gset.get())->fuse_type();
     };
 
@@ -41,10 +41,55 @@ namespace hwa_msf {
 
     bool visprocesser::_time_valid(base_time inst) {
         double dtime;
-        double insdtime = inst.sod() + inst.dsec();
+        double insdtime = inst.sow() + inst.dsec();
         if(imgdata->load(insdtime, dtime, get_curr_imgpath())) 
             TimeStamp = base_time(TimeStamp.gwk(), dtime);
         return std::abs(inst.diff(TimeStamp)) < _shm->delay;
+    }
+
+    bool visprocesser::load_data() {
+        if (imgdata == nullptr) return false;
+        double img_t = TimeStamp.sow() + TimeStamp.dsec();
+        try {
+            switch (processer) {
+            case CPU: {
+                auto iter_cpu = dynamic_cast<vis_imgproc<cv::Mat>*>(imgproc.get());
+                if (!stereo) {
+                    iter_cpu->imageGroup.first = img_t;
+                    iter_cpu->imageGroup.second.first = cv::imread(get_curr_imgpath().img0_path, 0);
+                }
+                else {
+                    iter_cpu->imageGroup.first = img_t;
+                    iter_cpu->imageGroup.second.first = cv::imread(get_curr_imgpath().img0_path, 0);
+                    iter_cpu->imageGroup.second.second = cv::imread(get_curr_imgpath().img1_path, 0);
+                }
+                break;
+            }
+
+            case GPU: {
+                auto iter_gpu = dynamic_cast<vis_imgproc<cv::cuda::GpuMat>*>(imgproc.get());
+                if (!stereo) {
+                    iter_gpu->imageGroup.first = img_t;
+                    iter_gpu->imageGroup.second.first.upload(cv::imread(get_curr_imgpath().img0_path, 0));
+                }
+                else {
+                    iter_gpu->imageGroup.first = img_t;
+                    iter_gpu->imageGroup.second.first.upload(cv::imread(get_curr_imgpath().img0_path, 0));
+                    iter_gpu->imageGroup.second.second.upload(cv::imread(get_curr_imgpath().img1_path, 0));
+                }
+                break;
+            }
+            }
+        }
+        catch(...) {
+			std::cerr << "Error loading image at time: " << img_t << std::endl;
+            return false;
+        }
+        return true;
+	}
+
+    void visprocesser::load_imuobs() {
+        imgproc->load_imuobs(_shm->t, _sins->_wm, _sins->_vm, _shm->ts);
     }
 
     int visprocesser::ProcessOneEpoch()
@@ -77,7 +122,7 @@ namespace hwa_msf {
     void visprocesser::StateAugmentation()
     {
         base_scopedtimer timer("StateAugmentation()", TimeCostDebugOutFile, TimeCostDebugStatus);
-        double dt = _sins->t - TimeStamp.sod();
+        double dt = _sins->t - TimeStamp.sow() - TimeStamp.dsec();
         //compensate due to time 
         Triple BLH = _sins->pos - _sins->eth.v2dp(_sins->vn, dt);//BLH
         Triple XYZ = Geod2Cart(BLH, false);
@@ -591,11 +636,6 @@ namespace hwa_msf {
                 All_H.block(0, idx, obs_size, 1) = H.block(0, ex_param_num - 1, obs_size, 1);
             }
         }
-        Matrix R = Matrix::Identity(obs_size, obs_size) * feature_observation_noise;
-        Matrix H_thin;
-        Vector r_thin;
-        std::string cam_id = camstate_id2str((*cam_states.begin()).first);
-        int idx = param_of_sins->getParam(_name, hwa_base::par_type::CAM_ATT_X, cam_id);
 
         if (All_H.rows() > All_H.cols())
         {
@@ -603,20 +643,25 @@ namespace hwa_msf {
             Matrix Q = qr_helper.householderQ();
             Matrix Q1;
             Q1 = Q.leftCols(par_size);
-            H_thin = Q1.transpose() * All_H;
-            r_thin = Q1.transpose() * r;
+            _sins->Hk = Q1.transpose() * All_H;
+            _sins->Zk = Q1.transpose() * r;
         }
         else
         {
-            H_thin = All_H;
-            r_thin = r;
+            _sins->Hk = All_H;
+            _sins->Zk = r;
         }
         
-        Matrix Rk = feature_observation_noise * Matrix::Identity(
-            H_thin.rows(), H_thin.rows());
+        _sins->Rk = feature_observation_noise * Matrix::Identity(
+            _sins->Hk.rows(), _sins->Hk.rows());
         Vector delta_x;
 
-        _Updater._meas_update(H_thin, r_thin, Rk, delta_x, _sins->Pk);
+        _Updater._meas_update(_sins->Hk, _sins->Zk, _sins->Rk, delta_x, _sins->Pk);
+
+        m_out("_sins->Zk", _sins->Zk);
+        m_out("_sins->Rk", _sins->Rk);
+        m_out("_sins->Pk", _sins->Pk);
+        m_out("_sins->Xk", delta_x);
 
         _sins->Xk += delta_x;
     }

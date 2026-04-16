@@ -1,6 +1,8 @@
 #include "hwa_vis_proc_feature.h"
 #include <numeric>
 
+SE3 hwa_vis::vis_feature::T_cam0_cam1;
+
 hwa_vis::vis_feature::vis_feature() :id(0), position(Triple::Zero()),
 is_initialized(false)
 {
@@ -197,8 +199,6 @@ void hwa_vis::vis_feature::jacobian(const SE3& T_c0_ci,
         //w = huber_epsilon / e;
     return;
 }
-
-
 
 bool hwa_vis::vis_feature::initializePosition(const CamStateServer& cam_states)
 {    

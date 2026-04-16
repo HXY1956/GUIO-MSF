@@ -74,6 +74,7 @@ namespace hwa_vis
         void solveGyroscopeBias(hwa_vis::CamStateServer& camstates);
         bool VisualIMUAlignment(hwa_vis::CamStateServer& camstates, Triple& g, Vector& x);
         IMG_PATH& get_curr_imgpath() { return imgproc->cur_img_path; }
+        const IMG_PATH& get_curr_imgpath() const { return imgproc->cur_img_path; }
 
         static SO3 g2R(const Triple& g)
         {

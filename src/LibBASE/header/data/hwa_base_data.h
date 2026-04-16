@@ -214,10 +214,10 @@ namespace hwa_base
         static std::string type2str(ID_TYPE type);
 
         /** @brief lock mutex */
-        void lock() const { this->_gmutex.lock(); }
+        void lock() const {  }
 
         /** @brief unlock mutex */
-        void unlock() const { this->_gmutex.unlock(); }
+        void unlock() const {  }
 
         /** @brief std::set glog pointer */
         void spdlog(base_log spdlog);

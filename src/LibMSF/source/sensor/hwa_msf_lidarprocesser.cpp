@@ -7,7 +7,7 @@ namespace hwa_msf {
         lidar_base(_gset.get()), _lidardata(dynamic_cast<lidar_data*>(data)) {
         beg.from_secs(dynamic_cast<set_lidar*>(_gset.get())->start());
         end.from_secs(dynamic_cast<set_lidar*>(_gset.get())->end());
-        TimeStamp = FIRST_TIME;
+        TimeStamp = beg;
     };
 
     lidarprocesser::lidarprocesser(std::shared_ptr<set_base> gset, std::string site, base_log spdlog, base_data* data, base_time _beg, base_time _end) : baseprocesser(gset, spdlog, site, _beg, _end),
@@ -15,7 +15,7 @@ namespace hwa_msf {
     {
         beg.from_secs(dynamic_cast<set_lidar*>(_gset.get())->start());
         end.from_secs(dynamic_cast<set_lidar*>(_gset.get())->end());
-        TimeStamp = FIRST_TIME;
+        TimeStamp = beg;
     };
 
     bool lidarprocesser::_time_valid(base_time inst)

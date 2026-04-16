@@ -223,7 +223,6 @@ namespace hwa_vis {
 
     public:
         std::pair<double, std::pair<MatType, MatType>> imageGroup;
-        std::pair<double, MatType> imageSingle;
         std::shared_ptr<MatType> out_img = nullptr;                ///< TODO
         std::shared_ptr<MatType> out_img_dense = nullptr;            ///< TODO
         std::shared_ptr<MatType> out_img_IPM = nullptr;            ///< TODO

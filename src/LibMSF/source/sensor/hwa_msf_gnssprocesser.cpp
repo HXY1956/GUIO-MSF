@@ -20,10 +20,10 @@ namespace hwa_msf {
         {
             Symmetric Qx_extended;
             int size_bef = param_of_sins->parNumber();
-            int icrdz_gnss = _param.getParam(_site, par_type::CRD_Z, "");
-            for (int i = icrdz_gnss + 1; i < _param.parNumber(); i++)
+            int icrdz_gnss = _param->getParam(_site, par_type::CRD_Z, "");
+            for (int i = icrdz_gnss + 1; i < _param->parNumber(); i++)
             {
-                param_of_sins->addParam(_param.operator[](i));
+                param_of_sins->addParam(_param->operator[](i));
             }
             Qx_extended.resize(param_of_sins->parNumber()); 
             Qx_extended.setZero();
@@ -33,18 +33,16 @@ namespace hwa_msf {
             {
                 int length = param_of_sins->parNumber() - size_bef;
                 Qx_extended.matrixW().block(size_bef, size_bef, length, length) =
-                    _Qx.SymSubMatrix(icrdz_gnss + 1, _param.parNumber() - 1).matrixR();
+                    _Qx.SymSubMatrix(icrdz_gnss + 1, _param->parNumber() - 1).matrixR();
             }
             for (int i = 0; i < size_bef; i++)
             {
                 Qx_extended.set(1.0, i, i);
             }
 
-            _param = *param_of_sins;
+            _param = param_of_sins;
             _Qx = Qx_extended;
-
-            _param.reIndex();
-            param_of_sins->reIndex();
+            _param->reIndex();
         }
         catch (...)
         {
@@ -213,7 +211,7 @@ namespace hwa_msf {
 
     void gnssprocesser::_prt_port(base_time instime)
     {
-        std::set<std::string> ambs = _param.amb_prns();
+        std::set<std::string> ambs = _param->amb_prns();
         int nsat = ambs.size();
         // get amb status
         std::string amb = "Float";
@@ -293,29 +291,29 @@ namespace hwa_msf {
     }
 
     void gnssprocesser::_feed_back() {
-        for (unsigned int iPar = 0; iPar < _param.parNumber(); iPar++) {
-            if (_param[iPar].parType == par_type::TRP)
+        for (unsigned int iPar = 0; iPar < _param->parNumber(); iPar++) {
+            if (_param->operator[](iPar).parType == par_type::TRP)
             {
-                std::string site = _param[iPar].site;
+                std::string site = _param->operator[](iPar).site;
                 Triple Ell, XYZ;
-                if (_param.getCrdParam(site, XYZ) > 0) {
+                if (_param->getCrdParam(site, XYZ) > 0) {
                 }
                 else { XYZ = _gallobj->obj(site)->crd_arp(_epoch); }
                 xyz2ell(XYZ, Ell, false);
                 if (site == _site && _gModel->tropoModel() != 0)
-                    _param[iPar].apriori(_gModel->tropoModel()->getZHD(Ell, _epoch));
+                    _param->operator[](iPar).apriori(_gModel->tropoModel()->getZHD(Ell, _epoch));
                 else if (site == _site_base && _gModel_base->tropoModel() != 0)
-                    _param[iPar].apriori(_gModel_base->tropoModel()->getZHD(Ell, _epoch));
+                    _param->operator[](iPar).apriori(_gModel_base->tropoModel()->getZHD(Ell, _epoch));
             }
         }
-        for (unsigned int Par = 0; Par < _param.parNumber(); Par++) {
-            if (_param[Par].parType == par_type::CRD_X || _param[Par].parType == par_type::CRD_Y || _param[Par].parType == par_type::CRD_Z)
+        for (unsigned int Par = 0; Par < _param->parNumber(); Par++) {
+            if (_param->operator[](Par).parType == par_type::CRD_X || _param->operator[](Par).parType == par_type::CRD_Y || _param->operator[](Par).parType == par_type::CRD_Z)
             {
-                _param[Par].value(_param[Par].value() - _sins->Xk(_param[Par].index));
+                _param->operator[](Par).value(_param->operator[](Par).value() - _sins->Xk(_param->operator[](Par).index));
             }
             else
             {
-                _param[Par].value(_param[Par].value() + _sins->Xk(_param[Par].index));
+                _param->operator[](Par).value(_param->operator[](Par).value() + _sins->Xk(_param->operator[](Par).index));
             }
         }
     }
@@ -324,20 +322,20 @@ namespace hwa_msf {
     {
         try
         {
-            int size = _param.parNumber();
+            int size = _param->parNumber();
             int nobs = A.rows();
             Eigen::Vector3d pos_gnss_ecef = _sins->pos_ecef + _sins->Ceb * lever;
             // A 
             if (_Estimator == NORMAL) {
-                int icrdx = _param[_param.getParam(_site, par_type::CRD_X, "")].index;
+                int icrdx = _param->operator[](_param->getParam(_site, par_type::CRD_X, "")).index;
                 A.block(0, icrdx, nobs, 3) = -A.block(0, icrdx, nobs, 3);
-                int iattx = _param[_param.getParam(_site, par_type::ATT_X, "")].index;
+                int iattx = _param->operator[](_param->getParam(_site, par_type::ATT_X, "")).index;
                 A.block(0, iattx, nobs, 3) = A.block(0, icrdx, nobs, 3) * askew(_sins->Ceb * lever);
             }
             else if (_Estimator == INEKF ) {
-                int icrdx = _param[_param.getParam(_site, par_type::CRD_X, "")].index;
+                int icrdx = _param->operator[](_param->getParam(_site, par_type::CRD_X, "")).index;
                 A.block(0, icrdx, nobs, 3) = -A.block(0, icrdx, nobs, 3);
-                int iattx = _param[_param.getParam(_site, par_type::ATT_X, "")].index;
+                int iattx = _param->operator[](_param->getParam(_site, par_type::ATT_X, "")).index;
                 A.block(0, iattx, nobs, 3) = A.block(0, icrdx, nobs, 3) * askew(pos_gnss_ecef - _sins->initial_pos);
             }
         }
@@ -361,7 +359,6 @@ namespace hwa_msf {
     int gnssprocesser::ProcessOneEpoch() {
         _timeUpdate(TimeStamp);
         _Qx.matrixW() = _sins->Pk;
-
         if (_grec == nullptr)
         {
             if (baseprocesser::_spdlog)
@@ -410,7 +407,7 @@ namespace hwa_msf {
             }
 
             QsavBP = _Qx;
-            XsavBP = _param;
+            XsavBP = *_param;
 
             _predict(TimeStamp);
 
@@ -450,7 +447,7 @@ namespace hwa_msf {
             } // IF + P1(不增加参数，多一倍观测值）
 
             /*G01 P1 P2 P3... L1 L2L3*/
-            unsigned int nPar = _param.parNumber();
+            unsigned int nPar = _param->parNumber();
             unsigned int iobs = 1;
 
             _frqNum.clear();
@@ -525,14 +522,14 @@ namespace hwa_msf {
                 return -1;
             }
 
-            for (size_t iPar = 0; iPar < _param.parNumber(); iPar++) {
-                if (_param[iPar].parType == par_type::AMB_IF ||
-                    _param[iPar].parType == par_type::AMB_L1 ||
-                    _param[iPar].parType == par_type::AMB_L2 ||
-                    _param[iPar].parType == par_type::AMB_L3 ||
-                    _param[iPar].parType == par_type::AMB_L4 ||
-                    _param[iPar].parType == par_type::AMB_L5) {
-                    std::string sat = _param[iPar].prn;
+            for (size_t iPar = 0; iPar < _param->parNumber(); iPar++) {
+                if (_param->operator[](iPar).parType == par_type::AMB_IF ||
+                    _param->operator[](iPar).parType == par_type::AMB_L1 ||
+                    _param->operator[](iPar).parType == par_type::AMB_L2 ||
+                    _param->operator[](iPar).parType == par_type::AMB_L3 ||
+                    _param->operator[](iPar).parType == par_type::AMB_L4 ||
+                    _param->operator[](iPar).parType == par_type::AMB_L5) {
+                    std::string sat = _param->operator[](iPar).prn;
                     if (_newAMB.find(sat) != _newAMB.end() && _cntrep == 1) {
                         if (_newAMB[sat] == 1) _Qx.matrixW()(iPar, iPar) += 10;
                         if (_newAMB[sat] == 2 && _Qx.get(iPar, iPar) > 0.01) _Qx.matrixW()(iPar, iPar) += 1;
@@ -543,18 +540,18 @@ namespace hwa_msf {
             _posterioriTest(_sins->Hk, _sins->Rk, _sins->Zk, _sins->Xk, _Qx, v_norm, vtpv);
         } while (_outlierDetect(v_norm, Qsav, outlier) != 0);
         
-        _filter->add_data(_param, _sins->Xk, _Qx, _sig_unit, Qsav);
+        _filter->add_data(*_param, _sins->Xk, _Qx, _sig_unit, Qsav);
         _filter->add_data(_sins->Hk, P, _sins->Zk);
         _filter->add_data(vtpv, _sins->Hk.rows(), _sins->Hk.cols());
 
-        //for (int i = 0; i < _param.parNumber(); i++)
-        //{
-        //    std::cout << std::fixed << std::setw(20) << " Float EPO  " << std::setw(20) << _filter->param()[i].str_type() + "  " 
-        //        << std::setw(20) << std::setprecision(5) << _filter->param()[i].value() 
-        //        << std::setw(15) << std::setprecision(5) << _filter->dx()(i) 
-        //        << std::setw(20) << std::setprecision(5) << _filter->param()[i].value() + _filter->dx()(i) 
-        //        << std::setw(20) << std::setprecision(5) << _filter->stdx()(i) << std::endl;
-        //}
+        for (int i = 0; i < _param->parNumber(); i++)
+        {
+            std::cout << std::fixed << std::setw(20) << " Float EPO  " << std::setw(20) << _filter->param()[i].str_type() + "  " 
+                << std::setw(20) << std::setprecision(5) << _filter->param()[i].value() 
+                << std::setw(15) << std::setprecision(5) << _filter->dx()(i) 
+                << std::setw(20) << std::setprecision(5) << _filter->param()[i].value() + _filter->dx()(i) 
+                << std::setw(20) << std::setprecision(5) << _filter->stdx()(i) << std::endl;
+        }
 
         _sins->Pk = _Qx.matrixR();
         _amb_resolution();

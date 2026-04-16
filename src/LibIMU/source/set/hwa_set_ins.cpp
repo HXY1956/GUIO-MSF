@@ -446,7 +446,7 @@ namespace hwa_set {
     {
         xml_node InstallationNode = _doc.child(XMLKEY_ROOT).child(XMLKEY_INS).child("Installation");
         std::string type = InstallationNode.attribute("Type").value();
-        if (type == "OFF") { _gmutex.unlock(); return Triple::Zero(); }
+        if (type == "OFF") {  return Triple::Zero(); }
         double X = InstallationNode.child("Rotation").attribute("Pitch").as_double();
         double Y = InstallationNode.child("Rotation").attribute("Roll").as_double();
         double Z = InstallationNode.child("Rotation").attribute("Yaw").as_double();
@@ -457,7 +457,7 @@ namespace hwa_set {
     {
         xml_node InstallationNode = _doc.child(XMLKEY_ROOT).child(XMLKEY_INS).child("Installation");
         std::string type = InstallationNode.attribute("Type").value();
-        if (type == "OFF") { _gmutex.unlock(); return Triple::Zero(); }
+        if (type == "OFF") {  return Triple::Zero(); }
         double X = InstallationNode.child("Lever").attribute("X").as_double();
         double Y = InstallationNode.child("Lever").attribute("Y").as_double();
         double Z = InstallationNode.child("Lever").attribute("Z").as_double();

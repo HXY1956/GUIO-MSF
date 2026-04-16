@@ -260,14 +260,14 @@ namespace hwa_set
 
     //bool set_amb::reset_amb_ppprtk()
     //{
-    // _gmutex.lock();
+    // 
 
     // std::istringstream is(_doc.child(XMLKEY_ROOT).child(XMLKEY_GNSS).child(XMLKEY_AMBIGUITY).child_value("reset_amb_ppprtk"));
     // std::string tmp;
     // is >> tmp;
     // bool reset_amb_ppprtk = (tmp == "YES" || tmp == "yes");
 
-    // _gmutex.unlock(); return reset_amb_ppprtk;
+    //  return reset_amb_ppprtk;
     //}
 
     void set_amb::refixsettings(int& last_fixepo_gap, int& min_fixed_num)
@@ -442,14 +442,14 @@ namespace hwa_set
 
     //bool set_amb::apply_irc()
     //{
-    // _gmutex.lock();
+    // 
 
     // std::istringstream is(_doc.child(XMLKEY_ROOT).child(XMLKEY_GNSS).child(XMLKEY_AMBIGUITY).child_value("apply_irc"));
     // std::string tmp;
     // is >> tmp;
     // bool is_apply_irc = (tmp == "YES" || tmp == "yes");
 
-    // _gmutex.unlock(); return is_apply_irc;
+    //  return is_apply_irc;
     //}
 
     bool set_amb::isSetRefSat()

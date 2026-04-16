@@ -15,7 +15,7 @@ IsInitialized(false)
         max_iteration,
         true);
     gftt_init = cv::cuda::createGoodFeaturesToTrackDetector(CV_8UC1, 1000, 0.01, 0, 2, true, 0.04);
-    gftt_fast = cv::cuda::createGoodFeaturesToTrackDetector(CV_8UC1, 200, 0.01, 0, 2, true, 0.04);
+    gftt_fast = cv::cuda::createGoodFeaturesToTrackDetector(CV_8UC1, 1000, 0.01, 0, 2, true, 0.04);
 }
 
 bool hwa_vis::vis_stereo_lk_gpu::Initialize()

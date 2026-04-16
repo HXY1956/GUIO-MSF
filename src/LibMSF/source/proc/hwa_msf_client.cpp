@@ -22,10 +22,10 @@ namespace hwa_msf {
         startenv = str2startenv(dynamic_cast<set_ign*>(gset.get())->start_env());
         align_type = dynamic_cast<set_ign*>(gset.get())->align_type();
         _aligned = align_type == NONE ? true : false;
-        UseGnss = dynamic_cast<set_ign*>(gset.get())->GNSS() && (_ign_type == IGN_TYPE::GUVI_TCI || _ign_type == IGN_TYPE::GVI_TCI || _ign_type == IGN_TYPE::GI_TCI || _ign_type == IGN_TYPE::GI_LCI || _ign_type == IGN_TYPE::GLVI_TCI || _ign_type == IGN_TYPE::GLI_TCI || _ign_type == IGN_TYPE::GULVI_TCI);
-        UseUwb = dynamic_cast<set_ign*>(gset.get())->UWB() && (_ign_type == IGN_TYPE::UVI_TCI || _ign_type == IGN_TYPE::UI_LCI || _ign_type == IGN_TYPE::UI_TCI || _ign_type == IGN_TYPE::ULI_TCI || _ign_type == IGN_TYPE::ULVI_TCI || _ign_type == IGN_TYPE::GUI_TCI || _ign_type == IGN_TYPE::GUVI_TCI || _ign_type == IGN_TYPE::GULVI_TCI);
-        UseVis = dynamic_cast<set_ign*>(gset.get())->VISION() && (_ign_type == IGN_TYPE::VIO_TCI || _ign_type == IGN_TYPE::VIO_LCI || _ign_type == IGN_TYPE::UVI_TCI || _ign_type == IGN_TYPE::ULVI_TCI || _ign_type == IGN_TYPE::GVI_TCI || _ign_type == IGN_TYPE::GUVI_TCI || _ign_type == IGN_TYPE::GLVI_TCI || _ign_type == IGN_TYPE::GULVI_TCI);
-		UseLidar = dynamic_cast<set_ign*>(gset.get())->LIDAR() && (_ign_type == IGN_TYPE::LIO_TCI || _ign_type == IGN_TYPE::LVI_TCI || _ign_type == IGN_TYPE::ULI_TCI || _ign_type == IGN_TYPE::ULVI_TCI || _ign_type == IGN_TYPE::GLVI_TCI || _ign_type == IGN_TYPE::GLI_TCI || _ign_type == IGN_TYPE::GULVI_TCI);
+        UseGnss = dynamic_cast<set_ign*>(gset.get())->GNSS() && (_ign_type == IGN_TYPE::IGN_DEFAULT || _ign_type == IGN_TYPE::GUVI_TCI || _ign_type == IGN_TYPE::GVI_TCI || _ign_type == IGN_TYPE::GI_TCI || _ign_type == IGN_TYPE::GI_LCI || _ign_type == IGN_TYPE::GLVI_TCI || _ign_type == IGN_TYPE::GLI_TCI || _ign_type == IGN_TYPE::GULVI_TCI);
+        UseUwb = dynamic_cast<set_ign*>(gset.get())->UWB() && (_ign_type == IGN_TYPE::IGN_DEFAULT || _ign_type == IGN_TYPE::UVI_TCI || _ign_type == IGN_TYPE::UI_LCI || _ign_type == IGN_TYPE::UI_TCI || _ign_type == IGN_TYPE::ULI_TCI || _ign_type == IGN_TYPE::ULVI_TCI || _ign_type == IGN_TYPE::GUI_TCI || _ign_type == IGN_TYPE::GUVI_TCI || _ign_type == IGN_TYPE::GULVI_TCI);
+        UseVis = dynamic_cast<set_ign*>(gset.get())->VISION() && (_ign_type == IGN_TYPE::IGN_DEFAULT || _ign_type == IGN_TYPE::VIO_TCI || _ign_type == IGN_TYPE::VIO_LCI || _ign_type == IGN_TYPE::UVI_TCI || _ign_type == IGN_TYPE::ULVI_TCI || _ign_type == IGN_TYPE::GVI_TCI || _ign_type == IGN_TYPE::GUVI_TCI || _ign_type == IGN_TYPE::GLVI_TCI || _ign_type == IGN_TYPE::GULVI_TCI);
+		UseLidar = dynamic_cast<set_ign*>(gset.get())->LIDAR() && (_ign_type == IGN_TYPE::IGN_DEFAULT || _ign_type == IGN_TYPE::LIO_TCI || _ign_type == IGN_TYPE::LVI_TCI || _ign_type == IGN_TYPE::ULI_TCI || _ign_type == IGN_TYPE::ULVI_TCI || _ign_type == IGN_TYPE::GLVI_TCI || _ign_type == IGN_TYPE::GLI_TCI || _ign_type == IGN_TYPE::GULVI_TCI);
         UseOdo = dynamic_cast<set_ign*>(gset.get())->Odo();
         UseNhc = dynamic_cast<set_ign*>(gset.get())->NHC();
         UseZupt = dynamic_cast<set_ign*>(gset.get())->ZUPT();
@@ -65,13 +65,6 @@ namespace hwa_msf {
                 case LIDAR_MEAS:
                     irc = lidarworker->ProcessOneEpoch();
                     break;
-                    //case ZUPT_MEAS: irc = _ZUPT_Update(); break;
-                    //case YAW_MEAS: irc = _YAW_Update(); break;
-                    //case NHC_MEAS: irc = _NHC_Update(); break;
-                    //case ODO_MEAS: irc = _ODO_Update(); break;
-                    //case HGT_MEAS: irc = _HGT_Update(); break;
-                    //case R_MIMU_MEAS: irc = _R_MIMU_Update(); break;
-                    //case P_MIMU_MEAS: irc = _P_MIMU_Update(); break;
                 default:
                     break;
                 }
@@ -83,7 +76,7 @@ namespace hwa_msf {
                 insworker->UpdateViewer();
             }
 
-            if (fabs(insworker->dTime() - insworker->iTime()) < insworker->_delay()) {
+            if (insworker->dsec() < insworker->_delay()) {
                 visworker[0]->_write_calib();
                 this->write2file();
             }
@@ -191,7 +184,7 @@ namespace hwa_msf {
 
     bool msf_client::_getMeas()
     {
-        _Meas_Type.clear(); Flag = NO_MEAS;
+        _Meas_Type.clear(); Flag = NO_MEAS; visworker[0]->load_imuobs();
         double ins_crt = insworker->Time().sow() + insworker->Time().dsec();
         if (UseGnss && gnssworker->_time_valid(insworker->Time()) && gnssworker->load_data() && gnssworker->timecheck()) {
             _Meas_Type.insert(MEAS_TYPE::GNSS_MEAS);

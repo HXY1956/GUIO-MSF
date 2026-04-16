@@ -246,7 +246,7 @@ namespace hwa_gnss
 
     void gnss_data_obs_manager::eraseband(const GOBSBAND &b)
     {
-        //_gmutex.lock();
+        //
 
         std::vector<GOBS> obs_vec = this->obs();
         for (auto it : obs_vec) // delete
@@ -255,7 +255,7 @@ namespace hwa_gnss
                 this->eraseobs(it);
         }
 
-        //_gmutex.unlock();
+        //
     }
 
     bool gnss_data_obs_manager::apply_bias(gnss_all_bias *allbias)

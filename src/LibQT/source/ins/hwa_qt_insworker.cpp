@@ -306,7 +306,7 @@ namespace hwa_qt {
         sins->Xf(3, 3) = 1;
         sins->Xf(4, 4) = 1;
 
-        int icrdx = _param[_param.getParam(_name, hwa_base::par_type::CRD_X, "")].index;
+        int icrdx = _param[_param->getParam(_name, hwa_base::par_type::CRD_X, "")].index;
         for (int imui = 0; imui <= _num_of_imu_axiliary; imui++)
         {
             sins_mimu[imui]->qnb = sins->qnb * hwa_base::base_att_trans::m2qua(_R_imui_imu0[imui]);
@@ -321,7 +321,7 @@ namespace hwa_qt {
 
             if (imui > 0 && FuseType == hwa_ins::STACK)
             {
-                int icrdx_i = _param[_param.getParam(_name, hwa_base::par_type::CRD_X, "imu" + hwa_base::base_type_conv::int2str(imui))].index;
+                int icrdx_i = _param[_param->getParam(_name, hwa_base::par_type::CRD_X, "imu" + hwa_base::base_type_conv::int2str(imui))].index;
                 SO3 Ceb_i = sins_mimu[imui]->eth.Cen * sins_mimu[imui]->Cnb;
                 SO3 p_extr_cov = SO3::Zero();
                 SO3 R_extr_cov = SO3::Zero();
@@ -712,7 +712,7 @@ namespace hwa_qt {
         for (auto i : cam_list) {
             if (CamAttr[i]->estimate_extrinsic)
             {
-                int index = _param.getParam(_name, hwa_base::par_type::EX_CAM_ATT_X, "cam" + std::to_string(i));
+                int index = _param->getParam(_name, hwa_base::par_type::EX_CAM_ATT_X, "cam" + std::to_string(i));
                 if (index < 0) std::cerr << "Extrinsic Update Error!" << std::endl;
                 Triple att_dx = Triple(dx(index), dx(index + 1), dx(index + 2));
                 Triple crd_dx = Triple(dx(index + 3), dx(index + 4), dx(index + 5));
@@ -736,7 +736,7 @@ namespace hwa_qt {
             }
             if (CamAttr[i]->estimate_t)
             {
-                int index = _param.getParam(_name, hwa_base::par_type::EXTRINSIC_T, "cam" + std::to_string(i));
+                int index = _param->getParam(_name, hwa_base::par_type::EXTRINSIC_T, "cam" + std::to_string(i));
                 if (index < 0) std::cerr << "Extrinsic dt Update Error!" << std::endl;
 
                 CamAttr[i]->dt_cam0_imu = CamAttr[i]->dt_cam0_imu - dx(index);
@@ -753,7 +753,7 @@ namespace hwa_qt {
             Rotation = SO3::Identity();
             std::string _camid = std::to_string(imu_state_iter->second.ID);
 
-            int idx = _param.getParam(_name, hwa_base::par_type::CAM_ATT_X, _camid);
+            int idx = _param->getParam(_name, hwa_base::par_type::CAM_ATT_X, _camid);
             if (idx < 0) std::cerr << "cam_feedback() idx wrong!" << std::endl;
 
             if (EstimatorType == NORMAL) {
@@ -816,8 +816,8 @@ namespace hwa_qt {
             CamAttr[cam_group_id]->ex_param_num += 6;
             base_allpar param_extended;
             Matrix Qx_extended;
-            int before_parNumber = _param.parNumber();
-            for (int i = 0; i < _param.parNumber(); i++)
+            int before_parNumber = _param->parNumber();
+            for (int i = 0; i < _param->parNumber(); i++)
             {
                 param_extended.addParam(_param[i]);
             }
@@ -846,15 +846,15 @@ namespace hwa_qt {
             }
             _param = param_extended;
             sins->_global_variance = Qx_extended;
-            _param.reIndex();
+            _param->reIndex();
         }
 
         if (CamAttr[cam_group_id]->estimate_t)
         {
             CamAttr[cam_group_id]->ex_param_num += 1;
             base_allpar param_extended;
-            int before_parNumber = _param.parNumber();
-            for (int i = 0; i < _param.parNumber(); i++)
+            int before_parNumber = _param->parNumber();
+            for (int i = 0; i < _param->parNumber(); i++)
             {
                 param_extended.addParam(_param[i]);
             }
@@ -866,7 +866,7 @@ namespace hwa_qt {
             sins->_global_variance = Qx_tmp;
             sins->_global_variance(ibefore, ibefore) = CamAttr[cam_group_id]->initial_cam_t_cov;
             _param = param_extended;
-            _param.reIndex();
+            _param->reIndex();
         }
         return true;
     }
@@ -886,18 +886,18 @@ namespace hwa_qt {
         imu_states[basetime].position = XYZ - initial_pos_ecef;
 
         std::string cam_id = std::to_string(frame_count);
-        base_par att_x_par(_name, hwa_base::par_type::CAM_ATT_X, _param.parNumber() + 1, cam_id);
-        _param.addParam(att_x_par);
-        base_par att_y_par(_name, hwa_base::par_type::CAM_ATT_Y, _param.parNumber() + 1, cam_id);
-        _param.addParam(att_y_par);
-        base_par att_z_par(_name, hwa_base::par_type::CAM_ATT_Z, _param.parNumber() + 1, cam_id);
-        _param.addParam(att_z_par);
-        base_par crd_x_par(_name, hwa_base::par_type::CAM_CRD_X, _param.parNumber() + 1, cam_id);
-        _param.addParam(crd_x_par);
-        base_par crd_y_par(_name, hwa_base::par_type::CAM_CRD_Y, _param.parNumber() + 1, cam_id);
-        _param.addParam(crd_y_par);
-        base_par crd_z_par(_name, hwa_base::par_type::CAM_CRD_Z, _param.parNumber() + 1, cam_id);
-        _param.addParam(crd_z_par);
+        base_par att_x_par(_name, hwa_base::par_type::CAM_ATT_X, _param->parNumber() + 1, cam_id);
+        _param->addParam(att_x_par);
+        base_par att_y_par(_name, hwa_base::par_type::CAM_ATT_Y, _param->parNumber() + 1, cam_id);
+        _param->addParam(att_y_par);
+        base_par att_z_par(_name, hwa_base::par_type::CAM_ATT_Z, _param->parNumber() + 1, cam_id);
+        _param->addParam(att_z_par);
+        base_par crd_x_par(_name, hwa_base::par_type::CAM_CRD_X, _param->parNumber() + 1, cam_id);
+        _param->addParam(crd_x_par);
+        base_par crd_y_par(_name, hwa_base::par_type::CAM_CRD_Y, _param->parNumber() + 1, cam_id);
+        _param->addParam(crd_y_par);
+        base_par crd_z_par(_name, hwa_base::par_type::CAM_CRD_Z, _param->parNumber() + 1, cam_id);
+        _param->addParam(crd_z_par);
 
         size_t old_rows = sins->_global_variance.rows();
         size_t old_cols = sins->_global_variance.cols();
@@ -927,35 +927,35 @@ namespace hwa_qt {
         std::string string_id = std::to_string(imu_states.begin()->second.ID);
         Matrix tmp_Qx = sins->_global_variance;
 
-        int idx_att_x = _param.getParam(_name, hwa_base::par_type::CAM_ATT_X, string_id);
+        int idx_att_x = _param->getParam(_name, hwa_base::par_type::CAM_ATT_X, string_id);
         hwa_base::Matrix_remRC(tmp_Qx, _param[idx_att_x].index, _param[idx_att_x].index);
-        _param.delParam(idx_att_x);
-        _param.reIndex();
+        _param->delParam(idx_att_x);
+        _param->reIndex();
 
-        int idx_att_y = _param.getParam(_name, hwa_base::par_type::CAM_ATT_Y, string_id);
+        int idx_att_y = _param->getParam(_name, hwa_base::par_type::CAM_ATT_Y, string_id);
         hwa_base::Matrix_remRC(tmp_Qx, _param[idx_att_y].index, _param[idx_att_y].index);
-        _param.delParam(idx_att_y);
-        _param.reIndex();
+        _param->delParam(idx_att_y);
+        _param->reIndex();
 
-        int idx_att_z = _param.getParam(_name, hwa_base::par_type::CAM_ATT_Z, string_id);
+        int idx_att_z = _param->getParam(_name, hwa_base::par_type::CAM_ATT_Z, string_id);
         hwa_base::Matrix_remRC(tmp_Qx, _param[idx_att_z].index, _param[idx_att_z].index);
-        _param.delParam(idx_att_z);
-        _param.reIndex();
+        _param->delParam(idx_att_z);
+        _param->reIndex();
 
-        int idx_crd_x = _param.getParam(_name, hwa_base::par_type::CAM_CRD_X, string_id);
+        int idx_crd_x = _param->getParam(_name, hwa_base::par_type::CAM_CRD_X, string_id);
         hwa_base::Matrix_remRC(tmp_Qx, _param[idx_crd_x].index, _param[idx_crd_x].index);
-        _param.delParam(idx_crd_x);
-        _param.reIndex();
+        _param->delParam(idx_crd_x);
+        _param->reIndex();
 
-        int idx_crd_y = _param.getParam(_name, hwa_base::par_type::CAM_CRD_Y, string_id);
+        int idx_crd_y = _param->getParam(_name, hwa_base::par_type::CAM_CRD_Y, string_id);
         hwa_base::Matrix_remRC(tmp_Qx, _param[idx_crd_y].index, _param[idx_crd_y].index);
-        _param.delParam(idx_crd_y);
-        _param.reIndex();
+        _param->delParam(idx_crd_y);
+        _param->reIndex();
 
-        int idx_crd_z = _param.getParam(_name, hwa_base::par_type::CAM_CRD_Z, string_id);
+        int idx_crd_z = _param->getParam(_name, hwa_base::par_type::CAM_CRD_Z, string_id);
         hwa_base::Matrix_remRC(tmp_Qx, _param[idx_crd_z].index, _param[idx_crd_z].index);
-        _param.delParam(idx_crd_z);
-        _param.reIndex();
+        _param->delParam(idx_crd_z);
+        _param->reIndex();
 
         sins->_global_variance = tmp_Qx;
         imu_states.erase(imu_states.begin());
@@ -1038,7 +1038,7 @@ namespace hwa_qt {
         Matrix Hk = Matrix::Zero(3, n);
         Vector Zk = Vector::Zero(3, 1);
         Matrix Rk = Matrix::Identity(3, 3) * ZUPT_Noise;
-        int idx_vel_x = _param.getParam(_name, hwa_base::par_type::VEL_X, "");
+        int idx_vel_x = _param->getParam(_name, hwa_base::par_type::VEL_X, "");
         Hk.block(0, idx_vel_x, 3, 3) = Matrix::Identity(3, 3);
         Zk = sins->ve;
         updater._meas_update_ekf(Hk, Zk, Rk, iter->second.Xk, iter->second.global_variance);
@@ -1117,15 +1117,15 @@ namespace hwa_qt {
         MSCKF_Zk = Zk;
         if (CamAttr[cam_id]->ex_param_num > 0) {
             if (CamAttr[cam_id]->estimate_extrinsic) {
-                int idx_att_ex = _param.getParam(_name, hwa_base::par_type::EX_CAM_ATT_X, "cam" + std::to_string(cam_id));
+                int idx_att_ex = _param->getParam(_name, hwa_base::par_type::EX_CAM_ATT_X, "cam" + std::to_string(cam_id));
                 MSCKF_Hk.block(0, idx_att_ex, rows, 6) = Hk.block(0, 0, rows, 6);
             }
             if (CamAttr[cam_id]->estimate_t) {
-                int idx_att_ext = _param.getParam(_name, hwa_base::par_type::EXTRINSIC_T, "cam" + std::to_string(cam_id));
+                int idx_att_ext = _param->getParam(_name, hwa_base::par_type::EXTRINSIC_T, "cam" + std::to_string(cam_id));
                 MSCKF_Hk.block(0, idx_att_ext, rows, 1) = Hk.block(0, CamAttr[cam_id]->ex_param_num - 1, rows, 1);
             }
         }
-        int idx_att_x = _param.getParam(_name, hwa_base::par_type::CAM_ATT_X, std::to_string(ID));
+        int idx_att_x = _param->getParam(_name, hwa_base::par_type::CAM_ATT_X, std::to_string(ID));
         int window_size = idx_att_x - nq;
         for (auto i : cam_list) {
             window_size -= CamAttr[i]->ex_param_num;

@@ -9,17 +9,17 @@
             to finish obs-filtering via settings
 */
 
-#ifndef hwa_gnss_coder_rinexo_H
-#define hwa_gnss_coder_rinexo_H
+#ifndef hwa_gnss_coder_rinexo_h
+#define hwa_gnss_coder_rinexo_h
 
 #include "hwa_set_base.h"
 #include "hwa_gnss_all_obs.h"
-#include "hwa_gnss_all_Obj.h"
+#include "hwa_gnss_all_obj.h"
 #include "hwa_base_time.h"
 #include "hwa_gnss_sys.h"
 #include "hwa_gnss_data_obs.h"
 #include "hwa_base_typeconv.h"
-#include "hwa_gnss_coder_BASE.h"
+#include "hwa_gnss_coder_base.h"
 #include "hwa_gnss_coder_rinexo2.h"
 #include "hwa_gnss_coder_rinexo3.h"
 #include "hwa_gnss_data_rec.h"

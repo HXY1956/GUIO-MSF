@@ -169,26 +169,26 @@ namespace hwa_gnss
     int gnss_data_sats::addprd(gnss_all_nav *gnav, const bool &corrTOT, const bool &msk_health)
     {
 
-        //_gmutex.lock();
+        //
 
         _low_prec = false;
 
         int irc = this->_addprd(gnav, corrTOT, msk_health);
 
-        //_gmutex.unlock();
+        //
         return irc;
     }
 
     int gnss_data_sats::addprd_realtime(gnss_all_nav *gnav, const bool &corrTOT, const bool &msk_health)
     {
 
-        //_gmutex.lock();
+        //
 
         _low_prec = false;
 
         int irc = this->_addprd_realtime_new(gnav, corrTOT, msk_health);
 
-        //_gmutex.unlock();
+        //
         return irc;
     }
 

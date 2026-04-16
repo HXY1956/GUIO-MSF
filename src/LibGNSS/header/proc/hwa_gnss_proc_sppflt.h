@@ -121,7 +121,7 @@ namespace hwa_gnss
         gnss_model_white_noise *_clkStoModel; ///< clk stochastic model
         gnss_model_white_noise *_crdStoModel; ///< crd stochastic model
 
-        base_allpar _param;
+        std::shared_ptr<base_allpar> _param;
         Symmetric _Qx;     ///< Parameters and covariance matrix
         Diag _Noise;   ///< Noise matrix
         base_time _epoch;          ///< Epoch time

@@ -235,9 +235,9 @@ namespace hwa_gnss
         {
             for (unsigned int j = 0; j < siteall.size(); j++)
             {
-                B.push_back(std::make_pair(icrdx[j] + 1, B_temp(i, 3 * j)));
-                B.push_back(std::make_pair(icrdy[j] + 1, B_temp(i, 3 * j + 1)));
-                B.push_back(std::make_pair(icrdz[j] + 1, B_temp(i, 3 * j + 2)));
+                B.push_back(std::make_pair(icrdx[j], B_temp(i, 3 * j)));
+                B.push_back(std::make_pair(icrdy[j], B_temp(i, 3 * j + 1)));
+                B.push_back(std::make_pair(icrdz[j], B_temp(i, 3 * j + 2)));
             }
 
             gnss_proc_lsq_equationmatrix virtual_equ;
@@ -1502,7 +1502,7 @@ namespace hwa_gnss
                 continue;
             if (double_eq(_x_solve.getAmbParam(ipar).value(), 0.0))
                 continue;
-            B.push_back(std::make_pair(ipar + 1, 1));
+            B.push_back(std::make_pair(ipar, 1));
         }
         gnss_proc_lsq_equationmatrix virtual_equ;
         gnss_data_obscombtype type;
@@ -1639,7 +1639,7 @@ namespace hwa_gnss
             {
                 A.row(i * 3) << 1 , 0 , 0;
                 A.row(i * 3 + 1) << 0 , 1 , 0;
-                A.row(i * 3 + 3) << 0 , 0 , 1;
+                A.row(i * 3 + 2) << 0 , 0 , 1;
             }
         }
 
@@ -1650,9 +1650,9 @@ namespace hwa_gnss
         {
             for (unsigned int j = 0; j < siteall.size(); j++)
             {
-                B.push_back(std::make_pair(icrdx[j] + 1, B_temp(i, 3 * j)));
-                B.push_back(std::make_pair(icrdy[j] + 1, B_temp(i, 3 * j + 1)));
-                B.push_back(std::make_pair(icrdz[j] + 1, B_temp(i, 3 * j + 2)));
+                B.push_back(std::make_pair(icrdx[j], B_temp(i, 3 * j)));
+                B.push_back(std::make_pair(icrdy[j], B_temp(i, 3 * j + 1)));
+                B.push_back(std::make_pair(icrdz[j], B_temp(i, 3 * j + 2)));
             }
 
             gnss_proc_lsq_equationmatrix virtual_equ;

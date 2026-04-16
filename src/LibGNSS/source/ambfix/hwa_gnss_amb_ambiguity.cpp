@@ -867,9 +867,9 @@ namespace hwa_gnss
 
         for (unsigned int i = 0; i < param.parNumber(); i++)
         {
-            _param[i].value(param[i].value() + dx(i + 1));
+            _param[i].value(param[i].value() + dx(i));
             if (stdx)
-                _param[i].apriori((*stdx)(i + 1));
+                _param[i].apriori((*stdx)(i));
         }
     }
 
@@ -1105,7 +1105,7 @@ namespace hwa_gnss
         // 遍历所有参数，筛选出可用的模糊度参数
         for (auto it_par = params_all.begin(); it_par != params_all.end(); it_par++)
         {
-            it_par->index = distance(params_all.begin(), it_par) + 1;
+            it_par->index = distance(params_all.begin(), it_par);
             it_par->pred = it_par->value() + amb_cmn->dx()(it_par->index); // 浮点模糊度预测值
 
             // 筛选条件：必须为模糊度参数，排除AMB13、已删除卫星、值为0的参数
@@ -2833,7 +2833,7 @@ namespace hwa_gnss
             int index_sat2 = get<1>(itdd->ddSats[1]); // 获取第二颗卫星的索引
 
             // 计算双差浮点模糊度解
-            flt = gflt->param()[index_sat1 - 1].value() - gflt->param()[index_sat2 - 1].value();
+            flt = gflt->param()[index_sat1].value() - gflt->param()[index_sat2].value();
 
             // 根据不同的观测组合类型计算虚拟观测方程的整数部分和系数
             if (_obstype == OBSCOMBIN::IONO_FREE)
@@ -2850,7 +2850,7 @@ namespace hwa_gnss
                     integer = (itdd->inl - itdd->sd_rnl_cor + 3.5 * round(itdd->rwl)); // 特殊的整数模糊度计算方式
                     Ba = 1 / _sys_wavelen[sat1]["NL"];                                 // 设置系数 Ba
                     Bb = -1 / _sys_wavelen[sat2]["NL"];                                // 设置系数 Bb
-                    flt = gflt->param()[index_sat1 - 1].value() * Ba + gflt->param()[index_sat2 - 1].value() * Bb; // 重新计算浮点解
+                    flt = gflt->param()[index_sat1].value() * Ba + gflt->param()[index_sat2].value() * Bb; // 重新计算浮点解
                 }
             }
             else if (_obstype == OBSCOMBIN::RAW_ALL || _obstype == OBSCOMBIN::RAW_SINGLE || _obstype == OBSCOMBIN::RAW_MIX)
@@ -2883,7 +2883,7 @@ namespace hwa_gnss
                         Bb = -1 / _sys_wavelen[sat2]["L2"]; // 设置 L2 的系数 Bb
                         Lx_cor = itdd->sd_r2_cor;
                     }
-                    flt = gflt->param()[index_sat1 - 1].value() * Ba + gflt->param()[index_sat2 - 1].value() * Bb; // 重新计算浮点解
+                    flt = gflt->param()[index_sat1].value() * Ba + gflt->param()[index_sat2].value() * Bb; // 重新计算浮点解
                     integer = (itdd->inl - Lx_cor); // 计算整数部分
                 }
             }
@@ -2970,7 +2970,7 @@ namespace hwa_gnss
                 continue; // 如果有一个未找到参数索引，跳过
 
             // 获取当前估计的模糊度差值
-            flt = gflt->param()[index_sat1 - 1].value() - gflt->param()[index_sat2 - 1].value();
+            flt = gflt->param()[index_sat1].value() - gflt->param()[index_sat2].value();
 
             // 计算整数模糊度值（历史固定值）
             if (_obstype == OBSCOMBIN::IONO_FREE)
@@ -3035,7 +3035,7 @@ namespace hwa_gnss
             int index_sat1 = get<1>(itdd->ddSats[0]);
             int index_sat2 = get<1>(itdd->ddSats[1]);
 
-            flt = lsqestimator->_x_solve[index_sat1 - 1].value() - lsqestimator->_x_solve[index_sat2 - 1].value(); // Unit: meter
+            flt = lsqestimator->_x_solve[index_sat1].value() - lsqestimator->_x_solve[index_sat2].value(); // Unit: meter
 
             if (_obstype == OBSCOMBIN::IONO_FREE)
             {
@@ -3053,7 +3053,7 @@ namespace hwa_gnss
                     integer = (itdd->inl - itdd->sd_rnl_cor + 3.5 * round(itdd->rwl)); // hlgou changed according to LX
                     Ba = 1 / _sys_wavelen[sat1]["NL"];                                 // Coefficient of B matrix
                     Bb = -1 / _sys_wavelen[sat2]["NL"];
-                    flt = lsqestimator->_x_solve[index_sat1 - 1].value() * Ba + lsqestimator->_x_solve[index_sat2 - 1].value() * Bb;
+                    flt = lsqestimator->_x_solve[index_sat1].value() * Ba + lsqestimator->_x_solve[index_sat2].value() * Bb;
                 }
             }
             else if (_obstype == OBSCOMBIN::RAW_ALL || _obstype == OBSCOMBIN::RAW_SINGLE || _obstype == OBSCOMBIN::RAW_MIX)
@@ -3091,7 +3091,7 @@ namespace hwa_gnss
                         Bb = -1 / _sys_wavelen[sat2]["L2"];
                         Lx_cor = itdd->sd_r2_cor;
                     }
-                    flt = lsqestimator->_x_solve[index_sat1 - 1].value() * Ba + lsqestimator->_x_solve[index_sat2 - 1].value() * Bb;
+                    flt = lsqestimator->_x_solve[index_sat1].value() * Ba + lsqestimator->_x_solve[index_sat2].value() * Bb;
                     integer = (itdd->inl - Lx_cor);
                 }
             }
@@ -3214,10 +3214,10 @@ namespace hwa_gnss
             }
 
             // 计算浮点解
-            flt = gflt->param()[index_sat1 - 1].value() * Ba +
-                gflt->param()[index_sat3 - 1].value() * Bb +
-                gflt->param()[index_sat2 - 1].value() * Bc +
-                gflt->param()[index_sat4 - 1].value() * Bd;
+            flt = gflt->param()[index_sat1].value() * Ba +
+                gflt->param()[index_sat3].value() * Bb +
+                gflt->param()[index_sat2].value() * Bc +
+                gflt->param()[index_sat4].value() * Bd;
 
             // 计算残差
             dl = integer - flt;
@@ -3345,9 +3345,9 @@ namespace hwa_gnss
                 Bc = -1 / lambda_21;
                 Bd = 1 / lambda_22;
             }
-            //        std::cerr << sat1<<lsqestimator->_x_solve[index_sat1 - 1].value() << "        " << sat3<< lsqestimator->_x_solve[index_sat3 - 1].value()<<std::endl;
+            //        std::cerr << sat1<<lsqestimator->_x_solve[index_sat1].value() << "        " << sat3<< lsqestimator->_x_solve[index_sat3 - 1].value()<<std::endl;
 
-            flt = lsqestimator->_x_solve[index_sat1 - 1].value() * Ba + lsqestimator->_x_solve[index_sat3 - 1].value() * Bb + lsqestimator->_x_solve[index_sat2 - 1].value() * Bc + lsqestimator->_x_solve[index_sat4 - 1].value() * Bd;
+            flt = lsqestimator->_x_solve[index_sat1].value() * Ba + lsqestimator->_x_solve[index_sat3 - 1].value() * Bb + lsqestimator->_x_solve[index_sat2].value() * Bc + lsqestimator->_x_solve[index_sat4 - 1].value() * Bd;
             dl = integer - flt;
 
             // jqwu for test
@@ -4092,7 +4092,7 @@ namespace hwa_gnss
                     used_DD.push_back(*DD_iter);
                     DD_iter = Redundant_DD.erase(DD_iter);
                 }
-                else if (index_sat1 < 1 && index_sat2 < 1)
+                else if (index_sat1 < 0 && index_sat2 < 0)
                 {
                     DD_iter = Redundant_DD.erase(DD_iter);
                 }
@@ -4191,10 +4191,10 @@ namespace hwa_gnss
 
                 index_sat1 = _sats_index[sat1][itdd->ambtype];
                 index_sat2 = _sats_index[sat2][itdd->ambtype];
-                if (index_sat1 < 1 || index_sat2 < 1)
+                if (index_sat1 < 0 || index_sat2 < 0)
                     continue;
 
-                flt = gfltpre.param()[index_sat1 - 1].value() - gfltpre.param()[index_sat2 - 1].value();
+                flt = gfltpre.param()[index_sat1].value() - gfltpre.param()[index_sat2].value();
 
                 if (_obstype == OBSCOMBIN::IONO_FREE)
                 {
@@ -4221,14 +4221,14 @@ namespace hwa_gnss
                 index_sat2 = _sats_index[sat2]["AMB_L1"];
                 index_sat3 = _sats_index[sat3]["AMB_L2"];
                 index_sat4 = _sats_index[sat4]["AMB_L2"];
-                if (index_sat1 < 1 || index_sat2 < 1 || index_sat3 < 1 || index_sat4 < 1)
+                if (index_sat1 < 0 || index_sat2 < 0 || index_sat3 < 0 || index_sat4 < 0)
                     continue;
                 if (!itdd->isWlFixed || itdd->rwl == 0)
                     continue;
                 lambda_1 = _sys_wavelen[sat1.substr(0, 1)]["L1"];
                 lambda_2 = _sys_wavelen[sat1.substr(0, 1)]["L2"];
                 integer = (itdd->iwl - itdd->sd_rwl_cor);
-                flt = gfltpre.param()[index_sat1 - 1].value() / lambda_1 - gfltpre.param()[index_sat3 - 1].value() / lambda_2 - gfltpre.param()[index_sat2 - 1].value() / lambda_1 + gfltpre.param()[index_sat4 - 1].value() / lambda_2;
+                flt = gfltpre.param()[index_sat1].value() / lambda_1 - gfltpre.param()[index_sat3 - 1].value() / lambda_2 - gfltpre.param()[index_sat2].value() / lambda_1 + gfltpre.param()[index_sat4 - 1].value() / lambda_2;
             }
             else if (mode == "EWL")
             {
@@ -4238,14 +4238,14 @@ namespace hwa_gnss
                 index_sat2 = _sats_index[sat2]["AMB_L2"];
                 index_sat3 = _sats_index[sat3]["AMB_L3"];
                 index_sat4 = _sats_index[sat4]["AMB_L3"];
-                if (index_sat1 < 1 || index_sat2 < 1 || index_sat3 < 1 || index_sat4 < 1)
+                if (index_sat1 < 0 || index_sat2 < 0 || index_sat3 < 0 || index_sat4 < 0)
                     continue;
                 if (!itdd->isEwlFixed || itdd->rewl == 0)
                     continue;
                 lambda_1 = _sys_wavelen[sat1.substr(0, 1)]["L2"];
                 lambda_2 = _sys_wavelen[sat1.substr(0, 1)]["L3"];
                 integer = (itdd->iewl - itdd->sd_rewl_cor);
-                flt = gfltpre.param()[index_sat1 - 1].value() / lambda_1 - gfltpre.param()[index_sat3 - 1].value() / lambda_2 - gfltpre.param()[index_sat2 - 1].value() / lambda_1 + gfltpre.param()[index_sat4 - 1].value() / lambda_2;
+                flt = gfltpre.param()[index_sat1].value() / lambda_1 - gfltpre.param()[index_sat3 - 1].value() / lambda_2 - gfltpre.param()[index_sat2].value() / lambda_1 + gfltpre.param()[index_sat4 - 1].value() / lambda_2;
             }
 
             dl = integer - flt;

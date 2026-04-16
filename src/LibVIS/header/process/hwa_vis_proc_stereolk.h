@@ -215,7 +215,7 @@ namespace hwa_vis {
         
         bool Initialize();
 
-        virtual PointCloud ProcessBatch(const double& t);
+        virtual PointCloud ProcessBatch();
 
         void createImagePyramids();
 

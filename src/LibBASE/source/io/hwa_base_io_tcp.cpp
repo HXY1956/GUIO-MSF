@@ -436,7 +436,7 @@ namespace hwa_base
     int base_io_tcp::_gio_read(char *buff, int size)
     {
 
-        //_gmutex.lock();
+        //
 
         //int size = 1024;
         char *Buff = new char[size];
@@ -467,7 +467,7 @@ namespace hwa_base
             Buff = nullptr;
         }
 
-        //_gmutex.unlock();
+        //
         return nBytes;
     }
 

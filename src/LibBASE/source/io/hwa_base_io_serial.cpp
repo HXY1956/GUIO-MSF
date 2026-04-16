@@ -177,7 +177,7 @@ namespace hwa_base
     int base_io_serial::_gio_read(char *buff, int size)
     {
 
-        //_gmutex.lock();
+        //
 
 #ifdef _WIN32
         if (!_opened || m_hIDComDev == NULL)
@@ -205,7 +205,7 @@ namespace hwa_base
             return (0);
         }
 
-        //_gmutex.unlock();
+        //
         return ((int)dwBytesRead);
 
 #else

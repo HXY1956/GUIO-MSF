@@ -54,6 +54,7 @@ namespace hwa_msf {
             _Estimator = dynamic_cast<set_ign*>(_gset.get())->fuse_type();
         };
         ~baseprocesser() {};
+        double dTime() { return TimeStamp.sow() + TimeStamp.dsec(); };
         base_time& Time() { return TimeStamp;}
         base_time& _beg() { return beg; }
         base_time& _end() { return end; }

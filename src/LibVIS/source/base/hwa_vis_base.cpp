@@ -6,6 +6,7 @@ hwa_vis::vis_base::vis_base(hwa_set::set_base* _set, int cam_group_id) :cam_stat
     processer = dynamic_cast<set_vis*>(_set)->processer();
     max_camstate_size = dynamic_cast<set_vis*>(_set)->max_cam_state_size(cam_group_id);
     _MinParallex = dynamic_cast<set_vis*>(_set)->minparallex(cam_group_id);
+	_Estimator = dynamic_cast<set_ign*>(_set)->fuse_type();
     R_cam0_imu = dynamic_cast<set_vis*>(_set)->R_cam0_imu(cam_group_id);
     t_cam0_imu = dynamic_cast<set_vis*>(_set)->t_cam0_imu(cam_group_id);
     T_cam0_imu = dynamic_cast<set_vis*>(_set)->T_cam0_imu(cam_group_id);
@@ -20,8 +21,8 @@ hwa_vis::vis_base::vis_base(hwa_set::set_base* _set, int cam_group_id) :cam_stat
     feature_observation_noise *= feature_observation_noise;
     Bgs.resize(max_camstate_size, Triple::Zero());
     Bas.resize(max_camstate_size, Triple::Zero());
-    if (num_of_cam == 1) stereo = false;
-    else stereo = true;
+    if (num_of_cam == 2 && dynamic_cast<set_vis*>(_set)->stereo(cam_group_id)) stereo = false;
+    else stereo = false;
     switch (processer) {
     case CPU:
         if (!stereo)
@@ -169,7 +170,7 @@ bool hwa_vis::vis_base::keyframeCheck()
     double ans = parallax_sum / parallax_num;
     if (tracked_feature_num < 20 || nonFrame_num >= 30 || ans >= MIN_PARALLAX)
     {
-        std::cout << "Cam-" << cam_state_id << ": KeyFrame " << ": parallax: " << ans << " Feature Num: " << tracked_feature_num << std::endl;
+        //std::cout << "Cam-" << cam_state_id << ": KeyFrame " << ": parallax: " << ans << " Feature Num: " << tracked_feature_num << std::endl;
         nonFrame_num = 0;
         isKeyFrame = true;
         KeyFrameBuffer.push_back(cur_cam_id);
@@ -232,7 +233,7 @@ void hwa_vis::vis_base::measurementJacobianEX(
     Eigen::Matrix<double, 3, 6> dpc1_dxc_ex = Eigen::Matrix<double, 3, 6>::Zero();
 
     if (clone == CAMERA) {
-        if (vfusetype == "Normal") {
+        if (_Estimator == NORMAL) {
 
             dpc0_dxc.leftCols(3) = R_w_c0 * skew(p_w - t_c0_w);
             dpc0_dxc.rightCols(3) = R_w_c0;
@@ -243,7 +244,7 @@ void hwa_vis::vis_base::measurementJacobianEX(
             r = z - Eigen::Vector4d(p_c0(0) / p_c0(2), p_c0(1) / p_c0(2),
                 p_c1(0) / p_c1(2), p_c1(1) / p_c1(2));
         }
-        else if (vfusetype == "InEKF" || vfusetype == "I_InEKF") {
+        else if (_Estimator == INEKF) {
             dpc0_dxc.leftCols(3) = -R_w_c0 * skew(p_w);
             dpc0_dxc.rightCols(3) = R_w_c0;
 
@@ -255,7 +256,7 @@ void hwa_vis::vis_base::measurementJacobianEX(
         }
     }
     else if (clone == IMU) {
-        if (vfusetype == "Normal") {
+        if (_Estimator == NORMAL) {
 
             dpc0_dxc.leftCols(3) = R_w_c0 * skew(p_w - t_i_w);
             dpc0_dxc.rightCols(3) = R_w_c0;
@@ -272,7 +273,7 @@ void hwa_vis::vis_base::measurementJacobianEX(
             r = z - Eigen::Vector4d(p_c0(0) / p_c0(2), p_c0(1) / p_c0(2),
                 p_c1(0) / p_c1(2), p_c1(1) / p_c1(2));
         }
-        else if (vfusetype == "InEKF" || vfusetype == "I_InEKF") {
+        else if (_Estimator == INEKF) {
             dpc0_dxc.leftCols(3) = -R_w_c0 * skew(p_w);
             dpc0_dxc.rightCols(3) = R_w_c0;
 
@@ -299,7 +300,7 @@ void hwa_vis::vis_base::measurementJacobianEX(
     H_f = dz_dpc0 * dpc0_dpg + dz_dpc1 * dpc1_dpg;
     H_x_ex = dz_dpc0 * dpc0_dxc_ex + dz_dpc1 * dpc1_dxc_ex;
 
-    //if (vfusetype == "Normal") {
+    //if (_Estimator == NORMAL) {
     //    //OC
     //    Eigen::Matrix<double, 4, 6> A = H_x;
     //    Eigen::Matrix<double, 6, 1> u = Eigen::Matrix<double, 6, 1>::Zero();
@@ -354,7 +355,7 @@ void hwa_vis::vis_base::measurementJacobian(
     Eigen::Matrix<double, 3, 6> dpc1_dxc = Eigen::Matrix<double, 3, 6>::Zero();
 
     if (clone == CAMERA) {
-        if (vfusetype == "Normal") {
+        if (_Estimator == NORMAL) {
             //dpc0_dxc.leftCols(3) = skew(p_c0);
             //dpc0_dxc.rightCols(3) = -R_w_c0;
             dpc0_dxc.leftCols(3) = R_w_c0 * skew(p_w - t_c0_w);
@@ -362,15 +363,13 @@ void hwa_vis::vis_base::measurementJacobian(
 
             //dpc1_dxc.leftCols(3) = R_c0_c1 * skew(p_c0);
             //dpc1_dxc.rightCols(3) = -R_w_c1;
-            dpc1_dxc.leftCols(3) = R_w_c1 * skew(p_w - t_c0_w);
+            dpc1_dxc.leftCols(3) = R_w_c1 * skew(p_w - t_c1_w);
             dpc1_dxc.rightCols(3) = R_w_c1;
 
-            //r = Eigen::Vector4d(p_c0(0) / p_c0(2), p_c0(1) / p_c0(2),
-            //    p_c1(0) / p_c1(2), p_c1(1) / p_c1(2)) - z;
             r = z - Eigen::Vector4d(p_c0(0) / p_c0(2), p_c0(1) / p_c0(2),
                 p_c1(0) / p_c1(2), p_c1(1) / p_c1(2));
         }
-        else if (vfusetype == "InEKF" || vfusetype == "I_InEKF") {
+        else if (_Estimator == INEKF) {
             dpc0_dxc.leftCols(3) = -R_w_c0 * skew(p_w);
             dpc0_dxc.rightCols(3) = R_w_c0;
 
@@ -382,7 +381,7 @@ void hwa_vis::vis_base::measurementJacobian(
         }
     }
     else if (clone == IMU) {
-        if (vfusetype == "Normal") {
+        if (_Estimator == NORMAL) {
 
             dpc0_dxc.leftCols(3) = R_w_c0 * skew(p_w - t_i_w);
             dpc0_dxc.rightCols(3) = R_w_c0;
@@ -393,7 +392,7 @@ void hwa_vis::vis_base::measurementJacobian(
             r = z - Eigen::Vector4d(p_c0(0) / p_c0(2), p_c0(1) / p_c0(2),
                 p_c1(0) / p_c1(2), p_c1(1) / p_c1(2));
         }
-        else if (vfusetype == "InEKF" || vfusetype == "I_InEKF") {
+        else if (_Estimator == INEKF) {
             dpc0_dxc.leftCols(3) = -R_w_c0 * skew(p_w);
             dpc0_dxc.rightCols(3) = R_w_c0;
 
@@ -413,7 +412,7 @@ void hwa_vis::vis_base::measurementJacobian(
     H_x = dz_dpc0 * dpc0_dxc + dz_dpc1 * dpc1_dxc;
     H_f = dz_dpc0 * dpc0_dpg + dz_dpc1 * dpc1_dpg;
 
-    //if (vfusetype == "Normal") {
+    //if (_Estimator == NORMAL) {
     //    //OC
     //    Eigen::Matrix<double, 4, 6> A = H_x;
     //    Eigen::Matrix<double, 6, 1> u = Eigen::Matrix<double, 6, 1>::Zero();
@@ -462,13 +461,13 @@ void hwa_vis::vis_base::measurementJacobianEX(
     Eigen::Matrix<double, 3, 6> dpc0_dxc = Eigen::Matrix<double, 3, 6>::Zero();
 
     if (clone == CAMERA) {
-        if (vfusetype == "Normal") {
+        if (_Estimator == NORMAL) {
             dpc0_dxc.leftCols(3) = R_w_c0 * skew(p_w - t_c0_w);
             dpc0_dxc.rightCols(3) = R_w_c0;
 
             r = z - Eigen::Vector2d(p_c0(0) / p_c0(2), p_c0(1) / p_c0(2));
         }
-        else if (vfusetype == "InEKF" || vfusetype == "I_InEKF") {
+        else if (_Estimator == INEKF) {
             dpc0_dxc.leftCols(3) = -R_w_c0 * skew(p_w);
             dpc0_dxc.rightCols(3) = R_w_c0;
 
@@ -476,7 +475,7 @@ void hwa_vis::vis_base::measurementJacobianEX(
         }
     }
     else if (clone == IMU) {
-        if (vfusetype == "Normal") {
+        if (_Estimator == NORMAL) {
 
             dpc0_dxc.leftCols(3) = R_w_c0 * skew(p_w - t_i_w);
             dpc0_dxc.rightCols(3) = R_w_c0;
@@ -486,7 +485,7 @@ void hwa_vis::vis_base::measurementJacobianEX(
 
             r = z - Eigen::Vector2d(p_c0(0) / p_c0(2), p_c0(1) / p_c0(2));
         }
-        else if (vfusetype == "InEKF" || vfusetype == "I_InEKF") {
+        else if (_Estimator == INEKF) {
             dpc0_dxc.leftCols(3) = -R_w_c0 * skew(p_w);
             dpc0_dxc.rightCols(3) = R_w_c0;
 
@@ -503,7 +502,7 @@ void hwa_vis::vis_base::measurementJacobianEX(
     H_x = dz_dpc0 * dpc0_dxc;
     H_f = dz_dpc0 * dpc0_dpg;
 
-    //if (vfusetype == "Normal") {
+    //if (_Estimator == NORMAL) {
     //    //OC
     //    Eigen::Matrix<double, 2, 6> A = H_x;
     //    Eigen::Matrix<double, 6, 1> u = Eigen::Matrix<double, 6, 1>::Zero();
@@ -545,13 +544,13 @@ void hwa_vis::vis_base::measurementJacobian(
     Eigen::Matrix<double, 3, 6> dpc0_dxc = Eigen::Matrix<double, 3, 6>::Zero();
 
     if (clone == CAMERA) {
-        if (vfusetype == "Normal") {
+        if (_Estimator == NORMAL) {
             dpc0_dxc.leftCols(3) = R_w_c0 * skew(p_w - t_c0_w);
             dpc0_dxc.rightCols(3) = R_w_c0;
 
             r = z - Eigen::Vector2d(p_c0(0) / p_c0(2), p_c0(1) / p_c0(2));
         }
-        else if (vfusetype == "InEKF" || vfusetype == "I_InEKF") {
+        else if (_Estimator == INEKF) {
             dpc0_dxc.leftCols(3) = -R_w_c0 * skew(p_w);
             dpc0_dxc.rightCols(3) = R_w_c0;
 
@@ -559,14 +558,14 @@ void hwa_vis::vis_base::measurementJacobian(
         }
     }
     else if (clone == IMU) {
-        if (vfusetype == "Normal") {
+        if (_Estimator == NORMAL) {
 
             dpc0_dxc.leftCols(3) = R_w_c0 * skew(p_w - t_i_w);
             dpc0_dxc.rightCols(3) = R_w_c0;
 
             r = z - Eigen::Vector2d(p_c0(0) / p_c0(2), p_c0(1) / p_c0(2));
         }
-        else if (vfusetype == "InEKF" || vfusetype == "I_InEKF") {
+        else if (_Estimator == INEKF) {
             dpc0_dxc.leftCols(3) = -R_w_c0 * skew(p_w);
             dpc0_dxc.rightCols(3) = R_w_c0;
 
@@ -580,7 +579,7 @@ void hwa_vis::vis_base::measurementJacobian(
     H_x = dz_dpc0 * dpc0_dxc;
     H_f = dz_dpc0 * dpc0_dpg;
 
-    //if (vfusetype == "Normal") {
+    //if (_Estimator == NORMAL) {
     //    //OC
     //    Eigen::Matrix<double, 2, 6> A = H_x;
     //    Eigen::Matrix<double, 6, 1> u = Eigen::Matrix<double, 6, 1>::Zero();
@@ -1333,7 +1332,7 @@ bool hwa_vis::vis_base::addFeatureObservations()
     tracking_rate =
         static_cast<double>(tracked_feature_num) /
         static_cast<double>(curr_feature_num);
-    std::cout << "tracking_rate:" << tracking_rate << std::endl;
+    //std::cout << "tracking_rate:" << tracking_rate << std::endl;
     cam_states[cam_state_id].mtracking_rate = tracking_rate;
     return true;
 }

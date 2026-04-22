@@ -15,6 +15,8 @@ hwa_set::set_msf::set_msf() :
     _IFMT_supported.insert(IFMT::IMU_INP);
     _IFMT_supported.insert(IFMT::IMU_POS_INP);
     _IFMT_supported.insert(IFMT::ODO_INP);
+    _IFMT_supported.insert(IFMT::LIDAR_INP);
+
     _IFMT_supported.insert(IFMT::RSSIMAP_INP);
     _IFMT_supported.insert(IFMT::ATT_INP);
     _IFMT_supported.insert(IFMT::IMAGE_INP);
@@ -48,7 +50,7 @@ void hwa_set::set_msf::help()
     hwa_set::set_uwb::help();
     hwa_set::set_vis::help();
     hwa_set::set_ppp::help();
-   // hwa_set::set_lidar::help();
+    hwa_set::set_lidar::help();
     hwa_set::set_tracker::help();
     hwa_set::set_proc::help();
     hwa_set::set_ign::help();

@@ -18,7 +18,8 @@ namespace hwa_lidar
         scanPeriod = 1.0 / double(dynamic_cast<set_lidar*>(_set)->freq());
         use_segmenter = dynamic_cast<set_lidar*>(_set)->use_segmenter();
 
-        if (use_segmenter) segmenter.systemInitialization(n_scans);    }
+        //if (use_segmenter) segmenter.systemInitialization(n_scans);    
+    }
 
     bool comp(int i, int j) { return (cloudCurvature[i] < cloudCurvature[j]); }
 
@@ -455,7 +456,7 @@ namespace hwa_lidar
                                 break;
                             }
 
-                            cloudNeighborPicked[ind - l] = 1;
+                            cloudNeighborPicked[ind + l] = 1;
                         }
                     }
                 }
@@ -861,8 +862,7 @@ namespace hwa_lidar
             for (int i = 0; i < pcs_pcl->points.size(); i++)
             {
                 pcl::PointXYZI point = pcs_pcl->points[i];
-                KDTree_pppc.nearestKSearch(point, 2, pointSearchInd, pointSearchSqDis);
-
+                if (KDTree_pppc.nearestKSearch(point, 2, pointSearchInd, pointSearchSqDis) < 2) continue;
                 int search_id;
                 if (i != pointSearchInd.at(0)) search_id = pointSearchInd.at(0);
                 else search_id = pointSearchInd.at(1);

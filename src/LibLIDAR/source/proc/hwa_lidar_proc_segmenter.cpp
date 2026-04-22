@@ -10,6 +10,7 @@ using namespace std;
 
 hwa_lidar::lidar_proc_segmenter::lidar_proc_segmenter(int N_Scan): N_SCAN(N_Scan)
 {
+    systemInitialization(N_SCAN);
 }
 
 hwa_lidar::lidar_proc_segmenter::~lidar_proc_segmenter()

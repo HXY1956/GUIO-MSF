@@ -1,6 +1,29 @@
 cmake_minimum_required(VERSION 3.10)
 project(GVIO LANGUAGES CXX CUDA)
 
+option(USE_AVX2 "Use AVX2 instruction set" ON)
+
+if(USE_AVX2)
+    if(MSVC)
+        add_compile_options(
+            $<$<COMPILE_LANGUAGE:CXX>:/arch:AVX2>
+        )
+        add_compile_options(
+            $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/arch:AVX2>
+        )
+        add_compile_definitions(__AVX2__)
+        
+    elseif(CMAKE_COMPILER_IS_GNUCC OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        add_compile_options(
+            $<$<COMPILE_LANGUAGE:CXX>:-mavx2 -mfma>
+        )
+        add_compile_options(
+            $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-mavx2,-mfma>
+        )
+        add_compile_definitions(__AVX2__)
+    endif()
+endif()
+
 if(MSVC)
     add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/MP>)
     add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/bigobj>)

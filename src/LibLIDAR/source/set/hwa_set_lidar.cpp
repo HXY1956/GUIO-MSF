@@ -47,22 +47,20 @@ double hwa_set::set_lidar::start()
 {
     std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_LIDAR).child_value("start");
     str_erase(tmp);
-    int tmp_int = 10; // default value
+    double tmp_double = 0; // default value
     if (tmp != "")
-        tmp_int = std::stoi(tmp);
-    double res = 1.0 / tmp_int;
-    return res;
+        tmp_double = std::stod(tmp);
+    return tmp_double;
 }
 
 double hwa_set::set_lidar::end()
 {
     std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_LIDAR).child_value("end");
     str_erase(tmp);
-    int tmp_int = 10; // default value
+    double tmp_double = 0; // default value
     if (tmp != "")
-        tmp_int = std::stoi(tmp);
-    double res = 1.0 / tmp_int;
-    return res;
+        tmp_double = std::stod(tmp);
+    return tmp_double;
 }
 
 double hwa_set::set_lidar::ts()

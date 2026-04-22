@@ -544,14 +544,14 @@ namespace hwa_msf {
         _filter->add_data(_sins->Hk, P, _sins->Zk);
         _filter->add_data(vtpv, _sins->Hk.rows(), _sins->Hk.cols());
 
-        for (int i = 0; i < _param->parNumber(); i++)
-        {
-            std::cout << std::fixed << std::setw(20) << " Float EPO  " << std::setw(20) << _filter->param()[i].str_type() + "  " 
-                << std::setw(20) << std::setprecision(5) << _filter->param()[i].value() 
-                << std::setw(15) << std::setprecision(5) << _filter->dx()(i) 
-                << std::setw(20) << std::setprecision(5) << _filter->param()[i].value() + _filter->dx()(i) 
-                << std::setw(20) << std::setprecision(5) << _filter->stdx()(i) << std::endl;
-        }
+        //for (int i = 0; i < _param->parNumber(); i++)
+        //{
+        //    std::cout << std::fixed << std::setw(20) << " Float EPO  " << std::setw(20) << _filter->param()[i].str_type() + "  " 
+        //        << std::setw(20) << std::setprecision(5) << _filter->param()[i].value() 
+        //        << std::setw(15) << std::setprecision(5) << _filter->dx()(i) 
+        //        << std::setw(20) << std::setprecision(5) << _filter->param()[i].value() + _filter->dx()(i) 
+        //        << std::setw(20) << std::setprecision(5) << _filter->stdx()(i) << std::endl;
+        //}
 
         _sins->Pk = _Qx.matrixR();
         _amb_resolution();

@@ -85,7 +85,7 @@ int main(int argc, char** argv)
     ins_data* gimu = new ins_data(); gimu->spdlog(my_logger);
     uwb_data* guwb = new uwb_data(); guwb->spdlog(my_logger);
     vis_data* gimg = new vis_data(gset.get()); gimg->spdlog(my_logger);
-    // lidar_data* glidar = new lidar_data(); glidar->spdlog(my_logger);
+    lidar_data* glidar = new lidar_data(); glidar->spdlog(my_logger);
 
     base_time runepoch(base_time::GPS);
     base_time lstepoch(base_time::GPS);
@@ -169,7 +169,7 @@ int main(int argc, char** argv)
             else
                 unique_coder = new gnss_coder_aug(gset.get(), "", 4096);
         }
-        // else if (ifmt == IFMT::LIDAR_INP) { base_data = glidar; unique_coder = new lidar_coder(gset.get(), "", 4096); }
+        else if (ifmt == IFMT::LIDAR_INP) { base_data = glidar; unique_coder = new lidar_coder(gset.get(), "", 4096); }
         else if (ifmt == IFMT::IMU_INP) { base_data = gimu; unique_coder = new ins_coder(gset.get(), "", 40960); }
         else if (ifmt == IFMT::UWBMSG_INP) { base_data = guwb; unique_coder = new uwb_coder(gset.get(), 4096); guwb->add_nodes(dynamic_cast<set_uwb*>(gset.get())->anchor_list());}
         else if (ifmt == IFMT::IMAGE_INP) { base_data = gimg; unique_coder = new vis_coder(gset.get(), "", 40960); }
@@ -270,6 +270,8 @@ int main(int argc, char** argv)
         data->Add_Data(base_data::type2str(guwb->id_type()), guwb);
     if (gimg)
         data->Add_Data(base_data::type2str(gimg->id_type()), gimg);
+    if (glidar)
+        data->Add_Data(base_data::type2str(glidar->id_type()), glidar);
     if (gupd && dynamic_cast<set_amb*>(gset.get())->fix_mode() != FIX_MODE::NO && !isBase)
     {
         if (!isClient) { data->Add_Data(base_data::type2str(gupd->id_type()), gupd); };
@@ -343,7 +345,7 @@ int main(int argc, char** argv)
     if (data)  delete data;
     if (guwb) delete guwb;
     if (gimu) delete gimu;
-    // if (glidar) delete glidar;
+    if (glidar) delete glidar;
     if (gimg) delete gimg;
 
     auto tic_end = system_clock::now();

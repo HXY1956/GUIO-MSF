@@ -885,6 +885,7 @@ namespace hwa_msf {
 
     int lidarprocesser::updateLidarBuffer()
     {
+        if (lidar_states.size() == 0) return 1;
         if (lidar_buffer.size() != lidar_states.size())
         {
             cout << "Error:the quantity in lidar_states and lidar_buffer is not same!" << endl;

@@ -5,6 +5,7 @@
 #include <ceres/ceres.h>
 #include <ceres/rotation.h>
 #include "hwa_set_vis.h"
+#include "hwa_set_ign.h"
 #include "hwa_base_mutex.h"
 #include "hwa_base_eigendef.h"
 #include "hwa_vis_proc_utility.h"
@@ -166,7 +167,7 @@ namespace hwa_vis
         std::vector<Triple> Bgs;
         std::vector<Triple> Bas;
         double static_threshold;
-        std::string vfusetype;
+        Estimator _Estimator;
         std::unique_ptr<vis_imgproc_base> imgproc;
     };
 

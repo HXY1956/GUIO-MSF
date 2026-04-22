@@ -34,6 +34,7 @@ namespace hwa_msf {
 
     int msf_client::ProcessBatchFB()
     {
+		TicToc t_total;
         if (!this->msf_client::_init()) {
             if (_spdlog) SPDLOG_LOGGER_INFO(_spdlog, "gipn_client", "init failed");
             return -1;
@@ -54,17 +55,34 @@ namespace hwa_msf {
                 switch (*it)
                 {
                 case GNSS_MEAS:
+                {
+                    TicToc t_gnss;
                     irc = gnssworker->ProcessOneEpoch();
+                    std::cout << gnssworker->dTime() << " GNSS SPENT: " << t_gnss.toc() << "\n";
                     break;
+                }
+
                 case VIS_MEAS:
+                {
+                    TicToc t_vis;
                     irc = visworker[0]->ProcessOneEpoch();
+                    std::cout << visworker[0]->dTime() << " VIS SPENT: " << t_vis.toc() << "\n";
                     break;
+                }
                 case UWB_MEAS:
+                {
+                    TicToc t_uwb;
                     irc = uwbworker->ProcessOneEpoch();
+                    std::cout << uwbworker->dTime() << " UWB SPENT: " << t_uwb.toc() << "\n";
                     break;
+                }
                 case LIDAR_MEAS:
+                {
+                    TicToc t_lidar;
                     irc = lidarworker->ProcessOneEpoch();
+                    std::cout << lidarworker->dTime() << " LIDAR SPENT: " << t_lidar.toc() << "\n";
                     break;
+                }
                 default:
                     break;
                 }
@@ -81,6 +99,7 @@ namespace hwa_msf {
                 this->write2file();
             }
         }
+        std::cout << "Total SPENT: " << t_total.toc() << "\n";
         return 1;
     }
 

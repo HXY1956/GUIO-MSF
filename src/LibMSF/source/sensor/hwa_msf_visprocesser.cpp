@@ -9,12 +9,12 @@ namespace hwa_msf {
         vis_base(_gset.get(), ID), imgdata(dynamic_cast<vis_data*>(data)){
         _extrinsic_init();
         TimeCostDebugStatus = dynamic_cast<hwa_set::set_proc*>(_gset.get())->TimeCostDebug();
-        make_dir("TimeCost");
+        make_dir("TimeCost\\TimeCostCamUpdate.txt");
         TimeCostDebugOutFile.open("TimeCost\\TimeCostCamUpdate.txt", std::ios::out | std::ios::trunc);
         beg.from_secs(dynamic_cast<set_vis*>(_gset.get())->start(cam_group_id));
         end.from_secs(dynamic_cast<set_vis*>(_gset.get())->end(cam_group_id));
         TimeStamp = beg;
-        _Estimator = dynamic_cast<set_ign*>(_gset.get())->fuse_type();
+        baseprocesser::_Estimator = dynamic_cast<set_ign*>(_gset.get())->fuse_type();
     };
 
     visprocesser::visprocesser(std::shared_ptr<set_base> gset, std::string site, int ID, base_log spdlog, base_data* data, base_time _beg, base_time _end) : baseprocesser(gset, spdlog, site, _beg, _end),
@@ -22,12 +22,12 @@ namespace hwa_msf {
     {
         _extrinsic_init();
         TimeCostDebugStatus = dynamic_cast<hwa_set::set_proc*>(_gset.get())->TimeCostDebug();
-        make_dir("TimeCost");
+        make_dir("TimeCost\\TimeCostCamUpdate.txt");
         TimeCostDebugOutFile.open("TimeCost\\TimeCostCamUpdate.txt", std::ios::out | std::ios::trunc);
         beg.from_secs(dynamic_cast<set_vis*>(_gset.get())->start(cam_group_id));
         end.from_secs(dynamic_cast<set_vis*>(_gset.get())->end(cam_group_id));
         TimeStamp = beg;
-        _Estimator = dynamic_cast<set_ign*>(_gset.get())->fuse_type();
+        baseprocesser::_Estimator = dynamic_cast<set_ign*>(_gset.get())->fuse_type();
     };
 
     visprocesser::~visprocesser() {
@@ -158,6 +158,7 @@ namespace hwa_msf {
             cam_state.qbc = R_i_c.transpose();
             cam_state.Tbc = t_c_i;
             cam_state.R_e_n = R_n_e.transpose();
+            cam_state.isKeyFrame = isKeyFrame;
         }
         else if (clone == hwa_vis::IMU) {
             imu_states[cam_state_id] = hwa_vis::CamState(cam_state_id);
@@ -165,6 +166,10 @@ namespace hwa_msf {
             imu_state.time = TimeStamp.sod();
             imu_state.orientation = R_e_i.transpose();
             imu_state.position = XYZ - initCamPos;
+            imu_state.gravity = _sins->eth.gcc;
+            imu_state.orientation_null = imu_state.orientation;
+            imu_state.position_null = imu_state.position;
+            imu_state.isKeyFrame = isKeyFrame;
             cam_states = imuStateServer2CamStateServer(imu_states,
                 imgproc->T_cam0_imu.linear(),
                 imgproc->T_cam0_imu.translation());
@@ -196,13 +201,13 @@ namespace hwa_msf {
         Matrix J = Matrix::Zero(6, old_cols);
 
         if (clone == hwa_vis::CAMERA) {
-            if (_Estimator == NORMAL) {
+            if (baseprocesser::_Estimator == NORMAL) {
                 //cam att to imu att
                 J.block<3, 3>(0, 0) = SO3::Identity();
                 //cam pos to imu att
                 J.block<3, 3>(3, 0) = askew(R_n_e * R_i_n * t_c_i);
             }
-            else if (_Estimator == INEKF) {
+            else if (baseprocesser::_Estimator == INEKF) {
                 //cam att to imu att
                 J.block(0, 0, 3, 3) = SO3::Identity();
             }
@@ -213,11 +218,11 @@ namespace hwa_msf {
             if (imgproc->estimate_extrinsic)
             {
                 int index = param_of_sins->getParam(_name, par_type::EX_CAM_ATT_X, "");
-                if (_Estimator == NORMAL) {
+                if (baseprocesser::_Estimator == NORMAL) {
                     J.block<3, 3>(0, index) = -R_e_c.transpose();
                     J.block<3, 3>(3, index + 3) = -R_e_i.transpose();
                 }
-                else if (_Estimator == INEKF) {
+                else if (baseprocesser::_Estimator == INEKF) {
                     J.block(0, index, 3, 3) = R_e_c.transpose();
                     J.block(3, index + 3, 3, 3) = -R_e_i.transpose();
                 }
@@ -274,7 +279,9 @@ namespace hwa_msf {
                 //std::cout << TimeStamp.sod() << " Remove Observation Failed!" << std::endl;
                 continue;
             }
-            else { std::cout << feature.id << " ObservationSize: " << feature.observations.size() << std::endl; }
+            else { 
+                //std::cout << feature.id << " ObservationSize: " << feature.observations.size() << std::endl; 
+            }
 
             pointNum++;
             if ((!feature.is_initialized) || ((feature.is_initialized) && (feature.is_initialized_NonKey)))
@@ -283,14 +290,15 @@ namespace hwa_msf {
                 {
                     invalid_feature_ids.push_back(feature.id);
                     pointInitialfail++;
-                    std::cout << TimeStamp.sod() << " Remove Check Motion Failed!" << std::endl;
+                    //std::cout << TimeStamp.sod() << " Remove Check Motion Failed!" << std::endl;
                     continue;
                 }
+
                 if (!feature.triangulatePoint(cam_states))
                 {
                     invalid_feature_ids.push_back(feature.id);
                     pointInitialfail++;
-                    std::cout << TimeStamp.sod() << " Remove Triangulated Failed!" << std::endl;
+                    //std::cout << TimeStamp.sod() << " Remove Triangulated Failed!" << std::endl;
                     continue;
                 }
                 else
@@ -299,7 +307,7 @@ namespace hwa_msf {
                     {
                         invalid_feature_ids.push_back(feature.id);
                         pointInitialfail++;
-                        std::cout << TimeStamp.sod() << " Remove Initiallize Failed!" << std::endl;
+                        //std::cout << TimeStamp.sod() << " Remove Initiallize Failed!" << std::endl;
                         continue;
                     }
                     else
@@ -318,7 +326,6 @@ namespace hwa_msf {
             return;
         Matrix H_x;
         Vector r;
-
         H_x = Matrix::Zero(jacobian_row_size, 6 * cam_states.size() + ex_param_num);
         r = Vector::Zero(jacobian_row_size);
         int stack_cntr = 0;
@@ -333,10 +340,9 @@ namespace hwa_msf {
             }
             Matrix H_xj;
             Vector r_j;
-
             if (!featureJacobian(feature.id, cam_state_ids, H_xj, r_j))
             {
-                std::cout << TimeStamp.sod() << " Remove Feature Failed!" << std::endl;
+                //std::cout << TimeStamp.sod() << " Remove Feature Failed!" << std::endl;
                 continue;
             }
             if (GatingTest(H_xj, r_j, cam_state_ids.size() - 1))
@@ -347,7 +353,7 @@ namespace hwa_msf {
             }
             else
             {
-                std::cout << TimeStamp.sod() << " Gating Test Fail" << std::endl;
+                //std::cout << TimeStamp.sod() << " Gating Test Fail" << std::endl;
                 pointGatingTestfail++;
             }
             if (stack_cntr > 1500)
@@ -356,8 +362,8 @@ namespace hwa_msf {
         pointUpdate = pointNum - pointInitialfail - pointGatingTestfail;
         H_x.conservativeResize(stack_cntr, H_x.cols());
         r.conservativeResize((Eigen::Index)stack_cntr);
-
         meas_update(H_x, r);
+
         for (const auto& feature_id : processed_feature_ids)
         {
             map_server.erase(feature_id);
@@ -474,7 +480,7 @@ namespace hwa_msf {
             {
                 for (const auto& cam_id : involved_cam_state_ids)
                     feature.observations.erase(cam_id);
-                std::cout << TimeStamp.sod() << " Prune Feature Failed!" << std::endl;
+                //std::cout << TimeStamp.sod() << " Prune Feature Failed!" << std::endl;
                 continue;
             }
 
@@ -581,10 +587,10 @@ namespace hwa_msf {
             int idx = param_of_sins->getParam(_name, hwa_base::par_type::EXTRINSIC_T, "cam0");
             All_H.block(0, idx, obs_size, 1) = H.block(0, ex_param_num - 1, obs_size, 1);
         }
-        ;
         Matrix P1 = All_H * _sins->Pk * All_H.transpose();
         Matrix P2 = feature_observation_noise * Matrix::Identity(All_H.rows(), All_H.rows());
         double gamma = r.transpose() * (P1 + P2).ldlt().solve(r);
+
         if (gamma < chi_squared_test_table[dof]) {
             return true;
         }
@@ -596,7 +602,7 @@ namespace hwa_msf {
     void visprocesser::meas_update(const Matrix& H, const Vector& r)
     {
         if (H.rows() == 0 || r.rows() == 0) {
-            std::cout << "Bad Visual" << std::endl;
+            //std::cout << "Bad Visual" << std::endl;
             return;
         }
 
@@ -655,20 +661,21 @@ namespace hwa_msf {
         _sins->Rk = feature_observation_noise * Matrix::Identity(
             _sins->Hk.rows(), _sins->Hk.rows());
         Vector delta_x;
-
+        //TicToc timer0;
         _Updater._meas_update(_sins->Hk, _sins->Zk, _sins->Rk, delta_x, _sins->Pk);
+        //std::cerr << " meas_update[0] in RemoveLostFeatures, time cost: " << timer0.toc() << " ms" << std::endl;
 
-        m_out("_sins->Zk", _sins->Zk);
-        m_out("_sins->Rk", _sins->Rk);
-        m_out("_sins->Pk", _sins->Pk);
-        m_out("_sins->Xk", delta_x);
+        //m_out("_sins->Zk", _sins->Zk);
+        //m_out("_sins->Rk", _sins->Rk);
+        //m_out("_sins->Pk", _sins->Pk);
+        //m_out("_sins->Xk", delta_x);
 
         _sins->Xk += delta_x;
     }
 
     void visprocesser::_write_calib()
     {
-        if (!(_fcalib))
+        if (!(_fcalib)) 
             return;
         if (_fcalib && fabs(TimeStamp.sod() - int(TimeStamp.sod() * 20.0) / 20.0) < 0.05)
         {
@@ -952,7 +959,7 @@ namespace hwa_msf {
                 int index = param_of_sins->getParam(_name, par_type::CAM_ATT_X, _camid);
                 if (index < 0) cerr << "cam_feedback() idx wrong!" << endl;
 
-                if (_Estimator == NORMAL) {
+                if (baseprocesser::_Estimator == NORMAL) {
                     Triple att_dx = Triple(_sins->Xk(index), _sins->Xk(index + 1), _sins->Xk(index + 2));
                     Triple crd_dx = Triple(_sins->Xk(index + 3), _sins->Xk(index + 4), _sins->Xk(index + 5));
 
@@ -1023,7 +1030,7 @@ namespace hwa_msf {
                 int index = param_of_sins->getParam(_name, par_type::CAM_ATT_X, _camid);
                 if (index < 0) cerr << "cam_feedback() idx wrong!" << endl;
 
-                if (_Estimator == NORMAL) {
+                if (baseprocesser::_Estimator == NORMAL) {
                     Triple att_dx = Triple(_sins->Xk(index), _sins->Xk(index + 1), _sins->Xk(index + 2));
                     Triple crd_dx = Triple(_sins->Xk(index + 3), _sins->Xk(index + 4), _sins->Xk(index + 5));
 

@@ -216,7 +216,8 @@ int  hwa_base::base_updater::_meas_update_ekf(const Matrix& Hk, const Vector& Zk
         Matrix Kkm = Pxzm * Pzzm.inverse();
         Xk = Kkm * rm;
         Matrix I_KH = Matrix::Identity(Kkm.rows(), Hk.cols()) - Kkm * Hk;
-        Pk = I_KH * Pk * I_KH.transpose() + Kkm * Kkm.transpose() * proc_noise;
+        //Pk = I_KH * Pk * I_KH.transpose() + Kkm * Kkm.transpose() * proc_noise;
+        Pk = I_KH * Pk * I_KH.transpose() + Kkm * Rk * Kkm.transpose();
         return 1;
     }
     catch (...) {

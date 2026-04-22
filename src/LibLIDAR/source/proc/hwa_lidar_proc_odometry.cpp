@@ -364,9 +364,6 @@ namespace hwa_lidar
         lidarOdoObs.curr_t_l_e = frame2.t_l_e;
     }
 
-
-
-
     void lidar_proc_odometry::data_association(vector<LidarFrame>& buffer)
     {
         //

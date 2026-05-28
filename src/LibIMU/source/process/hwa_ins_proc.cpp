@@ -240,7 +240,6 @@ void ins_obj::Update(const std::vector<Triple>& wm, const std::vector<Triple>& v
     an = hwa_base::base_att_trans::rv2q(-eth.wnin * nts_2) * fn + eth.gcc;
     gcc_b = -Cbn * eth.gcc;
     // an = hwa_base::base_att_trans::rv2q(-eth.wnin * nts) * fn + eth.gcc;
-
     Triple vn1 = vn + an * nts;
     pos = pos + eth.v2dp(vn + vn1, nts_2);    vn = vn1;
     qnb = hwa_base::base_att_trans::rv2q(-eth.wnin * nts) * qnb * hwa_base::base_att_trans::rv2q(_imu.phim);
@@ -257,7 +256,7 @@ void ins_obj::Update(const std::vector<Triple>& wm, const std::vector<Triple>& v
     Xf.block(0, 3, 3, 1) = ve;
     Xf.block(0, 4, 3, 1) = pos_ecef - initial_pos;
 
-    //std::cout << t <<" "<<std::setiosflags(ios::fixed) << std::setprecision(4) << pos_ecef.transpose() << std::endl;
+    //std::cout << "Time: " << t << "; pos: " << std::fixed << std::setprecision(6) << std::setw(15) << pos_ecef.transpose() << std::endl;
 }
 
 void ins_obj::preintergration(std::vector<IMU_MSG> imu_msg, Triple& pos, Triple& vel, base_quat& q) {
@@ -508,12 +507,6 @@ void ins_obj::prt_sins(std::ostringstream& os)
         std::setw(15) << db1(0) <<
         std::setw(15) << db1(1) <<
         std::setw(15) << db1(2);
-    //os << std::fixed << std::setprecision(8) <<
-    //    std::setw(15) << base_quat1.q0 <<
-    //    std::setw(15) << base_quat1.q1 <<
-    //    std::setw(15) << base_quat1.q2 <<
-    //    std::setw(15) << base_quat1.q3;
-    // os << std::endl;
 }
 
 void ins_obj::prt_sins_ipn(std::ostringstream& os)

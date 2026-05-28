@@ -93,29 +93,48 @@ namespace hwa_lidar
         curr_last_trans = frame1.R_l_e.transpose() * (frame2.t_l_e - frame1.t_l_e);
         if (1)
         {
-            int cornerPointsLessSharpNum = frame2.LessSharp.points.size();
+            int cornerPointsLessSharpNum = frame2.LessSharp->points.size();
             for (int i = 0; i < cornerPointsLessSharpNum; i++)
             {
-                transformToEnd(frame2.LessSharp.points[i], frame2.LessSharp.points[i], true);
+                transformToEnd(frame2.LessSharp->points[i], frame2.LessSharp->points[i], true);
             }
 
-            int surfPointsLessFlatNum = frame2.LessSurf.points.size();
+            int surfPointsLessFlatNum = frame2.LessSurf->points.size();
             for (int i = 0; i < surfPointsLessFlatNum; i++)
             {
-                transformToEnd(frame2.LessSurf.points[i], frame2.LessSurf.points[i], true);
+                transformToEnd(frame2.LessSurf->points[i], frame2.LessSurf->points[i], true);
             }
 
-            int surfPointsFlatNum = frame2.Surf.points.size();
+            int surfPointsFlatNum = frame2.Surf->points.size();
             for (int i = 0; i < surfPointsFlatNum; i++)
             {
-                transformToEnd(frame2.Surf.points[i], frame2.Surf.points[i], true);
+                transformToEnd(frame2.Surf->points[i], frame2.Surf->points[i], true);
             }
 
-            int cornerPointsSharpNum = frame2.Sharp.points.size();
+            int cornerPointsSharpNum = frame2.Sharp->points.size();
             for (int i = 0; i < cornerPointsSharpNum; i++)
             {
-                transformToEnd(frame2.Sharp.points[i], frame2.Sharp.points[i], true);
+                transformToEnd(frame2.Sharp->points[i], frame2.Sharp->points[i], true);
             }
+        }
+    }
+
+    int lidar_proc_odometry::max3(double a1, double a2, double a3, double& max)
+    {
+        if (a1 >= a2 && a1 >= a3)
+        {
+            max = a1;
+            return 1;
+        }
+        if (a2 >= a1 && a2 >= a3)
+        {
+            max = a2;
+            return 2;
+        }
+        if (a3 >= a1 && a3 >= a2)
+        {
+            max = a3;
+            return 3;
         }
     }
 
@@ -123,241 +142,185 @@ namespace hwa_lidar
     {
         if (frame1.empty || frame2.empty)
         {
-            std::cout << "ERROR:the pose of lidar frames need to be initialized!" << endl;
+            std::cerr << "ERROR: The pose of lidar frames needs to be initialized!" << std::endl;
             getchar();
+            return;
         }
-        ///< clear the history information
+
         reset();
-        ///< set KDTree
+
         pcl::PointCloud<pcl::PointXYZI>::Ptr kdtreeSharp(new pcl::PointCloud<pcl::PointXYZI>());
         pcl::PointCloud<pcl::PointXYZI>::Ptr kdtreeSurf(new pcl::PointCloud<pcl::PointXYZI>());
 
         std::vector<int> indices;
-        pcl::removeNaNFromPointCloud(frame1.LessSharp, *kdtreeSharp, indices);
-        pcl::removeNaNFromPointCloud(frame1.LessSurf, *kdtreeSurf, indices);
+        pcl::removeNaNFromPointCloud(*frame1.LessSharp, *kdtreeSharp, indices);
+        pcl::removeNaNFromPointCloud(*frame1.LessSurf, *kdtreeSurf, indices);
 
         lastCornerKDTree_.setInputCloud(kdtreeSharp);
-        lastSurfaceKDTree_.setInputCloud(kdtreeSurf);
+        //lastSurfaceKDTree_.setInputCloud(kdtreeSurf);
 
-        ///< transformation from frame2 to frame1  curr-》》last
         curr_last_rot = frame1.R_l_e.transpose() * frame2.R_l_e;
         curr_last_trans = frame1.R_l_e.transpose() * (frame2.t_l_e - frame1.t_l_e);
 
         size_t lastCornerCloudSize = kdtreeSharp->points.size();
         size_t lastSurfaceCloudSize = kdtreeSurf->points.size();
 
-        if (lastCornerCloudSize > 10 && lastSurfaceCloudSize > 100)
+        if (lastCornerCloudSize < 10 || lastSurfaceCloudSize < 100)
         {
-            std::vector<int> pointSearchInd;
-            std::vector<float> pointSearchSqDis;
+            std::cerr << "Not enough points for association: corners=" << lastCornerCloudSize
+                << " surfaces=" << lastSurfaceCloudSize << std::endl;
+            return;
+        }
 
-            size_t cornerPointsSharpNum = frame2.Sharp.points.size();
-            size_t surfPointsFlatNum = frame2.Surf.points.size();
+        std::vector<int> pointSearchInd;
+        std::vector<float> pointSearchSqDis;
 
-            ///< position of feature which is projected to the last lidar frame
+        // ==================== Corner Points ====================
+        for (int i = 0; i < frame2.Sharp->points.size(); i++)
+        {
             pcl::PointXYZI pointSel;
+            transformToStart(frame2.Sharp->points[i], pointSel);
 
-            //project to last frame
-            for (int i = 0; i < cornerPointsSharpNum; i++)
+            lastCornerKDTree_.nearestKSearch(pointSel, 1, pointSearchInd, pointSearchSqDis);
+            if (pointSearchSqDis[0] > 5.0f) continue;
+
+            int closestPointInd = pointSearchInd[0];
+            int minPointInd2 = -1;
+            float minPointSqDis2 = 5.0f;
+            int closestPointScan = int(kdtreeSharp->points[closestPointInd].intensity);
+
+            for (int j = closestPointInd + 1; j < kdtreeSharp->points.size(); j++)
             {
-                //pcl::PointXYZI pointSel;
-                pointSel = pcl::PointXYZI();
-                transformToStart(frame2.Sharp.points[i], pointSel);///< transform to the start time of the scan
-                lastCornerKDTree_.nearestKSearch(pointSel, 1, pointSearchInd, pointSearchSqDis);///< find the closest point to pointSel in lastCornerCloud_
+                if (int(kdtreeSharp->points[j].intensity) > closestPointScan + 2.5) break;
+                if (int(kdtreeSharp->points[j].intensity) <= closestPointScan) continue;
 
-
-                int closestPointInd = -1;
-                int minPointInd2 = -1;
-                if (pointSearchSqDis[0] < 25)
+                float sqDis = calcSquaredDiff(kdtreeSharp->points[j], pointSel);
+                if (sqDis < minPointSqDis2)
                 {
-
-                    closestPointInd = pointSearchInd[0];
-                    int closestPointScan = int(kdtreeSharp->points[closestPointInd].intensity);
-
-                    float pointSqDis, minPointSqDis2 = 25;
-                    for (int j = closestPointInd + 1; j < kdtreeSharp->points.size(); j++)
-                    {
-                        ///< if in the same scan line, continue
-                        if (int(kdtreeSharp->points[j].intensity) <= closestPointScan)
-                            continue;
-
-                        ///< if not in nearby scans, end the loop
-                        if (int(kdtreeSharp->points[j].intensity) > (closestPointScan + 2.5))
-                            break;
-
-                        pointSqDis = calcSquaredDiff(kdtreeSharp->points[j], pointSel);
-
-                        //lsy change
-                        //if (int(kdtreeSharp->points[j].intensity) > closestPointScan)
-                        //{
-                        if (pointSqDis < minPointSqDis2)
-                        {
-                            minPointSqDis2 = pointSqDis;
-                            minPointInd2 = j;
-                        }
-                        //}
-                    }
-                    for (int j = closestPointInd - 1; j >= 0; j--)
-                    {
-                        ///< if in the same scan line, continue
-                        if (int(kdtreeSharp->points[j].intensity) >= closestPointScan)
-                            continue;
-
-                        if (int(kdtreeSharp->points[j].intensity) < closestPointScan - 2.5)
-                            break;
-
-                        pointSqDis = calcSquaredDiff(kdtreeSharp->points[j], pointSel);
-
-                        //lsy change
-                        //if (int(kdtreeSharp->points[j].intensity) < closestPointScan)
-                        //{
-                        if (pointSqDis < minPointSqDis2)
-                        {
-                            minPointSqDis2 = pointSqDis;
-                            minPointInd2 = j;
-                        }
-                        //}
-
-
-                    }
-                }
-
-
-                if (closestPointInd >= 0 && minPointInd2 >= 0) ///< both closestPointInd and minPointInd2 is valid
-                {
-
-                    Triple currCornerPoint(frame2.Sharp.points[i].x,
-                        frame2.Sharp.points[i].y,
-                        frame2.Sharp.points[i].z);
-                    Triple correspondCornerPointA(kdtreeSharp->points[closestPointInd].x,
-                        kdtreeSharp->points[closestPointInd].y,
-                        kdtreeSharp->points[closestPointInd].z);
-                    Triple correspondCornerPointB(kdtreeSharp->points[minPointInd2].x,
-                        kdtreeSharp->points[minPointInd2].y,
-                        kdtreeSharp->points[minPointInd2].z);
-
-                    pcl::PointXYZI currCornerPoint_inlast;
-                    transformToStart(frame2.Sharp.points[i], currCornerPoint_inlast);
-
-                    Triple currCornerPoint_tolast(currCornerPoint_inlast.x,
-                        currCornerPoint_inlast.y,
-                        currCornerPoint_inlast.z);
-
-                    correspondCornerFeature_.currCornerPointCloud.push_back(currCornerPoint);
-                    correspondCornerFeature_.currCornerPointCloud_inlast.push_back(currCornerPoint_tolast);
-                    correspondCornerFeature_.correspondCornerPointCloudA.push_back(correspondCornerPointA);
-                    correspondCornerFeature_.correspondCornerPointCloudB.push_back(correspondCornerPointB);
-
-                }
-
-            }
-
-            for (int i = 0; i < surfPointsFlatNum; i++)
-            {
-                pointSearchInd.clear();
-                pointSearchSqDis.clear();
-                pointSel = pcl::PointXYZI();
-                transformToStart(frame2.Surf.points[i], pointSel);
-
-                lastSurfaceKDTree_.nearestKSearch(pointSel, 1, pointSearchInd, pointSearchSqDis);
-
-
-                int closestPointInd = -1, minPointInd2 = -1, minPointInd3 = -1;
-                if (pointSearchSqDis[0] < 25)
-                {
-                    closestPointInd = pointSearchInd[0];
-                    int closestPointScan = int(kdtreeSurf->points[closestPointInd].intensity);
-
-                    float pointSqDis, minPointSqDis2 = 25, minPointSqDis3 = 25;
-                    for (int j = closestPointInd + 1; j < kdtreeSurf->points.size(); j++)
-                    {
-                        if (int(kdtreeSurf->points[j].intensity) > closestPointScan + 2.5)
-                        {
-                            break;
-                        }
-
-                        pointSqDis = calcSquaredDiff(kdtreeSurf->points[j], pointSel);
-
-                        if (int(kdtreeSurf->points[j].intensity) <= closestPointScan && pointSqDis < minPointSqDis2)
-                        {
-
-                            minPointSqDis2 = pointSqDis;
-                            minPointInd2 = j;
-
-                        }
-                        else if (int(kdtreeSurf->points[j].intensity) > closestPointScan && pointSqDis < minPointSqDis3)
-                        {
-
-                            minPointSqDis3 = pointSqDis;
-                            minPointInd3 = j;
-
-                        }
-                    }
-                    for (int j = closestPointInd - 1; j >= 0; j--)
-                    {
-                        if (int(kdtreeSurf->points[j].intensity) < closestPointScan - 2.5)
-                        {
-                            break;
-                        }
-
-                        pointSqDis = calcSquaredDiff(kdtreeSurf->points[j], pointSel);
-
-                        if (int(kdtreeSurf->points[j].intensity) >= closestPointScan && pointSqDis < minPointSqDis2)
-                        {
-
-                            minPointSqDis2 = pointSqDis;
-                            minPointInd2 = j;
-
-                        }
-                        else if (int(kdtreeSurf->points[j].intensity) < closestPointScan && pointSqDis < minPointSqDis3)
-                        {
-                            minPointSqDis3 = pointSqDis;
-                            minPointInd3 = j;
-                        }
-                    }
-
-                    if (minPointInd2 >= 0 && minPointInd3 >= 0)
-                    {
-
-                        Triple currSurfPoint(frame2.Surf.points[i].x,
-                            frame2.Surf.points[i].y,
-                            frame2.Surf.points[i].z);
-                        Triple correspondSurfPointA(kdtreeSurf->points[closestPointInd].x,
-                            kdtreeSurf->points[closestPointInd].y,
-                            kdtreeSurf->points[closestPointInd].z);
-                        Triple correspondSurfPointB(kdtreeSurf->points[minPointInd2].x,
-                            kdtreeSurf->points[minPointInd2].y,
-                            kdtreeSurf->points[minPointInd2].z);
-                        Triple correspondSurfPointC(kdtreeSurf->points[minPointInd3].x,
-                            kdtreeSurf->points[minPointInd3].y,
-                            kdtreeSurf->points[minPointInd3].z);
-
-                        pcl::PointXYZI currSurfPoint_inlast;
-                        transformToStart(frame2.Surf.points[i], currSurfPoint_inlast);
-                        Triple currSurfPoint_tolast(currSurfPoint_inlast.x,
-                            currSurfPoint_inlast.y,
-                            currSurfPoint_inlast.z);
-
-
-                        correspondSurfFeature_.currSurfPointCloud.push_back(currSurfPoint);
-                        correspondSurfFeature_.currSurfPointCloud_inlast.push_back(currSurfPoint_tolast);
-                        correspondSurfFeature_.correspondSurfPointCloudA.push_back(correspondSurfPointA);
-                        correspondSurfFeature_.correspondSurfPointCloudB.push_back(correspondSurfPointB);
-                        correspondSurfFeature_.correspondSurfPointCloudC.push_back(correspondSurfPointC);
-
-                    }
+                    minPointSqDis2 = sqDis;
+                    minPointInd2 = j;
                 }
             }
-        }
-        else
-        {
-            cerr << "not lastCornerCloudSize > 10 && lastSurfaceCloudSize > 100" << endl;
+            for (int j = closestPointInd - 1; j >= 0; j--)
+            {
+                if (int(kdtreeSharp->points[j].intensity) < closestPointScan - 2.5) break;
+                if (int(kdtreeSharp->points[j].intensity) >= closestPointScan) continue;
+
+                float sqDis = calcSquaredDiff(kdtreeSharp->points[j], pointSel);
+                if (sqDis < minPointSqDis2)
+                {
+                    minPointSqDis2 = sqDis;
+                    minPointInd2 = j;
+                }
+            }
+
+            if (closestPointInd >= 0 && minPointInd2 >= 0)
+            {
+                correspondCornerFeature_.currCornerPointCloud.push_back(
+                    Triple(frame2.Sharp->points[i].x, frame2.Sharp->points[i].y, frame2.Sharp->points[i].z));
+                pcl::PointXYZI curr_in_last;
+                transformToStart(frame2.Sharp->points[i], curr_in_last);
+                correspondCornerFeature_.currCornerPointCloud_inlast.push_back(
+                    Triple(curr_in_last.x, curr_in_last.y, curr_in_last.z));
+
+                correspondCornerFeature_.correspondCornerPointCloudA.push_back(
+                    Triple(kdtreeSharp->points[closestPointInd].x, kdtreeSharp->points[closestPointInd].y,
+                        kdtreeSharp->points[closestPointInd].z));
+                correspondCornerFeature_.correspondCornerPointCloudB.push_back(
+                    Triple(kdtreeSharp->points[minPointInd2].x, kdtreeSharp->points[minPointInd2].y,
+                        kdtreeSharp->points[minPointInd2].z));
+            }
         }
 
+        // ==================== Surface Points ====================
+    //    for (int i = 0; i < frame2.Surf.points.size(); i++)
+    //    {
+    //        pcl::PointXYZI pointSel;
+    //        transformToStart(frame2.Surf.points[i], pointSel);
 
-        ///< store the observation of lidar odometry
+    //        lastSurfaceKDTree_.nearestKSearch(pointSel, 1, pointSearchInd, pointSearchSqDis);
+    //        if (pointSearchSqDis[0] > 5.0f) continue;
+
+    //        int closestPointInd = pointSearchInd[0];
+    //        int closestScan = int(kdtreeSurf->points[closestPointInd].intensity);
+
+    //        // Find two more points to form a plane
+    //        int minInd2 = -1, minInd3 = -1;
+    //        float minDis2 = 5.0f, minDis3 = 5.0f;
+
+    //        auto searchNearby = [&](int start, int end, int step)
+    //            {
+    //                for (int j = start; j != end; j += step)
+    //                {
+    //                    int scanIdx = int(kdtreeSurf->points[j].intensity);
+    //                    if (step > 0 && scanIdx > closestScan + 2.5) break;
+    //                    if (step < 0 && scanIdx < closestScan - 2.5) break;
+
+    //                    float sqDis = calcSquaredDiff(kdtreeSurf->points[j], pointSel);
+    //                    if (scanIdx <= closestScan && sqDis < minDis2) { minDis2 = sqDis; minInd2 = j; }
+    //                    else if (scanIdx > closestScan && sqDis < minDis3) { minDis3 = sqDis; minInd3 = j; }
+    //                }
+    //            };
+    //        searchNearby(closestPointInd + 1, kdtreeSurf->points.size(), 1);
+    //        searchNearby(closestPointInd - 1, -1, -1);
+
+    //        if (minInd2 >= 0 && minInd3 >= 0)
+    //        {
+    //            std::vector<Triple> planePts = {
+    //                Triple(kdtreeSurf->points[closestPointInd].x,
+    //                       kdtreeSurf->points[closestPointInd].y,
+    //                       kdtreeSurf->points[closestPointInd].z),
+    //                Triple(kdtreeSurf->points[minInd2].x,
+    //                       kdtreeSurf->points[minInd2].y,
+    //                       kdtreeSurf->points[minInd2].z),
+    //                Triple(kdtreeSurf->points[minInd3].x,
+    //                       kdtreeSurf->points[minInd3].y,
+    //                       kdtreeSurf->points[minInd3].z)
+    //            };
+
+    //            // Compute plane normal using SVD
+    //            Triple center(0, 0, 0);
+    //            for (auto& pt : planePts) center += pt;
+    //            center /= 3.0;
+
+    //            Eigen::Matrix3d cov = Eigen::Matrix3d::Zero();
+    //            for (auto& pt : planePts)
+    //            {
+    //                Eigen::Vector3d demean = pt - center;
+    //                cov += demean * demean.transpose();
+    //            }
+    //            Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> es(cov);
+    //            Triple normal(es.eigenvectors().col(0).x(),
+    //                es.eigenvectors().col(0).y(),
+    //                es.eigenvectors().col(0).z());
+    //            normal.normalize();
+
+    //            // Ensure consistent direction
+    //            Triple p_last(pointSel.x, pointSel.y, pointSel.z);
+				//Triple p_curr(frame2.Surf.points[i].x, frame2.Surf.points[i].y, frame2.Surf.points[i].z);
+    //            double dist_plane = normal.dot(p_last - center);
+    //            if (dist_plane < 0)
+    //            {
+    //                normal = - normal;
+    //            }
+
+    //            // Adaptive threshold
+    //            double range = p_last.norm();
+    //            double threshold = std::max(0.05, 0.02 * range);
+    //            if (fabs(dist_plane) > threshold) continue;
+
+    //            correspondSurfFeature_.currSurfPointCloud.push_back(p_curr);
+    //            correspondSurfFeature_.currSurfPointCloud_inlast.push_back(p_last);
+    //            correspondSurfFeature_.correspondSurfPointCloudA.push_back(planePts[0]);
+    //            correspondSurfFeature_.correspondSurfPointCloudB.push_back(planePts[1]);
+    //            correspondSurfFeature_.correspondSurfPointCloudC.push_back(planePts[2]);
+    //            correspondSurfFeature_.norm.push_back(normal);
+    //        }
+    //    }
+
+        // Store observation
         lidarOdoObs.cornerFeature = correspondCornerFeature_;
-        lidarOdoObs.surfFeature = correspondSurfFeature_;
+        //lidarOdoObs.surfFeature = correspondSurfFeature_;
         lidarOdoObs.last_R_l_e = frame1.R_l_e;
         lidarOdoObs.last_t_l_e = frame1.t_l_e;
         lidarOdoObs.curr_R_l_e = frame2.R_l_e;
@@ -366,106 +329,130 @@ namespace hwa_lidar
 
     void lidar_proc_odometry::data_association(vector<LidarFrame>& buffer)
     {
-        //
-        cout << "---!!!data-association!!!---" << endl;
-        int eft_buf_size = buffer.size() - 2;
-        assert(eft_buf_size > 0);
+        cout << "---!!!data-association (improved)!!!---" << endl;
+
+        int buf_size = buffer.size();
+        assert(buf_size > 2);
 
         associations.clear();
-        for (int i = 2; i < buffer.size(); i++)
+        auto& oldest = buffer.at(1); //the first frame is used for reference
+
+        for (int j = 2; j < buf_size; j++)
         {
-            auto& oldest_lidar = buffer.at(1);
-            auto& cur_lidar = buffer.at(i);
+            auto& cur = buffer.at(j);
+            if (cur.pcs.empty()) continue;
 
-            //build kd-tree
-            pcl::PointCloud<pcl::PointXYZI>::Ptr points(new pcl::PointCloud<pcl::PointXYZI>());
-            points = Triple2PointXYZI(cur_lidar.pcs);
-            pcl::KdTreeFLANN<pcl::PointXYZI> KDTree_pppc;
-            KDTree_pppc.setInputCloud(points);
+            pcl::PointCloud<pcl::PointXYZI>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZI>());
+            cloud = Triple2PointXYZI(cur.pcs);
 
-            //calculate relative pose
-            SO3 R_old_cur = cur_lidar.R_l_e.transpose() * oldest_lidar.R_l_e;
-            Triple t_old_cur = cur_lidar.R_l_e.transpose() * (oldest_lidar.t_l_e - cur_lidar.t_l_e);
-            Triple t_cur_old = oldest_lidar.R_l_e.transpose() * (cur_lidar.t_l_e - oldest_lidar.t_l_e);
+            pcl::KdTreeFLANN<pcl::PointXYZI> kdtree;
+            kdtree.setInputCloud(cloud);
 
-            int eft_number = 0;
+            SO3 R = cur.R_l_e.transpose() * oldest.R_l_e;
+            Triple t = cur.R_l_e.transpose() * (oldest.t_l_e - cur.t_l_e);
 
-            std::vector<int> pointSearchInd;//index
-            std::vector<float> pointSearchSqDis;//distance
-            for (int i = 0; i < oldest_lidar.pcs.size(); i++)
+            int match_cnt = 0;
+
+            const int K = std::min(3, static_cast<int>(cur.pcs.size()));
+            std::vector<int> idx(K);
+            std::vector<float> dist(K);
+
+            // ===== 遍历 oldest 平面 =====
+            for (int i = 0; i < oldest.pcs.size(); i++)
             {
-                pcl::PointXYZI point;
-                point.x = oldest_lidar.pcs.at(i).x();
-                point.y = oldest_lidar.pcs.at(i).y();
-                point.z = oldest_lidar.pcs.at(i).z();
-                // project to cur frame
-                transPointXYZI(point, R_old_cur, t_old_cur);
-                KDTree_pppc.nearestKSearch(point, 1, pointSearchInd, pointSearchSqDis);
+                pcl::PointXYZI pt;
+                pt.x = oldest.pcs[i].x();
+                pt.y = oldest.pcs[i].y();
+                pt.z = oldest.pcs[i].z();
 
-                if (pointSearchSqDis[0] < 1.0)
+                // ===== 投影到当前帧 =====
+                transPointXYZI(pt, R, t);
+
+                if (kdtree.nearestKSearch(pt, K, idx, dist) < K)
+                    continue;
+
+                int best_id = -1;
+                double best_res = 1e9;
+
+                Triple p_old = oldest.pcs[i];
+                Triple n_old = oldest.ncs[i];
+
+                // ===== 遍历候选 =====
+                for (int k = 0; k < K; k++)
                 {
-                    //calculate residual vector
-                    Triple res_norm1 = cur_lidar.ncs.at(pointSearchInd.at(0)) - R_old_cur * oldest_lidar.ncs.at(i);
-                    Triple res_norm2 = cur_lidar.ncs.at(pointSearchInd.at(0)) - R_old_cur * (-oldest_lidar.ncs.at(i));
-                    double res_distance = cur_lidar.ncs.at(pointSearchInd.at(0)).transpose() * (cur_lidar.pcs.at(pointSearchInd.at(0)) - Triple(point.x, point.y, point.z));
+                    int id = idx[k];
 
-                    //
-                    Triple& oldest_pc = oldest_lidar.pcs.at(i);
-                    Triple& oldest_nc = oldest_lidar.ncs.at(i);
-                    Triple oldest_phi = oldest_nc * (oldest_nc.transpose() * oldest_pc);
-                    Triple oldest_n = oldest_phi / oldest_phi.norm();
+                    Triple p_cur = cur.pcs[id];
+                    Triple n_cur = cur.ncs[id];
 
+                    // ===== 法向量变换到当前帧 =====
+                    Triple n_old_cur = R * n_old;
 
-                    Triple& cur_pc = cur_lidar.pcs.at(pointSearchInd.at(0));
-                    Triple& cur_nc = cur_lidar.ncs.at(pointSearchInd.at(0));
-                    Triple cur_phi = cur_nc * (cur_nc.transpose() * cur_pc);
-                    Triple cur_n = cur_phi / cur_phi.norm();
+                    // ===== 方向统一（关键）=====
+                    if (n_old_cur.dot(n_cur) < 0)
+                        n_old_cur = -n_old_cur;
 
+                    // ===== 1. 法向量约束（更严格）=====
+                    if (n_old_cur.dot(n_cur) < 0.97) continue;
 
-                    Triple residual = cur_phi - R_old_cur * oldest_n * (oldest_phi.norm() - t_cur_old.transpose() * oldest_n);
-                    // 
-                    if ((res_norm1.norm() < 0.2 || res_norm2.norm() < 0.2) && res_distance < 0.2)
+                    // ===== 2. 点到平面距离 =====
+                    Triple p_old_trans = R * p_old + t;
+
+                    double dist_plane = fabs(
+                        n_cur.dot(p_old_trans - p_cur)
+                    );
+
+                    // ===== 3. 自适应阈值 =====
+                    double range = p_old.norm();
+                    double threshold = std::max(0.05, 0.02 * range);
+
+                    if (dist_plane > threshold) continue;
+
+                    // ===== 选最优 =====
+                    if (dist_plane < best_res)
                     {
-
-                        auto iter = associations.find(i);
-                        if (iter == associations.end())
-                        {
-                            //new correspond
-                            vector<int> corr_indexs;
-                            corr_indexs.push_back(pointSearchInd.at(0));
-                            associations.insert(make_pair(i, corr_indexs));
-
-                        }
-                        else
-                        {
-                            //old correspond
-                            iter->second.push_back(pointSearchInd.at(0));
-
-                        }
-
-                        eft_number++;
+                        best_res = dist_plane;
+                        best_id = id;
                     }
                 }
 
-            }
-            cout << "pass_number:" << eft_number << endl;
-            cout << "all_number:" << oldest_lidar.pcs.size() << endl;
-        }
+                // ===== 保存关联 =====
+                if (best_id != -1)
+                {
+                    auto iter = associations.find(i);
+                    if (iter == associations.end())
+                    {
+                        std::map<int, int> corr;
+                        corr[j] = best_id;
+                        associations.insert(make_pair(i, corr));
+                    }
+                    else
+                    {
+                        iter->second[j] = best_id;
+                    }
 
+                    match_cnt++;
+                }
+            }
+
+            cout << "frame " << j
+                << " match_cnt: " << match_cnt
+                << " / " << oldest.pcs.size() << endl;
+        }
     }
 
 
     void lidar_proc_odometry::segmenter_data_association(vector<LidarFrame>& buffer)
     {
         cout << "---!!!data-association!!!---" << endl;
-        int eft_buf_size = buffer.size() - 2;
+        int eft_buf_size = buffer.size() - 1;
         assert(eft_buf_size > 0);
         associations.clear();
 
-        for (int i = 2; i < buffer.size(); i++)
+        for (int j = 1; j < buffer.size(); j++)
         {
-            auto& oldest_lidar = buffer.at(1);
-            auto& cur_lidar = buffer.at(i);
+            auto& oldest_lidar = buffer.at(0);
+            auto& cur_lidar = buffer.at(j);
 
             //build kd-tree
             pcl::PointCloud<pcl::PointXYZI>::Ptr points(new pcl::PointCloud<pcl::PointXYZI>());
@@ -516,17 +503,14 @@ namespace hwa_lidar
                         auto iter = associations.find(i);
                         if (iter == associations.end())
                         {
-                            //新点
-                            vector<int> corr_indexs;
-                            corr_indexs.push_back(pointSearchInd.at(0));
+                            std::map<int,int> corr_indexs;
+                            corr_indexs[j] = pointSearchInd.at(0);
                             associations.insert(make_pair(i, corr_indexs));
 
                         }
                         else
                         {
-                            //已存在索引的老点
-                            iter->second.push_back(pointSearchInd.at(0));
-
+                            iter->second.insert(make_pair(j, pointSearchInd.at(0)));
                         }
 
                         eft_number++;
@@ -535,7 +519,6 @@ namespace hwa_lidar
             }
 
         }
-        //cout << "index1__size:" << associations.size() << endl;
     }
 
     //void lidar_proc_odometry::ceresOptimize()

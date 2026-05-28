@@ -794,7 +794,7 @@ namespace hwa_gnss
                 partial = 1.0;
             }
             break;
-        case par_type::GLO_ifcb:
+        case par_type::GLO_IFCB:
             if (obsdata.site() == par.site && !gobs.is_phase() && obsdata.gsys() == GLO && par.prn == obsdata.sat())
             {
                 partial = 1.0;

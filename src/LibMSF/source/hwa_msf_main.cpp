@@ -107,17 +107,6 @@ int main(int argc, char** argv)
         }
     }
 
-    if (gset->realtime() == false && !isBase)
-    {
-        if (gset->input_size("sp3") == 0 &&
-            gset->input_size("rinexc") == 0 &&
-            gset->input_size("rinexo") == 0
-            ) {
-            SPDLOG_LOGGER_INFO(my_logger, "main", "Error: incomplete input: rinexo + rinexc + sp3");
-            gset->usage();
-        }
-    }
-
     set<string>::const_iterator itOBJ;
     set<string> obj = dynamic_cast<set_rec*>(gset.get())->objects();
     for (itOBJ = obj.begin(); itOBJ != obj.end(); ++itOBJ) {
@@ -278,11 +267,11 @@ int main(int argc, char** argv)
     }
     int frequency = dynamic_cast<set_gproc*>(gset.get())->frequency();
     set<string> system = dynamic_cast<set_gen*>(gset.get())->sys();
-    if (frequency == 3 && system.find("GPS") != system.end() && !isBase)
+    if (gifcb && frequency == 3 && system.find("GPS") != system.end() && !isBase)
     {
         data->Add_Data(base_data::type2str(gifcb->id_type()), gifcb);
     }
-    if (isClient) { data->Add_Data(base_data::type2str(gaug->id_type()), gaug); };
+    if (gaug && isClient) { data->Add_Data(base_data::type2str(gaug->id_type()), gaug); };
     size_t read_num = 0;
     if (gset->realtime() == true) {
         for (size_t i = 0; i < base_io_obj.size(); i++) {

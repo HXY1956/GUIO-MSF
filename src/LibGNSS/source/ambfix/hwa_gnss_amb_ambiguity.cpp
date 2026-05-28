@@ -2512,7 +2512,7 @@ namespace hwa_gnss
                 _mDia.setZero();
                 for (i = 0; i < namb; i++)
                 {
-                    _mDia(i + 1) = lambda->pDia[i];
+                    _mDia(i) = lambda->pDia[i];
                 }
             }
 

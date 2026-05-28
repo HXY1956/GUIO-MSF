@@ -568,20 +568,20 @@ int hwa_gnss::gnss_proc_pvtflt::_rtkinit()
     // Add coordinates parameters
     if (_crd_est != CONSTRPAR::FIX)
     {
-        _param->addParam(base_par(_site, par_type::CRD_X, ++ipar, ""));
-        _param->addParam(base_par(_site, par_type::CRD_Y, ++ipar, ""));
-        _param->addParam(base_par(_site, par_type::CRD_Z, ++ipar, ""));
+        _param->addParam(base_par(_site, par_type::CRD_X, ipar++, ""));
+        _param->addParam(base_par(_site, par_type::CRD_Y, ipar++, ""));
+        _param->addParam(base_par(_site, par_type::CRD_Z, ipar++, ""));
     }
 
     // Add tropospheric wet delay parameter
     if (_tropo_est)
     {
         //rover
-        base_par trp_rover(_site, par_type::TRP, ++ipar, "");
+        base_par trp_rover(_site, par_type::TRP, ipar++, "");
         trp_rover.setMF(_ztd_mf);
         _param->addParam(trp_rover);
         //base
-        base_par trp_base(_site_base, par_type::TRP, ++ipar, "");
+        base_par trp_base(_site_base, par_type::TRP, ipar++, "");
         trp_base.setMF(_ztd_mf);
         _param->addParam(trp_base);
     }
@@ -804,6 +804,7 @@ int hwa_gnss::gnss_proc_pvtflt::_combineDD(Matrix &A, Symmetric &P, Vector &l)
                     enum GSYS gs;
                     if (!isSetRefSat || (_observ == OBSCOMBIN::RAW_MIX && !isPhaseProcess))
                         sat_ref.clear();
+
                     if (sat_ref.empty())
                     {
                         for (auto it = _data.begin(); it != _data.end(); it++)
@@ -917,6 +918,8 @@ int hwa_gnss::gnss_proc_pvtflt::_combineDD(Matrix &A, Symmetric &P, Vector &l)
                         _obs_index.push_back(std::make_pair(it->sat(), std::make_pair(f, obstype)));
                         iobs++;
                     } //end sat
+
+					//std::cout << "RefSatellite: " << sat_ref << " Freq: " << f << " system: " << sys << " number of double-differenced observations: " << iobs << std::endl;
                 }      //end f
             }          //end sys
         }
@@ -962,7 +965,7 @@ int hwa_gnss::gnss_proc_pvtflt::_combineDD(Matrix &A, Symmetric &P, Vector &l)
     }
 }
 
-int hwa_gnss::gnss_proc_pvtflt::_postRes(const Matrix &A, const Symmetric &P, const Vector &l, Matrix &pA, Symmetric &pP, Vector &pl)
+int hwa_gnss::gnss_proc_pvtflt::_postRes(const Matrix& A, const Symmetric& P, const Vector& l, const Vector& dx)
 {
     if (_sat_ref.empty())
         return -1;
@@ -974,8 +977,12 @@ int hwa_gnss::gnss_proc_pvtflt::_postRes(const Matrix &A, const Symmetric &P, co
         return 0;
     }
 
-    // index_l todo : sat,freq,std::pair<P,L>
+    string site = _site;
+    auto par_temp = _param;
+    double amb_correct = 0, amb_correct_2 = 0, amb_correct_dd = 0;
+    int idx = 0, idx2 = 0;
     std::map<std::string, std::map<FREQ_SEQ, std::pair<int, int>>> index_l;
+
     for (int i = 0; i < _obs_index.size(); i++)
     {
         std::string sat = _obs_index[i].first;
@@ -997,16 +1004,17 @@ int hwa_gnss::gnss_proc_pvtflt::_postRes(const Matrix &A, const Symmetric &P, co
 
     int nobs = P.rows();
     int ncols = A.cols();
-    pA.resize(nobs, A.cols());
-    pA = A;
-    pP = P;
-    pl.resize(nobs);
-    pl = l;
+    _post_A.resize(nobs, A.cols());
+    _post_A = A;
+    _post_P = P;
+    _post_l.resize(nobs);
+    _post_l = l;
     Diag delP;
     delP.resize(nobs);
     delP.setZero();
 
     hwa_vector_amb_dd DD = _ambfix->getDD();
+    hwa_vector_amb_dd DD_sav = _ambfix->getDD_sav();
     int iobs = 0;
     std::vector<int> ind;
     for (auto it = 0; it < nobs; it++)
@@ -1033,9 +1041,13 @@ int hwa_gnss::gnss_proc_pvtflt::_postRes(const Matrix &A, const Symmetric &P, co
                     itdd->rlc *= -1.0;
                     itdd->rwl *= -1.0;
                     itdd->inl *= -1.0;
+                    itdd->iwl *= -1.0;
                 }
                 FREQ_SEQ f = FREQ_X;
                 double dif = 0.0;
+                double dif2 = 0.0;
+                double factor_L2 = 0.0;
+                bool f2_use = true;
                 if (_observ == OBSCOMBIN::IONO_FREE)
                 {
                     gnss_data_obs_manager gnss(_spdlog, satref);
@@ -1048,7 +1060,7 @@ int hwa_gnss::gnss_proc_pvtflt::_postRes(const Matrix &A, const Symmetric &P, co
                     dif = itdd->rlc - (itdd->inl * itdd->factor + wl * mw_coef);
                     f = FREQ_1;
                 }
-                else if (_observ == OBSCOMBIN::RAW_ALL)
+                else if (_observ == OBSCOMBIN::RAW_ALL || _observ == OBSCOMBIN::RAW_MIX)
                 {
                     if (itdd->ambtype == "AMB_L1")
                         f = FREQ_1;
@@ -1063,14 +1075,54 @@ int hwa_gnss::gnss_proc_pvtflt::_postRes(const Matrix &A, const Symmetric &P, co
                     else
                         continue;
 
-                    dif = itdd->rlc - itdd->inl * itdd->factor;
+                    for (auto itdd_sav = DD_sav.begin(); itdd_sav != DD_sav.end(); itdd_sav++)
+                    {
+                        if (itdd_sav->ambtype == "AMB_L2" && get<0>(itdd_sav->ddSats[0]) == get<0>(itdd->ddSats[0]) && get<0>(itdd_sav->ddSats[1]) == get<0>(itdd->ddSats[1]))
+                        {
+                            factor_L2 = itdd_sav->factor;
+                            f2_use = true;
+                        }
+                        else
+                            f2_use = false;
+                        if (f2_use)
+                        {
+                            idx = par_temp->getParam(_site, par_type::AMB_L2, crt_sat);
+                            idx2 = par_temp->getParam(_site, par_type::AMB_L2, satref);
+                            amb_correct = dx(idx);
+                            amb_correct_2 = dx(idx2);
+                            amb_correct_dd = amb_correct - amb_correct_2;
+                            dif2 = itdd_sav->rlc - amb_correct_dd - (-itdd->iwl + itdd->inl) * factor_L2;
+                            break;
+                        }
+                    }
+                    idx = par_temp->getParam(_site, par_type::AMB_L1, crt_sat);
+                    idx2 = par_temp->getParam(_site, par_type::AMB_L1, satref);
+                    amb_correct = dx(idx);
+                    amb_correct_2 = dx(idx2);
+                    amb_correct_dd = amb_correct - amb_correct_2;
+                    dif = itdd->rlc - amb_correct_dd - itdd->inl * itdd->factor;
                 }
                 if (f != FREQ_X)
                 {
+                    if (index_l.find(crt_sat) == index_l.end())
+                    {
+                        continue;
+                    }
                     auto index = index_l[crt_sat][f].second;
-                    pl(index) -= dif;
-                    // std::vector<int>::const_iterator it = find(ind.begin(), ind.end(), index);
-                    //if (it != ind.end())ind.erase(it);
+                    _post_l(index) += dif;
+                    vector<int>::iterator it = find(ind.begin(), ind.end(), index);
+                    if (it != ind.end())ind.erase(it);
+
+                    if (f2_use)
+                    {
+                        auto index2 = index_l[crt_sat][FREQ_2].second;
+                        if (index2 > 0)
+                        {
+                            _post_l(index2) += dif2;
+                            vector<int>::iterator it2 = find(ind.begin(), ind.end(), index2);
+                            if (it2 != ind.end())ind.erase(it2);
+                        }
+                    }
                 }
             }
         } //end dd
@@ -1078,12 +1130,12 @@ int hwa_gnss::gnss_proc_pvtflt::_postRes(const Matrix &A, const Symmetric &P, co
 
     std::vector<int> ind1 = ind, ind2 = ind;
     int pobs = nobs - ind.size();
-    pP.Matrix_rem(ind);
-    Matrix_remR(pA, ind1);
-    remR(pl, ind2);
-    pA.block(0, 3, pobs, ncols - 3).setZero();  
+    _post_P.Matrix_rem(ind);
+    Matrix_remR(_post_A, ind1);
+    remR(_post_l, ind2);
+    _post_A.block(0, 3, pobs, ncols - 3).setZero();
     for (int i = 0; i < pobs; i++)
-        pP.matrixW()(i, i) *= 10;
+        _post_P.matrixW()(i, i) *= 10;
 
     return iobs;
 }
@@ -1161,6 +1213,18 @@ int hwa_gnss::gnss_proc_pvtflt::_preprocess(const std::string &ssite, std::vecto
         {
             iter = sdata.erase(iter);
             continue;
+        }
+
+        //except sat without pcv
+        if (!_isBase)
+        {
+            shared_ptr<gnss_data_obj> sat_obj = this->_gallobj->obj(satname);
+            shared_ptr<gnss_data_pcv> sat_pcv = sat_obj->pcv(_epoch);
+            if (!sat_pcv)
+            {
+                iter = sdata.erase(iter);
+                continue;
+            }
         }
 
         //check each satellite obs and crd, zzwu
@@ -1705,7 +1769,12 @@ int hwa_gnss::gnss_proc_pvtflt::_processEpoch(const base_time &runEpoch)
             mult = 2;
             nObs *= 2;
         }
-        if (_observ == OBSCOMBIN::RAW_ALL /*|| _observ == OBSCOMBIN::RAW_MIX*/)
+        if (_observ == OBSCOMBIN::RAW_MIX)
+        {
+            mult = 1;
+            nObs *= 5;
+        }
+        if (_observ == OBSCOMBIN::RAW_ALL)
         {
             mult = 2;
             nObs *= 5;
@@ -1746,6 +1815,11 @@ int hwa_gnss::gnss_proc_pvtflt::_processEpoch(const base_time &runEpoch)
         _obs_index.clear();
         _generateObsIndex(equ);
 
+        //std::cout << "time" << runEpoch.sow() + runEpoch.dsec() << "; Before DD: " << "\n";
+        //t_out("A", A);
+        //t_out("P", P.matrixR());
+        //t_out("l", l);
+
         if (iobs < _minsat * mult)
         {
             if (_spdlog)
@@ -1762,6 +1836,12 @@ int hwa_gnss::gnss_proc_pvtflt::_processEpoch(const base_time &runEpoch)
 
         Qsav = _Qx;
 
+        //std::cout << "time" << runEpoch.sow() + runEpoch.dsec() << "; After DD: " << "\n";
+        //t_out("A", A);
+        //t_out("P", P.matrixR());
+        //t_out("l", l);
+        //t_out("Qx", _Qx.matrixR());
+
         try
         {
             if (_nppmodel == NPP_MODEL::PPP_RTK && !_isCompAug)
@@ -1770,6 +1850,9 @@ int hwa_gnss::gnss_proc_pvtflt::_processEpoch(const base_time &runEpoch)
                     _addconstraint(A, P, l);
             }
             _filter->update(A, P, l, dx, _Qx);
+
+            //std::cout << "time" << runEpoch.sow() + runEpoch.dsec() << "; After Update: " << "\n";
+            //t_out("Qx", _Qx.matrixR());
         }
         catch (...)
         {
@@ -1887,6 +1970,8 @@ int hwa_gnss::gnss_proc_pvtflt::_processEpoch(const base_time &runEpoch)
     base_allpar param_after = *_param;
 
     _amb_resolution();
+    if (_amb_state) _postRes(A, P, l, dx);
+
     for (unsigned int iPar = 0; iPar < _param->parNumber(); iPar++)
     {
         _param->operator[](iPar).value(_param->operator[](iPar).value() + dx(_param->operator[](iPar).index));
@@ -1894,6 +1979,8 @@ int hwa_gnss::gnss_proc_pvtflt::_processEpoch(const base_time &runEpoch)
             _param->operator[](iPar).amb_ini = !_amb_state;
         //std::cout << _param->operator[](iPar).str_type() << " " << _param->operator[](iPar).value() << std::endl;
     }
+
+    //std::cout << "Time: " << runEpoch.sow() + runEpoch.dsec() << " After ambiguity resolution: " << std::fixed << std::setprecision(4) << _param->operator[](6).value() << " " << _param->operator[](7).value() << " " << _param->operator[](8).value() << std::endl;
 
     return _amb_state ? 1 : 0;
 }
@@ -1968,6 +2055,14 @@ int hwa_gnss::gnss_proc_pvtflt::_amb_resolution()
         // 按顺序进行三类模糊度固定尝试：EWL -> WL -> NL
         if ((_observ == OBSCOMBIN::RAW_ALL || _observ == OBSCOMBIN::RAW_MIX) && _frequency >= 3) {
             _ambfix->processBatch(_epoch, _filter, nullptr, "EWL");
+        }
+        if ((_observ == OBSCOMBIN::RAW_ALL || _observ == OBSCOMBIN::RAW_MIX) && _frequency >= 4)
+        {
+            _ambfix->processBatch(_epoch, _filter, nullptr, "EWL24");
+        }
+        if ((_observ == OBSCOMBIN::RAW_ALL || _observ == OBSCOMBIN::RAW_MIX) && _frequency >= 5)
+        {
+            _ambfix->processBatch(_epoch, _filter, nullptr, "EWL25");
         }
         if (_observ == OBSCOMBIN::RAW_ALL || (_observ == OBSCOMBIN::RAW_MIX && _frequency >= 2)) {
             _ambfix->processBatch(_epoch, _filter, nullptr, "WL");
@@ -2307,6 +2402,21 @@ std::string hwa_gnss::gnss_proc_pvtflt::_quality_grade(const base_posdata::data_
         return "5";
     else
         return "6";
+}
+
+bool hwa_gnss::gnss_proc_pvtflt::set_obs(const base_time& beg_r, const base_time& end_r) {
+    if (_grec == nullptr)
+    {
+        std::ostringstream os;
+        os << "ERROR: No object found (" << _site << "). Processing terminated!!! " << std::endl;
+        if (_spdlog)
+            SPDLOG_LOGGER_ERROR(_spdlog, os.str());
+        return false;
+    }
+    double subint = 0.1;
+    InitProc(beg_r, end_r, &subint);
+    _gobs->setepoches(_site);
+    return true;
 }
 
 int hwa_gnss::gnss_proc_pvtflt::processBatch(const base_time &beg_r, const base_time &end_r, bool prtOut)
@@ -2750,8 +2860,8 @@ void hwa_gnss::gnss_proc_pvtflt::_udsdAmb()
     std::set<std::string> mapPRN;
     for (int i = 0; i < _data.size(); i++)
     {
-        auto rsatdata = _data[i];
-        auto bsatdata = _data_base[i];
+        auto& rsatdata = _data[i];
+        auto& bsatdata = _data_base[i];
 
         GSYS gs = rsatdata.gsys();
         std::string sat = rsatdata.sat();
@@ -2857,7 +2967,7 @@ void hwa_gnss::gnss_proc_pvtflt::_udsdAmb()
             int idx = _param->getParam(_site, par_type::AMB_IF, sat);
             if (idx < 0)
             {
-                base_par newPar(_site, par_type::AMB_IF, _param->parNumber() + 1, sat);
+                base_par newPar(_site, par_type::AMB_IF, _param->parNumber(), sat);
                 newPar.value(sdamb); // first ambiguity value
                 _param->addParam(newPar);
                 _newAMB[sat] = 1;
@@ -3020,7 +3130,7 @@ void hwa_gnss::gnss_proc_pvtflt::_udsdAmb()
                 int idx = _param->getParam(_site, amb_type, sat);
                 if (idx < 0)
                 {
-                    base_par newPar(_site, amb_type, _param->parNumber() + 1, sat);
+                    base_par newPar(_site, amb_type, _param->parNumber(), sat);
                     newPar.value(sdamb);
                     _param->addParam(newPar);
                     _Qx.Matrix_addRC(_param->parNumber() - 1, _param->parNumber() - 1);
@@ -3137,6 +3247,8 @@ void hwa_gnss::gnss_proc_pvtflt::_udAmb()
     { // loop over all satellites
         mapPRN.insert(it->sat());
 
+        string sat = it->sat();
+
         std::tuple<GOBS, GOBS, GOBS, GOBS> amb_obs_identifier = std::make_tuple(X, X, X, X);
 
         GSYS gs = it->gsys();
@@ -3225,7 +3337,7 @@ void hwa_gnss::gnss_proc_pvtflt::_udAmb()
                 if (double_eq(LIF, 0.0) || double_eq(PIF, 0.0))
                     continue;
 
-                base_par newPar(it->site(), par_type::AMB_IF, _param->parNumber() + 1, it->sat());
+                base_par newPar(it->site(), par_type::AMB_IF, _param->parNumber(), it->sat());
 
                 newPar.value(LIF - PIF);           // first ambiguity value
                 newPar.setTime(_epoch, LAST_TIME); // beg -> end
@@ -3333,9 +3445,10 @@ void hwa_gnss::gnss_proc_pvtflt::_udAmb()
                 int idx = -1;
                 // add L1 amb - everytime when RAW observations
                 idx = _param->getParam(_site, amb_type, it->sat());
+
                 if (idx < 0)
                 {
-                    base_par newPar(it->site(), amb_type, _param->parNumber() + 1, it->sat());
+                    base_par newPar(it->site(), amb_type, _param->parNumber(), it->sat());
                     newPar.value(Li - Pi);
                     newPar.setTime(_epoch, LAST_TIME); // beg -> end
                     _param->addParam(newPar);
@@ -3378,6 +3491,7 @@ void hwa_gnss::gnss_proc_pvtflt::_udAmb()
                     if (_spdlog)
                         SPDLOG_LOGGER_INFO(_spdlog, "Warning: amb_obs switched silently!" + it->sat() + " " + _epoch.str_hms());
                     _amb_obs[std::make_pair(it->sat(), amb_type)] = amb_obs_identifier;
+                    it->addlli(gobsi.gobs(), 1);
                 }
             }
 
@@ -3450,8 +3564,7 @@ void hwa_gnss::gnss_proc_pvtflt::_post_turbo_syncAmb()
     // First. // Add ambiguity parameter and appropriate rows/columns covar. matrix
     for (auto par : newparlist)
     {
-
-        par.index = _param->parNumber() + 1;
+        par.index = _param->parNumber();
         _param->addParam(par);
         _newAMB[par.prn] = 1;
         addSats.insert(par.prn);
@@ -5342,7 +5455,7 @@ void hwa_gnss::gnss_proc_pvtflt::_predictBias()
         }
     }
 
-    i = _param->getParam(_site, par_type::GLO_ifcb, "");
+    i = _param->getParam(_site, par_type::GLO_IFCB, "");
     if (i >= 0)
     {
         if (!_initialized || _Qx(i, i) == 0.0 || _isClient)

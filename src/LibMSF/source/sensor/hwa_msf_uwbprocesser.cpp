@@ -5,7 +5,7 @@
 using namespace std;
 
 namespace hwa_msf{
-    uwbprocesser::uwbprocesser(const baseprocesser& B, base_data* data) : baseprocesser(B){
+    uwbprocesser::uwbprocesser(const baseprocesser& B, base_data* data) : baseprocesser(B, hwa_base::UWB), uwb_proc(_gset.get(), _name, data) {
         make_dir("output\\range.txt");
         make_dir("output\\position.txt");
         make_dir("output\\pdop.txt");
@@ -24,7 +24,7 @@ namespace hwa_msf{
         lever = dynamic_cast<set_ign*>(_gset.get())->uwb_lever();
     };
 
-    uwbprocesser::uwbprocesser(std::shared_ptr<set_base> gset, std::string site, base_log spdlog, base_data* data, base_time _beg, base_time _end) : baseprocesser(gset, spdlog, site, _beg, _end)
+    uwbprocesser::uwbprocesser(std::shared_ptr<set_base> gset, std::string site, base_log spdlog, base_data* data, base_time _beg, base_time _end) : baseprocesser(gset, spdlog, site, hwa_base::UWB, _beg, _end), uwb_proc(gset.get(), site, data)
     {
         make_dir("output\\range.txt");
         make_dir("output\\position.txt");
@@ -71,11 +71,19 @@ namespace hwa_msf{
             if (_ts > 1) TimeStamp.add_secs(int(_ts));  // =<1Hz data
             else         TimeStamp.add_dsec(_ts);       //  >1Hz data
         }
-        if ((abs(inst.diff(TimeStamp)) < _shm->delay && inst >= TimeStamp)
-            || abs(inst.diff(TimeStamp)) < 1e-6)
-        {
+
+        if (abs(inst.diff(TimeStamp)) < 1e-3) {
+            time_lock = true;
             return true;
         }
+
+        if (time_lock) {
+            time_lock = false;
+            return false;
+        }
+
+        if ((abs(inst.diff(TimeStamp)) < _shm->delay && inst >= TimeStamp))
+            return true;
         return false;
     }
 
@@ -148,12 +156,11 @@ namespace hwa_msf{
 
             if (_Estimator == INEKF) {
                 _sins->Hk.block(obs_crt, 0, 1, 3) = H0 * hwa_base::askew(pos_uwb_ecef - _sins->initial_pos); //att
-                _sins->Hk.block(obs_crt, 3, 1, 3) = Matrix::Zero(1, 3); //ve
                 _sins->Hk.block(obs_crt, 6, 1, 3) = -H0; //pe
             }
             else if (_Estimator == NORMAL) {
                 _sins->Hk.block(obs_crt, 6, 1, 3) = -H0;
-                _sins->Hk.block(obs_crt, 0, 1, 3) = H0 * hwa_base::askew(_sins->Ceb * lever);
+                _sins->Hk.block(obs_crt, 0, 1, 3) = -H0 * hwa_base::askew(_sins->Ceb * lever);
             }
             //Rk
             switch (wgt_type)
@@ -218,11 +225,13 @@ namespace hwa_msf{
         if (SDP) {
             std::vector<double> mu(valid_num, 0.0);
             nlos_est(mu, pos_uwb_ecef);
+            CrtRange = IniRange;
             for (int i = 0; i < _sins->Zk.size(); i++) {
                 _sins->Zk[i] -= mu[i];
                 CrtRange[i] = IniRange[i] - mu[i];
             }
         }
+        _Updater.reset();
         _Updater.setRecpos(pos_uwb_ecef);
         _Updater.setAncpos(AnchorPos);
         _Updater.setRange(CrtRange);

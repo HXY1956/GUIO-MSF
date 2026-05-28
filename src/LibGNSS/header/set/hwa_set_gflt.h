@@ -171,6 +171,8 @@ namespace hwa_set
 
         std::string filter();
 
+		std::string proc_mode();
+
     protected:
         std::string _method_flt; ///< type of filtering method (kalman, SRCF)
         std::string _method_smt; ///< type of filtering method (kalman, SRCF)

@@ -23,6 +23,7 @@ namespace hwa_set
         void check();
         void help();
 
+        Triple _get_crd_xyz(std::string s);
         int iter();
         int nq();
         double ts();
@@ -40,6 +41,7 @@ namespace hwa_set
         double end();
         std::vector<std::string> anchor_list();
         std::string filter();
+        std::string proc_mode();
         bool smooth();
         bool addnoise();
         int smooth_point();

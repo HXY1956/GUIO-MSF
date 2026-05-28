@@ -144,6 +144,8 @@ namespace hwa_set
         double static_threshold(int cam_group_id = 0);
         double max_res_norm(int cam_group_id = 0);
         std::string filter(int cam_group_id = 0);
+        std::string proc_mode(int cam_group_id = 0);
+
         hwa_vis::PROCESSER_TYPE processer(int cam_group_id = 0);
         std::string cam_group_name(int cam_group_id = 0);
         std::string gst_path(int cam_group_id = 0);

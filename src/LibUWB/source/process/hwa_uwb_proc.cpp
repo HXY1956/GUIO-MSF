@@ -31,6 +31,11 @@ hwa_uwb::uwb_proc::uwb_proc(set_base* gset, std::string mark, base_data* data):
     _init_Pk = Pk_uwb; Pk_Sav_uwb = Pk_uwb;
     Qt_uwb = _pos_psd.array().abs2();
     _anchor_list = dynamic_cast<set_uwb*>(gset)->anchor_list();
+    for (auto a : _anchor_list)
+    {
+        _anchor_info[a] = dynamic_cast<set_uwb*>(gset)->_get_crd_xyz(a);
+    }
+
     std::string tmp;
     tmp = dynamic_cast<set_uwb*>(gset)->result_file();
     _fuwb = new base_iof(tmp);
@@ -104,7 +109,8 @@ PenalType hwa_uwb::str2Penal(std::string s) {
 
 int hwa_uwb::uwb_proc::ProcessOneEpoch(const base_time& now)
 {
-    _preprocess();
+    if(!_prepareData(now)) 
+        return -1;
     time_update(_get_ts());
     set_particles();
     if (obs_update(now) == NO_MEAS)
@@ -142,7 +148,6 @@ int hwa_uwb::uwb_proc::ProcessBatch(const base_time& beg, const base_time& end)
 void hwa_uwb::uwb_proc::time_update(double kfts)
 {
     Matrix Fk = Matrix::Identity(_dim, _dim);
-    Phik_uwb = Fk * Phik_uwb;
     Xk_uwb = Fk * Xk_uwb;
     Matrix Qk = (Qt_uwb * kfts).array().matrix().asDiagonal();
     Pk_uwb = Fk * Pk_uwb * (Fk.transpose());
@@ -174,16 +179,14 @@ int hwa_uwb::uwb_proc::obs_update(const base_time& now)
 
     int dim = Xk_uwb.size();
     Vector Delx = Vector::Zero(dim);
-    Triple pos_store = this->_pos;
+    
     Matrix P_store = Pk_uwb;
-    Vector Xk_store = Xk_uwb;
     Matrix rm;
-    Xk_store(0) -= 1;
     int iter = 0;
 
     for (unsigned int iter = 0; iter < _iter; iter++)
     {
-        Xk_store = Xk_uwb;
+        valid_node.clear();
         if (isfirst && iter > 0)
             isfirst = false;
         valid_num = hwa_uwb::uwb_proc::_setMeas(isfirst);
@@ -194,44 +197,31 @@ int hwa_uwb::uwb_proc::obs_update(const base_time& now)
             outlier = -1;
         }
 
-        Matrix Kkm = _particles;
-
         if (valid_num < 3)
             return NO_MEAS;
 
-        if (filter == "EKF" || filter == "UKF" || filter == "GSTM" || filter == "GSTM-1" || filter == "GSTM-2")
-        {
-            Matrix Him = Hk_uwb.transpose();
-            Matrix Pxzm = P_store * Him;
-            Matrix Pz0m = Hk_uwb * Pxzm;
-            rm = Zk_uwb + Hk_uwb * Xk_uwb;
-            Matrix Pzzm = Pz0m + Rk_uwb;
-            Matrix Kkm = Pxzm * Pzzm.inverse();
-            Xk_uwb = Kkm * rm;
-            Pk_uwb = P_store - Kkm * Pxzm.transpose();
-        }
-        else if (filter == "CKF")
-        {
-            hwa_uwb::uwb_proc::_meas_updata_ckf(_pos, Xk_uwb, Pk_uwb, Zk_uwb, Rk_uwb);
-        }
-        else if (filter == "PF")
-        {
-            hwa_uwb::uwb_proc::_meas_updata_pf(_pos, Xk_uwb, Pk_uwb, Zk_uwb, Rk_uwb);
-        }
+        Matrix Him = Hk_uwb.transpose();
+        Matrix Pxzm = P_store * Him;
+        Matrix Pz0m = Hk_uwb * Pxzm;
+        rm = Zk_uwb + Hk_uwb * Xk_uwb;
+        Matrix Pzzm = Pz0m + Rk_uwb;
+        Matrix Kkm = Pxzm * Pzzm.inverse();
+        Xk_uwb = Kkm * rm;
+        Pk_uwb = P_store - Kkm * Pxzm.transpose();
 
         _posterioriTest(Hk_uwb, Rk_uwb, rm, Xk_uwb, Pk_uwb, v_norm, vtpv);
-        if (_outlierDetect(v_norm, outlier) >= 0); Pk_uwb = P_store;
-
+        if (_outlierDetect(v_norm, outlier) >= 0) {
+            Pk_uwb = P_store;
+            set_particles();
+            continue;
+        }
         set_particles();
+        P_store = Pk_uwb + 0.75 * Matrix::Identity(3, 3);
+        this->_pos -= Xk_uwb.block(0, 0, _dim, 1);
 
-        this->_pos = pos_store - Xk_uwb.block(0, 0, _dim, 1);
-
-        if (outlier < 0 && (Xk_store - Xk_uwb).norm() < 0.0001 /*&& Xki.norm() > 1e-10 && Xki.norm() < 1e-2*/)
+        if (Xk_uwb.norm() < 0.5)
         {
-            Phik_uwb = Matrix::Identity(_dim, _dim);
-            this->_pos = pos_store - Xk_uwb.block(0, 0, _dim, 1);
             _valid_node_num = valid_num;
-            //cal dop
             double cof = pow(Rk_uwb.determinant(), 1.0 / _valid_node_num);
             Qenu = Hk_uwb.block(0, 0, valid_num, _dim).transpose() * Rk_uwb.block(0, 0, valid_num, valid_num).inverse() * Hk_uwb.block(0, 0, valid_num, _dim);
             Geo_pos = Cart2Geod(_pos, false);
@@ -246,14 +236,11 @@ int hwa_uwb::uwb_proc::obs_update(const base_time& now)
             break;
         }
     }
-    if (/*filter == "EKF" && */output_res)
+    if (output_res)
     {
         Vector v = Zk_uwb - Hk_uwb * Xk_uwb;
         _res_output(v);
     }
-    //if (_is_first)
-    //    _is_first = false;
-    std::cout << std::fixed << std::setprecision(10) << now.str_ymdhms() << "   end: " << Pk_uwb(0, 0) << " " << Pk_uwb(1, 1) << " " << Pk_uwb(2, 2) << " " << std::endl;
 
     Pk_Sav_uwb = Pk_uwb;
 

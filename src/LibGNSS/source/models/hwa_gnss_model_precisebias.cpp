@@ -27,7 +27,7 @@ namespace hwa_gnss
         _tide = std::shared_ptr<gnss_model_tide>(new gnss_model_tideiers(dynamic_cast<gnss_all_otl *>((*data)[base_data::ALLOTL])));
         _minElev = dynamic_cast<set_gproc *>(setting)->minimum_elev();
         _crd_est = dynamic_cast<set_gproc *>(setting)->crd_est();
-        _is_flt = (dynamic_cast<set_gen *>(setting)->estimator() == "FLT");
+        _is_flt = (dynamic_cast<set_gen *>(setting)->estimator() == "flt");
         _trop_est = dynamic_cast<set_gproc *>(setting)->tropo();
         if (dynamic_cast<gnss_all_prec *>(_gall_nav))
         {
@@ -56,7 +56,7 @@ namespace hwa_gnss
         _tide = std::shared_ptr<gnss_model_tide>(new gnss_model_tideiers(spdlog, dynamic_cast<gnss_all_otl *>((*data)[base_data::ALLOTL])));
         _minElev = dynamic_cast<set_gproc *>(setting)->minimum_elev();
         _crd_est = dynamic_cast<set_gproc *>(setting)->crd_est();
-        _is_flt = (dynamic_cast<set_gen *>(setting)->estimator() == "FLT");
+        _is_flt = (dynamic_cast<set_gen *>(setting)->estimator() == "flt");
         _trop_est = dynamic_cast<set_gproc *>(setting)->tropo();
         if (dynamic_cast<gnss_all_prec *>(_gall_nav))
         {
@@ -1008,7 +1008,7 @@ namespace hwa_gnss
                 return 1.0;
             else
                 return 0.0;
-        case par_type::GLO_ifcb:
+        case par_type::GLO_IFCB:
             if (obsdata.site() == par.site && !gobs.is_phase() && obsdata.gsys() == GLO && par.prn == obsdata.sat())
                 return 1.0;
             else

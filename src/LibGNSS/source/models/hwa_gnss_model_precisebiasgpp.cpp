@@ -307,7 +307,7 @@ namespace hwa_gnss
         _crt_obs.addrho(tmp);
 
         // add drate
-        _crt_obs.adddrate(((_crs_sat_vel - _crs_rec_vel).dot((_crs_sat_pco - _crs_rec_pco))) / (CLIGHT * tmp)); //yjqin
+        _crt_obs.adddrate((_crs_sat_vel - _crs_rec_vel).dot(_crs_sat_pco - _crs_rec_pco) / (CLIGHT * tmp)); //yjqin
 
         // add azim && elev
         Triple xyz_rho = _crs_sat_pco - _crs_rec_pco;

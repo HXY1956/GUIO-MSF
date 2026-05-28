@@ -90,6 +90,7 @@ hwa_lidar::lidar_base::lidar_base(set_base* set):lidar_state_id(0), lidar_next_i
     use_scan = dynamic_cast<set_lidar*>(set)->use_scan();
     use_map = dynamic_cast<set_lidar*>(set)->use_map();
     use_pp = dynamic_cast<set_lidar*>(set)->use_pp();
+    build_map = dynamic_cast<set_lidar*>(set)->build_map();
     use_segmenter = dynamic_cast<set_lidar*>(set)->use_segmenter();
     use_corrdistort = dynamic_cast<set_lidar*>(set)->distortion();
 
@@ -162,31 +163,18 @@ void hwa_lidar::lidar_base::lidarMeasurementJacobian(lidarOdometryObs obs, Matri
     {
         if (use_3d)
         {
-            ///< initialize the H matrix
             Matrix H_dp = Matrix::Zero(3, 3);
             Matrix H_px = Matrix::Zero(3, state_num);
-            ///< initialize the r matrix
-            Vector rl = Vector::Zero(3);
+            Triple rl = Triple::Zero();
 
-            ///< calculate the residual of observation(distance between point and line)
-            Triple v_lj = obs.cornerFeature.correspondCornerPointCloudA[i] - obs.cornerFeature.correspondCornerPointCloudB[i];
-            Triple v_li = obs.cornerFeature.currCornerPointCloud_inlast[i] - obs.cornerFeature.correspondCornerPointCloudB[i];
-            Triple v_ji = obs.cornerFeature.currCornerPointCloud_inlast[i] - obs.cornerFeature.correspondCornerPointCloudA[i];
-            Triple vjl_i = v_ji.cross(v_li);
-            Triple vl_ji = v_lj.cross(v_li);
-            double length_lj = sqrt(v_lj(0)*v_lj(0) + v_lj(1)*v_lj(1) + v_lj(2)*v_lj(2));
+            Triple v_ij = obs.cornerFeature.correspondCornerPointCloudA[i] - obs.cornerFeature.correspondCornerPointCloudB[i];
+            Triple v_li = obs.cornerFeature.currCornerPointCloud_inlast[i] - obs.cornerFeature.correspondCornerPointCloudA[i];
+            Triple v_lj = obs.cornerFeature.currCornerPointCloud_inlast[i] - obs.cornerFeature.correspondCornerPointCloudB[i];
+            Triple vl_ij = v_li.cross(v_lj);
+            double length_ij = v_ij.norm();
 
-            H_dp(0, 1) = -v_lj(2) / length_lj;
-            H_dp(0, 2) = v_lj(1) / length_lj;
-            H_dp(1, 0) = v_lj(2) / length_lj;
-            H_dp(1, 2) = -v_lj(0) / length_lj;
-            H_dp(2, 0) = -v_lj(1) / length_lj;
-            H_dp(2, 1) = v_lj(0) / length_lj;
-
-
-            rl(0) = vl_ji.x() / length_lj;
-            rl(1) = vl_ji.y() / length_lj;    
-            rl(2) = vl_ji.z() / length_lj;
+            H_dp = -skew(v_ij) / length_ij;
+            rl = -vl_ij / length_ij;
 
             SO3 Rk = obs.curr_R_l_e;
             SO3 Rk_1 = obs.last_R_l_e;
@@ -195,23 +183,13 @@ void hwa_lidar::lidar_base::lidarMeasurementJacobian(lidarOdometryObs obs, Matri
 
             if (lidarproc->estimate_extrinsic)
             {
-                if (!first_odo)
-                {
-                    H_px.block<3, 3>(0, 6 * id + 6) = skewSymmetric(Rk_1.transpose() * (Rk * obs.cornerFeature.currCornerPointCloud[i] + pk - pk_1));
-                    H_px.block<3, 3>(0, 6 * id + 3 + 6) = -Rk_1.transpose();
-                }
-                H_px.block<3, 3>(0, 6 * id + 6 + 6) = -Rk_1.transpose() * Rk * skewSymmetric(obs.cornerFeature.currCornerPointCloud[i]);
-                H_px.block<3, 3>(0, 6 * id + 9 + 6) = Rk_1.transpose();
+                H_px.block<3, 3>(0, 6 * id + 6) = -Rk_1.transpose() * skewSymmetric(Rk * obs.cornerFeature.currCornerPointCloud[i]);
+                H_px.block<3, 3>(0, 6 * id + 3 + 6) = -Rk_1.transpose();
             }
             else
             {
-                if (!first_odo)
-                {
-                    H_px.block<3, 3>(0, 6 * id) = skewSymmetric(Rk_1.transpose() * (Rk * obs.cornerFeature.currCornerPointCloud[i] + pk - pk_1));
-                    H_px.block<3, 3>(0, 6 * id + 3) = -Rk_1.transpose();
-                }
-                H_px.block<3, 3>(0, 6 * id + 6) = -Rk_1.transpose() * Rk * skewSymmetric(obs.cornerFeature.currCornerPointCloud[i]);
-                H_px.block<3, 3>(0, 6 * id + 9) = Rk_1.transpose();
+                H_px.block<3, 3>(0, 6 * id) = -Rk_1.transpose() * skewSymmetric(Rk * obs.cornerFeature.currCornerPointCloud[i]);
+                H_px.block<3, 3>(0, 6 * id + 3) = -Rk_1.transpose();
             }
 
             Matrix temp_H = H_dp * H_px;
@@ -224,123 +202,69 @@ void hwa_lidar::lidar_base::lidarMeasurementJacobian(lidarOdometryObs obs, Matri
         }
         else
         {
-            ///< initialize the H matrix
             Matrix H_dp = Matrix::Zero(1, 3);
             Matrix H_px = Matrix::Zero(3, state_num);
-            ///< initialize the r matrix
-            Vector rl = Vector::Zero(1);
 
-            ///< calculate the residual of observation(distance between the point and line)
-            Triple v_lj = obs.cornerFeature.correspondCornerPointCloudA[i] - obs.cornerFeature.correspondCornerPointCloudB[i];
-            Triple v_li = obs.cornerFeature.currCornerPointCloud_inlast[i] - obs.cornerFeature.correspondCornerPointCloudB[i];
-            Triple v_ljxi = v_lj.cross(v_li);
-            double length_lj = sqrt(v_lj(0)*v_lj(0) + v_lj(1)*v_lj(1) + v_lj(2)*v_lj(2));
-            double length_ljxi = sqrt(v_ljxi(0)*v_ljxi(0) + v_ljxi(1)*v_ljxi(1) + v_ljxi(2)*v_ljxi(2));
-            double d_e = length_ljxi / length_lj;
+            Triple v_ij = obs.cornerFeature.correspondCornerPointCloudA[i] - obs.cornerFeature.correspondCornerPointCloudB[i];
+            Triple v_li = obs.cornerFeature.currCornerPointCloud_inlast[i] - obs.cornerFeature.correspondCornerPointCloudA[i];
+            Triple v_ijxi = v_li.cross(v_ij);
 
-            double a = v_lj(1)*v_li(2) - v_lj(2)*v_li(1);
-            double b = v_lj(2)*v_li(0) - v_lj(0)*v_li(2);
-            double c = v_lj(0)*v_li(1) - v_lj(1)*v_li(0);
-
-            H_dp(0, 0) = -(v_lj(2)*b - v_lj(1)*c) / length_lj / length_ljxi;
-            H_dp(0, 1) = -(v_lj(0)*c - v_lj(2)*a) / length_lj / length_ljxi;
-            H_dp(0, 2) = -(v_lj(1)*a - v_lj(0)*b) / length_lj / length_ljxi;
-
-            rl(0) = -d_e;
+            H_dp = v_ijxi.transpose() * -skew(v_ij) / (v_ijxi.norm() * v_ij.norm());
+            double r = -v_ijxi.norm() / v_ij.norm();
 
             SO3 Rk = obs.curr_R_l_e;
             SO3 Rk_1 = obs.last_R_l_e;
             Triple pk = obs.curr_t_l_e;
             Triple pk_1 = obs.last_t_l_e;
+
             if (lidarproc->estimate_extrinsic)
             {
-                if (!first_odo)
-                {
-                    H_px.block<3, 3>(0, 6 * id + 6) = skewSymmetric(Rk_1.transpose()*(Rk*obs.cornerFeature.currCornerPointCloud[i] + pk - pk_1));
-                    H_px.block<3, 3>(0, 6 * id + 3 + 6) = -Rk_1.transpose();
-                }
-                H_px.block<3, 3>(0, 6 * id + 6 + 6) = -Rk_1.transpose()*Rk*skewSymmetric(obs.cornerFeature.currCornerPointCloud[i]);
-                H_px.block<3, 3>(0, 6 * id + 9 + 6) = Rk_1.transpose();
+                H_px.block<3, 3>(0, 6 * id + 6) = -Rk_1.transpose() * skewSymmetric(Rk * obs.cornerFeature.currCornerPointCloud[i]);
+                H_px.block<3, 3>(0, 6 * id + 3 + 6) = -Rk_1.transpose();
             }
             else
             {
-                if (!first_odo)
-                {
-                    H_px.block<3, 3>(0, 6 * id) = skewSymmetric(Rk_1.transpose()*(Rk*obs.cornerFeature.currCornerPointCloud[i] + pk - pk_1));
-                    H_px.block<3, 3>(0, 6 * id + 3) = -Rk_1.transpose();
-                }
-                H_px.block<3, 3>(0, 6 * id + 6) = -Rk_1.transpose()*Rk*skewSymmetric(obs.cornerFeature.currCornerPointCloud[i]);
-                H_px.block<3, 3>(0, 6 * id + 9) = Rk_1.transpose();
+                H_px.block<3, 3>(0, 6 * id) = -Rk_1.transpose() * skewSymmetric(Rk * obs.cornerFeature.currCornerPointCloud[i]);
+                H_px.block<3, 3>(0, 6 * id + 3) = -Rk_1.transpose();
             }
 
             corner_H.row(i) = (H_dp * H_px).row(0);
-            corner_r(i) = rl(0);
+            corner_r(i) = r;
             
         }
         
     }
 
-
     for (int j = 0; j < obs.surfFeature.currSurfPointCloud.size(); j++)
     {
-
-        ///< initialize the H matrix
         Matrix H_dp = Matrix::Zero(1, 3);
         Matrix H_px = Matrix::Zero(3, state_num);
-        ///< initialize the r matrix
-        Vector rl = Vector::Zero(1, 1);
 
         ///< calculate residual of observation(distance between point and plane)
-        Triple v_jl = obs.surfFeature.correspondSurfPointCloudB[j] - obs.surfFeature.correspondSurfPointCloudA[j];
-        Triple v_jm = obs.surfFeature.correspondSurfPointCloudC[j] - obs.surfFeature.correspondSurfPointCloudA[j];
-        Triple v_ji = obs.surfFeature.currSurfPointCloud_inlast[j] - obs.surfFeature.correspondSurfPointCloudA[j];
-        Triple vj_lm = v_jl.cross(v_jm);
-        Triple up =Triple(vj_lm(0)*v_ji(0), vj_lm(1)*v_ji(1), vj_lm(2)*v_ji(2));
-        double dj_lm = sqrt(vj_lm(0)*vj_lm(0)+ vj_lm(1)*vj_lm(1)+ vj_lm(2)*vj_lm(2));
-        double d_p = sqrt(up(0)*up(0)+ up(1)*up(1)+ up(2)*up(2))/ dj_lm;
-
-        double a = v_jl(1)*v_jm(2) - v_jl(2)*v_jm(1);
-        double b = v_jl(2)*v_jm(0) - v_jl(0)*v_jm(2);
-        double c = v_jl(0)*v_jm(1) - v_jl(1)*v_jm(0);
-
-        H_dp(0, 0) = -a * a*v_ji(0) / d_p / dj_lm / dj_lm;
-        H_dp(0, 1) = -b * b*v_ji(1) / d_p / dj_lm / dj_lm;
-        H_dp(0, 2) = -c * c*v_ji(2) / d_p / dj_lm / dj_lm;
-
-        rl(0) = -d_p;
+        Triple v_li = obs.surfFeature.currSurfPointCloud_inlast[j] - obs.surfFeature.correspondSurfPointCloudA[j];
+        Triple n_surf = obs.surfFeature.norm[j];
+        double dj_lm = n_surf.norm();
+        surf_r(j) = -(n_surf.transpose() * v_li).value() / dj_lm;
+        H_dp = n_surf.transpose() / dj_lm;
 
         SO3 Rk = obs.curr_R_l_e;
         SO3 Rk_1 = obs.last_R_l_e;
         Triple pk = obs.curr_t_l_e;
         Triple pk_1 = obs.last_t_l_e;
+
         if (lidarproc->estimate_extrinsic)
         {
-            if (!first_odo)
-            {
-                H_px.block<3, 3>(0, 6 * id + 6) = skewSymmetric(Rk_1.transpose()*(Rk*obs.surfFeature.currSurfPointCloud[j] + pk - pk_1));
-                H_px.block<3, 3>(0, 6 * id + 3 + 6) = -Rk_1.transpose();
-            }
-            H_px.block<3, 3>(0, 6 * id + 6 + 6) = -Rk_1.transpose()*Rk*skewSymmetric(obs.surfFeature.currSurfPointCloud[j]);
-            H_px.block<3, 3>(0, 6 * id + 9 + 6) = Rk_1.transpose();
+            H_px.block<3, 3>(0, 6 * id + 6) = -Rk_1.transpose() * skewSymmetric(Rk * obs.cornerFeature.currCornerPointCloud[j]);
+            H_px.block<3, 3>(0, 6 * id + 3 + 6) = -Rk_1.transpose();
         }
         else
         {
-            if (!first_odo)
-            {
-                H_px.block<3, 3>(0, 6 * id) = skewSymmetric(Rk_1.transpose()*(Rk*obs.surfFeature.currSurfPointCloud[j] + pk - pk_1));
+                H_px.block<3, 3>(0, 6 * id) = -Rk_1.transpose() * skewSymmetric(Rk * obs.cornerFeature.currCornerPointCloud[j]);
                 H_px.block<3, 3>(0, 6 * id + 3) = -Rk_1.transpose();
-            }
-            H_px.block<3, 3>(0, 6 * id + 6) = -Rk_1.transpose()*Rk*skewSymmetric(obs.surfFeature.currSurfPointCloud[j]);
-            H_px.block<3, 3>(0, 6 * id + 9) = Rk_1.transpose();
         }
 
-
         surf_H.row(j) = (H_dp * H_px).row(0);
-        surf_r(j) = rl(0);
     }
-    ///< if need to screen out some outpoints
-
-    first_odo = false;
 
     H.resize(corner_H.rows() + surf_H.rows(), corner_H.cols());
     r.resize(corner_r.size() + surf_r.size());
@@ -353,11 +277,6 @@ void hwa_lidar::lidar_base::lidarMeasurementJacobian(lidarOdometryObs obs, Matri
 
 void hwa_lidar::lidar_base::lidarMeasurementJacobian(lidarOdometryObs obs, Matrix &H, Vector &r,int project_id, int id, bool use_3d, float ther)
 {
-    //cout << "lidarodometry" << endl;
-    //cout << "corner points:" << obs.cornerFeature.currCornerPointCloud.size() << endl;
-    //cout << "surf points:" << obs.surfFeature.currSurfPointCloud.size() << endl;
-    //cout << "lidar size:" << lidar_states.size() << endl;
-
     int corner_obsnum = obs.cornerFeature.currCornerPointCloud.size();
     int surf_obsnum = obs.surfFeature.currSurfPointCloud.size();
     int state_num = 0;
@@ -382,89 +301,56 @@ void hwa_lidar::lidar_base::lidarMeasurementJacobian(lidarOdometryObs obs, Matri
     {
         if (use_3d)
         {
-            ///< initialize the H matrix
             Matrix H_dp = Matrix::Zero(3, 3);
             Matrix H_px = Matrix::Zero(3, state_num);
-            ///< initialize the r matrix
-            Vector rl = Vector::Zero(3);
+            Triple rl = Triple::Zero();
 
-            ///< calculate the residual of observation(distance between point and line)
-            Triple v_lj = obs.cornerFeature.correspondCornerPointCloudA[i] - obs.cornerFeature.correspondCornerPointCloudB[i];
-            Triple v_li = obs.cornerFeature.currCornerPointCloud_inlast[i] - obs.cornerFeature.correspondCornerPointCloudB[i];
-            Triple v_ji = obs.cornerFeature.currCornerPointCloud_inlast[i] - obs.cornerFeature.correspondCornerPointCloudA[i];
-            Triple vjl_i = v_ji.cross(v_li);
-            Triple vl_ji = v_lj.cross(v_li);
-            double length_lj = sqrt(v_lj(0)*v_lj(0) + v_lj(1)*v_lj(1) + v_lj(2)*v_lj(2));;
+            Triple v_ij = obs.cornerFeature.correspondCornerPointCloudA[i] - obs.cornerFeature.correspondCornerPointCloudB[i];
+            Triple v_li = obs.cornerFeature.currCornerPointCloud_inlast[i] - obs.cornerFeature.correspondCornerPointCloudA[i];
+            Triple v_lj = obs.cornerFeature.currCornerPointCloud_inlast[i] - obs.cornerFeature.correspondCornerPointCloudB[i];
+            Triple vl_ij = v_li.cross(v_lj);
+            double length_ij = v_ij.norm();
 
-            //这里的正负有待商榷
-            H_dp(0, 1) = -v_lj(2) / length_lj;
-            H_dp(0, 2) = v_lj(1) / length_lj;
-            H_dp(1, 0) = v_lj(2) / length_lj;
-            H_dp(1, 2) = -v_lj(0) / length_lj;
-            H_dp(2, 0) = -v_lj(1) / length_lj;
-            H_dp(2, 1) = v_lj(0) / length_lj;
-
-
-            rl(0) = vl_ji.x() / length_lj;
-            rl(1) = vl_ji.y() / length_lj;
-            rl(2) = vl_ji.z() / length_lj;
+            H_dp = -skew(v_ij) / length_ij;
+            rl = -vl_ij / length_ij;
 
             SO3 Rk = obs.curr_R_l_e;
             SO3 Rk_1 = obs.last_R_l_e;
             Triple pk = obs.curr_t_l_e;
             Triple pk_1 = obs.last_t_l_e;
 
-            //不管什么时候都成立
             if (lidarproc->estimate_extrinsic)
             {
-                H_px.block<3, 3>(0, 6 * project_id + 6) = skewSymmetric(Rk_1.transpose()*(Rk*obs.cornerFeature.currCornerPointCloud[i] + pk - pk_1));
-                H_px.block<3, 3>(0, 6 * project_id + 3 + 6) = -Rk_1.transpose();
+                H_px.block<3, 3>(0, 6 * project_id + 6) = Rk_1.transpose()* skewSymmetric((Rk*obs.cornerFeature.currCornerPointCloud[i] + pk - pk_1));
+                H_px.block<3, 3>(0, 6 * project_id + 3 + 6) = Rk_1.transpose();
 
-                H_px.block<3, 3>(0, 6 * id + 6) = -Rk_1.transpose()*Rk*skewSymmetric(obs.cornerFeature.currCornerPointCloud[i]);
-                H_px.block<3, 3>(0, 6 * id + 3 + 6) = Rk_1.transpose();
+                H_px.block<3, 3>(0, 6 * id + 6) = -Rk_1.transpose() * skewSymmetric(Rk * obs.cornerFeature.currCornerPointCloud[i]);
+                H_px.block<3, 3>(0, 6 * id + 3 + 6) = -Rk_1.transpose();
             }
             else
             {
-                H_px.block<3, 3>(0, 6 * project_id) = skewSymmetric(Rk_1.transpose()*(Rk*obs.cornerFeature.currCornerPointCloud[i] + pk - pk_1));
-                H_px.block<3, 3>(0, 6 * project_id + 3) = -Rk_1.transpose();
+                H_px.block<3, 3>(0, 6 * project_id) = Rk_1.transpose() * skewSymmetric((Rk * obs.cornerFeature.currCornerPointCloud[i] + pk - pk_1));
+                H_px.block<3, 3>(0, 6 * project_id + 3) = Rk_1.transpose();
 
-                H_px.block<3, 3>(0, 6 * id) = -Rk_1.transpose()*Rk*skewSymmetric(obs.cornerFeature.currCornerPointCloud[i]);
-                H_px.block<3, 3>(0, 6 * id + 3) = Rk_1.transpose();
+                H_px.block<3, 3>(0, 6 * id) = -Rk_1.transpose() * skewSymmetric(Rk * obs.cornerFeature.currCornerPointCloud[i]);
+                H_px.block<3, 3>(0, 6 * id + 3) = -Rk_1.transpose();
             }
 
             Matrix temp_H = H_dp * H_px;
-            corner_H.row(i * 3) = temp_H.row(0);
-            corner_H.row(i * 3 + 1) = temp_H.row(1);
-            corner_H.row(i * 3 + 2) = temp_H.row(2);
-            corner_r(i * 3) = rl(0);
-            corner_r(i * 3 + 1) = rl(1);
-            corner_r(i * 3 + 2) = rl(2);
+            corner_H.block(3 * i, 0, 3, temp_H.cols()) = temp_H;
+            corner_r.block(3 * i, 0, 3, 1) = rl;
         }
         else
         {
-            ///< initialize the H matrix
             Matrix H_dp = Matrix::Zero(1, 3);
             Matrix H_px = Matrix::Zero(3, state_num);
-            ///< initialize the r matrix
-            Vector rl = Vector::Zero(1);
 
-            ///< calculate the residual of observation(distance between the point and line)
-            Triple v_lj = obs.cornerFeature.correspondCornerPointCloudA[i] - obs.cornerFeature.correspondCornerPointCloudB[i];
-            Triple v_li = obs.cornerFeature.currCornerPointCloud_inlast[i] - obs.cornerFeature.correspondCornerPointCloudB[i];
-            Triple v_ljxi = v_lj.cross(v_li);
-            double length_lj = sqrt(v_lj(0)*v_lj(0) + v_lj(1)*v_lj(1) + v_lj(2)*v_lj(2));
-            double length_ljxi = sqrt(v_ljxi(0)*v_ljxi(0) + v_ljxi(1)*v_ljxi(1) + v_ljxi(2)*v_ljxi(2));
-            double d_e = length_ljxi / length_lj;
+            Triple v_ij = obs.cornerFeature.correspondCornerPointCloudA[i] - obs.cornerFeature.correspondCornerPointCloudB[i];
+            Triple v_li = obs.cornerFeature.currCornerPointCloud_inlast[i] - obs.cornerFeature.correspondCornerPointCloudA[i];
+            Triple v_ijxi = v_li.cross(v_ij);
 
-            double a = v_lj(1)*v_li(2) - v_lj(2)*v_li(1);
-            double b = v_lj(2)*v_li(0) - v_lj(0)*v_li(2);
-            double c = v_lj(0)*v_li(1) - v_lj(1)*v_li(0);
-
-            H_dp(0, 0) = (v_lj(2)*b - v_lj(1)*c) / length_lj / length_ljxi;
-            H_dp(0, 1) = (v_lj(0)*c - v_lj(2)*a) / length_lj / length_ljxi;
-            H_dp(0, 2) = (v_lj(1)*a - v_lj(0)*b) / length_lj / length_ljxi;
-
-            rl(0) = d_e;
+            H_dp = v_ijxi.transpose() * -skew(v_ij) / (v_ijxi.norm() * v_ij.norm());
+            double r = - v_ijxi.norm() / v_ij.norm();
 
             SO3 Rk = obs.curr_R_l_e;
             SO3 Rk_1 = obs.last_R_l_e;
@@ -473,102 +359,74 @@ void hwa_lidar::lidar_base::lidarMeasurementJacobian(lidarOdometryObs obs, Matri
 
             if (lidarproc->estimate_extrinsic)
             {
-                H_px.block<3, 3>(0, 6 * project_id + 6) = skewSymmetric(Rk_1.transpose()*(Rk*obs.cornerFeature.currCornerPointCloud[i] + pk - pk_1));
-                H_px.block<3, 3>(0, 6 * project_id + 3 + 6) = -Rk_1.transpose();
-                //                
-                H_px.block<3, 3>(0, 6 * id + 6) = -Rk_1.transpose()*Rk*skewSymmetric(obs.cornerFeature.currCornerPointCloud[i]);
-                H_px.block<3, 3>(0, 6 * id + 3 + 6) = Rk_1.transpose();
+                H_px.block<3, 3>(0, 6 * project_id + 6) = Rk_1.transpose() * skewSymmetric((Rk * obs.cornerFeature.currCornerPointCloud[i] + pk - pk_1));
+                H_px.block<3, 3>(0, 6 * project_id + 3 + 6) = Rk_1.transpose();
+
+                H_px.block<3, 3>(0, 6 * id + 6) = -Rk_1.transpose() * skewSymmetric(Rk * obs.cornerFeature.currCornerPointCloud[i]);
+                H_px.block<3, 3>(0, 6 * id + 3 + 6) = -Rk_1.transpose();
             }
             else
             {
-                H_px.block<3, 3>(0, 6 * project_id) = skewSymmetric(Rk_1.transpose()*(Rk*obs.cornerFeature.currCornerPointCloud[i] + pk - pk_1));
-                H_px.block<3, 3>(0, 6 * project_id + 3) = -Rk_1.transpose();
-                //
-                H_px.block<3, 3>(0, 6 * id) = -Rk_1.transpose()*Rk*skewSymmetric(obs.cornerFeature.currCornerPointCloud[i]);
-                H_px.block<3, 3>(0, 6 * id + 3) = Rk_1.transpose();
+                H_px.block<3, 3>(0, 6 * project_id) = Rk_1.transpose() * skewSymmetric((Rk * obs.cornerFeature.currCornerPointCloud[i] + pk - pk_1));
+                H_px.block<3, 3>(0, 6 * project_id + 3) = Rk_1.transpose();
+
+                H_px.block<3, 3>(0, 6 * id) = -Rk_1.transpose() * skewSymmetric(Rk * obs.cornerFeature.currCornerPointCloud[i]);
+                H_px.block<3, 3>(0, 6 * id + 3) = -Rk_1.transpose();
             }
-
-
-            corner_H.row(i) = (H_dp * H_px).row(0);
-            corner_r(i) = rl(0);
-
+            corner_H.row(i) = H_dp * H_px;
+            corner_r(i) = r;
         }
-
     }
-    ///< if need to screen out some outpoints
 
-    for (int j = 0; j < obs.surfFeature.currSurfPointCloud.size(); j++)
-    {
-        ///< initialize the H matrix
-        Matrix H_dp = Matrix::Zero(1, 3);
-        Matrix H_px = Matrix::Zero(3, state_num);
-        ///< initialize the r matrix
-        Vector rl = Vector::Zero(1, 1);
+    //for (int j = 0; j < obs.surfFeature.currSurfPointCloud.size(); j++)
+    //{
+    //    Matrix H_dp = Matrix::Zero(1, 3);
+    //    Matrix H_px = Matrix::Zero(3, state_num);
+    //    Triple v_li = obs.surfFeature.currSurfPointCloud_inlast[j] - obs.surfFeature.correspondSurfPointCloudA[j];
+    //    Triple n_surf = obs.surfFeature.norm[j];
+    //    double dj_lm = n_surf.norm();
+    //    surf_r(j) = - (n_surf.transpose() * v_li).value() / dj_lm;
+    //    H_dp = n_surf.transpose() / dj_lm;
+    //    SO3 Rk = obs.curr_R_l_e;
+    //    SO3 Rk_1 = obs.last_R_l_e;
+    //    Triple pk = obs.curr_t_l_e;
+    //    Triple pk_1 = obs.last_t_l_e;
+    //    if (lidarproc->estimate_extrinsic)
+    //    {
+    //        H_px.block<3, 3>(0, 6 * project_id + 6) = Rk_1.transpose() * skewSymmetric((Rk * obs.surfFeature.currSurfPointCloud[j] + pk - pk_1));
+    //        H_px.block<3, 3>(0, 6 * project_id + 3 + 6) = Rk_1.transpose();
+    //        H_px.block<3, 3>(0, 6 * id + 6) = -Rk_1.transpose() * skewSymmetric(Rk * obs.surfFeature.currSurfPointCloud[j]);
+    //        H_px.block<3, 3>(0, 6 * id + 3 + 6) = -Rk_1.transpose();
+    //    }
+    //    else
+    //    {
+    //        H_px.block<3, 3>(0, 6 * project_id) = Rk_1.transpose() * skewSymmetric((Rk * obs.surfFeature.currSurfPointCloud[j] + pk - pk_1));
+    //        H_px.block<3, 3>(0, 6 * project_id + 3) = Rk_1.transpose();
+    //        H_px.block<3, 3>(0, 6 * id) = -Rk_1.transpose() * skewSymmetric(Rk * obs.surfFeature.currSurfPointCloud[j]);
+    //        H_px.block<3, 3>(0, 6 * id + 3) = -Rk_1.transpose();
+    //    }
+    //    surf_H.row(j) = (H_dp * H_px).row(0);
+    //}
 
-        ///< calculate residual of observation(distance between point and plane)
-        Triple v_jl = obs.surfFeature.correspondSurfPointCloudB[j] - obs.surfFeature.correspondSurfPointCloudA[j];
-        Triple v_jm = obs.surfFeature.correspondSurfPointCloudC[j] - obs.surfFeature.correspondSurfPointCloudA[j];
-        Triple v_ji = obs.surfFeature.currSurfPointCloud_inlast[j] - obs.surfFeature.correspondSurfPointCloudA[j];
-        Triple vj_lm = v_jl.cross(v_jm);
-        Triple up = Triple(vj_lm(0)*v_ji(0), vj_lm(1)*v_ji(1), vj_lm(2)*v_ji(2));
-        double dj_lm = sqrt(vj_lm(0)*vj_lm(0) + vj_lm(1)*vj_lm(1) + vj_lm(2)*vj_lm(2));
-        double d_p = sqrt(up(0)*up(0) + up(1)*up(1) + up(2)*up(2)) / dj_lm;
+    //H.resize(corner_H.rows() + surf_H.rows(), corner_H.cols());
+    //r.resize(corner_r.size() + surf_r.size());
+    //H << corner_H,
+    //    surf_H;
+    //r << corner_r,
+    //    surf_r;
 
-        double a = v_jl(1)*v_jm(2) - v_jl(2)*v_jm(1);
-        double b = v_jl(2)*v_jm(0) - v_jl(0)*v_jm(2);
-        double c = v_jl(0)*v_jm(1) - v_jl(1)*v_jm(0);
-
-        H_dp(0, 0) = a * a*v_ji(0) / d_p / dj_lm / dj_lm;
-        H_dp(0, 1) = b * b*v_ji(1) / d_p / dj_lm / dj_lm;
-        H_dp(0, 2) = c * c*v_ji(2) / d_p / dj_lm / dj_lm;
-
-        rl(0) = d_p;
-
-
-        SO3 Rk = obs.curr_R_l_e;
-        SO3 Rk_1 = obs.last_R_l_e;
-        Triple pk = obs.curr_t_l_e;
-        Triple pk_1 = obs.last_t_l_e;
-
-        if (lidarproc->estimate_extrinsic)
-        {
-            H_px.block<3, 3>(0, 6 * project_id + 6) = skewSymmetric(Rk_1.transpose()*(Rk*obs.surfFeature.currSurfPointCloud[j] + pk - pk_1));
-            H_px.block<3, 3>(0, 6 * project_id + 3 + 6) = -Rk_1.transpose();
-                             
-            H_px.block<3, 3>(0, 6 * id + 6) = -Rk_1.transpose()*Rk*skewSymmetric(obs.surfFeature.currSurfPointCloud[j]);
-            H_px.block<3, 3>(0, 6 * id + 3 + 6) = Rk_1.transpose();
-        }
-        else
-        {
-            H_px.block<3, 3>(0, 6 * project_id) = skewSymmetric(Rk_1.transpose()*(Rk*obs.surfFeature.currSurfPointCloud[j] + pk - pk_1));
-            H_px.block<3, 3>(0, 6 * project_id + 3) = -Rk_1.transpose();
-
-            H_px.block<3, 3>(0, 6 * id) = -Rk_1.transpose()*Rk*skewSymmetric(obs.surfFeature.currSurfPointCloud[j]);
-            H_px.block<3, 3>(0, 6 * id + 3) = Rk_1.transpose();
-        }
-
-
-        surf_H.row(j) = (H_dp * H_px).row(0);
-        surf_r(j) = rl(0);
-    
-    }
-    ///< if need to screen out some outpoints
-
-    first_odo = false;
-
-    H.resize(corner_H.rows() + surf_H.rows(), corner_H.cols());
-    r.resize(corner_r.size() + surf_r.size());
-    H << corner_H,
-        surf_H;
-    r << corner_r,
-        surf_r;
-
+    H.resize(corner_H.rows(), corner_H.cols());
+    r.resize(corner_r.size());
+    H << corner_H;
+    r << corner_r;
 }
 
-void hwa_lidar::lidar_base::lidarMeasurementJacobian(lidarMappingObs obs, Matrix &H, Vector &r, int id,bool use_3d,float ther)
+void hwa_lidar::lidar_base::lidarMeasurementJacobian(lidarMappingObs obs, Matrix &H, Vector &r, int id, bool use_3d, float ther)
 {
     int corner_obsnum = obs.cornerFeature.currCornerPointCloud.size();
     int surf_obsnum = obs.surfFeature.currSurfPointCloud.size();
+    if (corner_obsnum == 0 && surf_obsnum == 0) return;
+
     int state_num = 0;
     if (lidarproc->estimate_extrinsic)
     {
@@ -578,8 +436,6 @@ void hwa_lidar::lidar_base::lidarMeasurementJacobian(lidarMappingObs obs, Matrix
     {
         state_num = lidar_states.size() * 6;
     }
-
-
     Matrix corner_H = Matrix::Zero(corner_obsnum, state_num);
     Vector corner_r = Vector::Zero(corner_obsnum);
     Matrix surf_H = Matrix::Zero(surf_obsnum, state_num);
@@ -590,99 +446,118 @@ void hwa_lidar::lidar_base::lidarMeasurementJacobian(lidarMappingObs obs, Matrix
     SO3 Rk_1 = obs.last_R_l_e;
     Triple pk_1 = obs.last_t_l_e;
 
-
-    for (int i = 0; i < obs.cornerFeature.currCornerPointCloud.size(); i++)
-    {
-
-        ///< initialize the H matrix
-        Matrix H_dp = Matrix::Zero(1, 3);
-        Matrix H_px = Matrix::Zero(3, state_num);
-        ///< initialize the r matrix
-        Vector rl = Vector::Zero(1);
-
-        ///< calculate the residual of observation(distance between point and line)
-        Triple v_lj = obs.cornerFeature.correspondCornerPointCloudA[i] - obs.cornerFeature.correspondCornerPointCloudB[i];
-        Triple v_li = obs.cornerFeature.currCornerPointCloud_inlast[i] - obs.cornerFeature.correspondCornerPointCloudB[i];
-        Triple v_ljxi = v_lj.cross(v_li);
-        double length_lj = sqrt(v_lj(0)*v_lj(0) + v_lj(1)*v_lj(1) + v_lj(2)*v_lj(2));
-        double length_ljxi = sqrt(v_ljxi(0)*v_ljxi(0) + v_ljxi(1)*v_ljxi(1) + v_ljxi(2)*v_ljxi(2));
-        double d_e = length_ljxi / length_lj;
-
-        double a = v_lj(1)*v_li(2) - v_lj(2)*v_li(1);
-        double b = v_lj(2)*v_li(0) - v_lj(0)*v_li(2);
-        double c = v_lj(0)*v_li(1) - v_lj(1)*v_li(0);
-
-        H_dp(0, 0) = (v_lj(2)*b - v_lj(1)*c) / length_lj / length_ljxi;
-        H_dp(0, 1) = (v_lj(0)*c - v_lj(2)*a) / length_lj / length_ljxi;
-        H_dp(0, 2) = (v_lj(1)*a - v_lj(0)*b) / length_lj / length_ljxi;
-        rl(0) = d_e;
-
-        if (!first_map)//!first_map)
-        {
-            if (lidarproc->estimate_extrinsic)
-            {
-                H_px.block<3, 3>(0, 6) = skewSymmetric(Rk_1.transpose()*(Rk*obs.cornerFeature.currCornerPointCloud[i] + pk - pk_1));
-                H_px.block<3, 3>(0, 9) = -Rk_1.transpose();
-            }
-            else
-            {
-                H_px.block<3, 3>(0, 0) = skewSymmetric(Rk_1.transpose()*(Rk*obs.cornerFeature.currCornerPointCloud[i] + pk - pk_1));
-                H_px.block<3, 3>(0, 3) = -Rk_1.transpose();
-            }
-        }
-
-
-        H_px.block<3, 3>(0, 6 * id) = -Rk_1.transpose()*Rk*skewSymmetric(obs.cornerFeature.currCornerPointCloud[i]);
-        H_px.block<3, 3>(0, 6 * id + 3) = Rk_1.transpose();
-        //H_px.block<3, 3>(0, 6+6) = -Rk_1.transpose()*Rk*skewSymmetric(obs.cornerFeature.currCornerPointCloud[i]);
-        //H_px.block<3, 3>(0, 6+6+3) = Rk_1.transpose();
-
-
-        corner_H.row(i) = (H_dp * H_px).row(0);
-        corner_r(i) = rl(0);
-
-
-    }
-
+    //for (int i = 0; i < obs.cornerFeature.currCornerPointCloud.size(); i++)
+    //{
+    //    if (use_3d)
+    //    {
+    //        Matrix H_dp = Matrix::Zero(3, 3);
+    //        Matrix H_px = Matrix::Zero(3, state_num);
+    //        Triple rl = Triple::Zero();
+    //        ///< calculate the residual of observation(distance between point and line)
+    //        Triple v_ij = obs.cornerFeature.correspondCornerPointCloudA[i] - obs.cornerFeature.correspondCornerPointCloudB[i];
+    //        Triple v_li = obs.cornerFeature.currCornerPointCloud_inlast[i] - obs.cornerFeature.correspondCornerPointCloudA[i];
+    //        Triple v_lj = obs.cornerFeature.currCornerPointCloud_inlast[i] - obs.cornerFeature.correspondCornerPointCloudB[i];
+    //        Triple vl_ij = v_li.cross(v_lj);
+    //        H_dp = -skew(v_ij) / v_ij.norm();
+    //        rl = -vl_ij / v_ij.norm();
+    //        SO3 Rk = obs.curr_R_l_e;
+    //        SO3 Rk_1 = obs.last_R_l_e;
+    //        Triple pk = obs.curr_t_l_e;
+    //        Triple pk_1 = obs.last_t_l_e;
+    //        if (lidarproc->estimate_extrinsic)
+    //        {
+    //            H_px.block<3, 3>(0, 6) = Rk_1.transpose() * skewSymmetric((Rk * obs.cornerFeature.currCornerPointCloud[i] + pk - pk_1));
+    //            H_px.block<3, 3>(0, 3 + 6) = Rk_1.transpose();
+    //            H_px.block<3, 3>(0, 6 * id + 6) = -Rk_1.transpose() * skewSymmetric(Rk * obs.cornerFeature.currCornerPointCloud[i]);
+    //            H_px.block<3, 3>(0, 6 * id + 3 + 6) = -Rk_1.transpose();
+    //        }
+    //        else
+    //        {
+    //            H_px.block<3, 3>(0, 0) = Rk_1.transpose() * skewSymmetric((Rk * obs.cornerFeature.currCornerPointCloud[i] + pk - pk_1));
+    //            H_px.block<3, 3>(0, 3) = Rk_1.transpose();
+    //            H_px.block<3, 3>(0, 6 * id) = -Rk_1.transpose() * skewSymmetric(Rk * obs.cornerFeature.currCornerPointCloud[i]);
+    //            H_px.block<3, 3>(0, 6 * id + 3) = -Rk_1.transpose();
+    //        }
+    //        Matrix temp_H = H_dp * H_px;
+    //        corner_H.row(i * 3) = temp_H.row(0);
+    //        corner_H.row(i * 3 + 1) = temp_H.row(1);
+    //        corner_H.row(i * 3 + 2) = temp_H.row(2);
+    //        corner_r(i * 3) = rl(0);
+    //        corner_r(i * 3 + 1) = rl(1);
+    //        corner_r(i * 3 + 2) = rl(2);
+    //    }
+    //    else {
+    //        ///< initialize the H matrix
+    //        Matrix H_dp = Matrix::Zero(1, 3);
+    //        Matrix H_px = Matrix::Zero(3, state_num);
+    //        ///< calculate the residual of observation(distance between the point and line)
+    //        Triple v_ij = obs.cornerFeature.correspondCornerPointCloudA[i] - obs.cornerFeature.correspondCornerPointCloudB[i];
+    //        Triple v_li = obs.cornerFeature.currCornerPointCloud_inlast[i] - obs.cornerFeature.correspondCornerPointCloudA[i];
+    //        Triple v_ijxi = v_li.cross(v_ij);
+    //        double length_ij = v_ij.norm();
+    //        double length_ijxi = v_ijxi.norm();
+    //        H_dp = v_ijxi.transpose() * -skew(v_ij) / length_ijxi / length_ij;
+    //        corner_r(i) = - length_ijxi / length_ij;
+    //        SO3 Rk = obs.curr_R_l_e;
+    //        SO3 Rk_1 = obs.last_R_l_e;
+    //        Triple pk = obs.curr_t_l_e;
+    //        Triple pk_1 = obs.last_t_l_e;
+    //        if (lidarproc->estimate_extrinsic)
+    //        {
+    //            H_px.block<3, 3>(0, 6) = Rk_1.transpose() * skewSymmetric((Rk * obs.cornerFeature.currCornerPointCloud[i] + pk - pk_1));
+    //            H_px.block<3, 3>(0, 3 + 6) = Rk_1.transpose();
+    //            H_px.block<3, 3>(0, 6 * id + 6) = -Rk_1.transpose() * skewSymmetric(Rk * obs.cornerFeature.currCornerPointCloud[i]);
+    //            H_px.block<3, 3>(0, 6 * id + 3 + 6) = -Rk_1.transpose();
+    //        }
+    //        else
+    //        {
+    //            H_px.block<3, 3>(0, 0) = Rk_1.transpose() * skewSymmetric((Rk * obs.cornerFeature.currCornerPointCloud[i] + pk - pk_1));
+    //            H_px.block<3, 3>(0, 3) = Rk_1.transpose();
+    //            H_px.block<3, 3>(0, 6 * id) = -Rk_1.transpose() * skewSymmetric(Rk * obs.cornerFeature.currCornerPointCloud[i]);
+    //            H_px.block<3, 3>(0, 6 * id + 3) = -Rk_1.transpose();
+    //        }
+    //        corner_H.row(i) = H_dp * H_px;
+    //    }
+    //}
 
     for (int j = 0; j < obs.surfFeature.currSurfPointCloud.size(); j++)
     {
-        ///< initialize the H matrix
         Matrix H_dp = Matrix::Zero(1, 3);
         Matrix H_px = Matrix::Zero(3, state_num);
-        ///< initialize the r matrix
-        Vector rl = Vector::Zero(1);
+
         ///< calculate residual of observation(distance between point and plane)
-        rl(0) = (obs.surfFeature.norm[j].dot(obs.surfFeature.currSurfPointCloud_inlast[j]) + obs.surfFeature.negative_OA_dot_norm[j]);
+        Triple v_li = obs.surfFeature.currSurfPointCloud_inlast[j] - obs.surfFeature.correspondSurfPointCloudA[j];
+        Triple n_surf = obs.surfFeature.norm[j];
+        double dj_lm = n_surf.norm();
+        double d_p = (n_surf(0) * v_li(0) + n_surf(1) * v_li(1) + n_surf(2) * v_li(2)) / dj_lm;
+        d_p = -d_p * d_p;
+        H_dp = 2 * n_surf.transpose() * d_p / dj_lm;
 
-        H_dp(0, 0) = obs.surfFeature.norm[j](0);
-        H_dp(0, 1) = obs.surfFeature.norm[j](1);
-        H_dp(0, 2) = obs.surfFeature.norm[j](2);
+        SO3 Rk = obs.curr_R_l_e;
+        SO3 Rk_1 = obs.last_R_l_e;
+        Triple pk = obs.curr_t_l_e;
+        Triple pk_1 = obs.last_t_l_e;
 
-
-        if (!first_map)//!first_map)
+        if (lidarproc->estimate_extrinsic)
         {
-            if (lidarproc->estimate_extrinsic)
-            {
-                H_px.block<3, 3>(0, 6) = skewSymmetric(Rk_1.transpose()*(Rk*obs.surfFeature.currSurfPointCloud[j] + pk - pk_1));
-                H_px.block<3, 3>(0, 9) = -Rk_1.transpose();
-            }
-            else
-            {
-                H_px.block<3, 3>(0, 0) = skewSymmetric(Rk_1.transpose()*(Rk*obs.surfFeature.currSurfPointCloud[j] + pk - pk_1));
-                H_px.block<3, 3>(0, 3) = -Rk_1.transpose();
-            }
+            H_px.block<3, 3>(0, 6) = Rk_1.transpose() * skewSymmetric((Rk * obs.cornerFeature.currCornerPointCloud[j] + pk - pk_1));
+            H_px.block<3, 3>(0, 3 + 6) = Rk_1.transpose();
+
+            H_px.block<3, 3>(0, 6 * id + 6) = -Rk_1.transpose() * skewSymmetric(Rk * obs.cornerFeature.currCornerPointCloud[j]);
+            H_px.block<3, 3>(0, 6 * id + 3 + 6) = -Rk_1.transpose();
+        }
+        else
+        {
+            H_px.block<3, 3>(0, 0) = Rk_1.transpose() * skewSymmetric((Rk * obs.cornerFeature.currCornerPointCloud[j] + pk - pk_1));
+            H_px.block<3, 3>(0, 3) = Rk_1.transpose();
+
+            H_px.block<3, 3>(0, 6 * id) = -Rk_1.transpose() * skewSymmetric(Rk * obs.cornerFeature.currCornerPointCloud[j]);
+            H_px.block<3, 3>(0, 6 * id + 3) = -Rk_1.transpose();
         }
 
-        H_px.block<3, 3>(0, 6 * id) = -Rk_1.transpose()*Rk*skewSymmetric(obs.surfFeature.currSurfPointCloud[j]);
-        H_px.block<3, 3>(0, 6 * id + 3) = Rk_1.transpose();
-
         surf_H.row(j) = (H_dp * H_px).row(0);
-        surf_r(j) = rl(0);
+        surf_r(j) = d_p;
     }
-
-
-    first_map = false;
 
     H.resize(surf_H.rows() + corner_H.rows(), surf_H.cols());
     r.resize(surf_r.size() + corner_r.size());
@@ -692,7 +567,6 @@ void hwa_lidar::lidar_base::lidarMeasurementJacobian(lidarMappingObs obs, Matrix
     r << surf_r,
         corner_r;
 }
-
 
 void hwa_lidar::lidar_base::lidarMeasurementJacobian_priormap(lidarMappingObs obs, Matrix &H, Vector &r, bool use_3d, float ther)
 {
@@ -715,7 +589,7 @@ void hwa_lidar::lidar_base::lidarMeasurementJacobian_priormap(lidarMappingObs ob
         cout << "there is something wrong with lidar states" << endl;
         cin.get();
     }
-    //暂时没有用到3d，不考虑，后续需要使用时需要检查
+
     if (use_3d)
         corner_obsnum = corner_obsnum * 3;
 

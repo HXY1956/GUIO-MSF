@@ -91,4 +91,5 @@ hwa_ins::ins_scheme::ins_scheme(set_base* set) {
     delay_odo = dynamic_cast<set_ign*>(set)->delay_odo();
     max_pdop = dynamic_cast<set_ign*>(set)->max_pdop();
     min_sat = dynamic_cast<set_ign*>(set)->min_sat();
+    align_time = dynamic_cast<set_ign*>(set)->align_time();
 }

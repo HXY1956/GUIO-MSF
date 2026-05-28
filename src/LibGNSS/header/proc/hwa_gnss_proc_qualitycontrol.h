@@ -123,7 +123,7 @@ namespace hwa_gnss
     /**
      * @brief Class for outliers process
      */
-    class gnss_proc_OUTLIER
+    class gnss_proc_outlier
     {
     public:
         /**
@@ -131,18 +131,18 @@ namespace hwa_gnss
          * @param[in]  settings  std::setbase control
          * @param[in]  spdlog      logbase control
          */
-        gnss_proc_OUTLIER(set_base *settings);
+        gnss_proc_outlier(set_base *settings);
 
         /**
          * @brief Construct a new t goutliers process object
          * @param[in]  settings  std::setbase control
          * @param[in]  spdlog      logbase control
          */
-        gnss_proc_OUTLIER(set_base *settings, base_log spdlog);
+        gnss_proc_outlier(set_base *settings, base_log spdlog);
         /**
          * @brief Destroy the t goutliers process object
          */
-        virtual ~gnss_proc_OUTLIER();
+        virtual ~gnss_proc_outlier();
         /**
          * @brief Set the Log
          * @param[in]  spdlog      logbase control
@@ -268,7 +268,7 @@ namespace hwa_gnss
 
         gnss_proc_smooth           _smooth_range;     ///< smooth range
         gnss_proc_bds_codebias_corr _bds_codebias_cor; ///< TODO
-        gnss_proc_OUTLIER _outliers_proc;    ///< TODO
+        gnss_proc_outlier _outliers_proc;    ///< TODO
     };
 
 } // namespace

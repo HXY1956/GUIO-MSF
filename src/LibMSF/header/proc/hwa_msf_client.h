@@ -36,11 +36,11 @@ namespace hwa_msf
 
     protected:
         baseprocesser baseworker;
-        std::unique_ptr<gnssprocesser> gnssworker;
-        std::unique_ptr<insprocesser> insworker;
-        std::unique_ptr<uwbprocesser> uwbworker;
-        std::unique_ptr<trackprocesser> trackworker;
-        std::unique_ptr<lidarprocesser> lidarworker;
+        std::unique_ptr<gnssprocesser> gnssworker = nullptr;
+        std::unique_ptr<insprocesser> insworker = nullptr;
+        std::unique_ptr<uwbprocesser> uwbworker = nullptr;
+        std::unique_ptr<trackprocesser> trackworker = nullptr;
+        std::unique_ptr<lidarprocesser> lidarworker = nullptr;
         std::map<int, std::unique_ptr<visprocesser>> visworker;
 
     private:

@@ -313,7 +313,9 @@ namespace hwa_msf {
         {
             std::cerr << "static alignment" << std::endl;
             wmm = wmm / _align_count; vmm = vmm / _align_count;
-            _sins->qnb = base_att_trans::a2qua(_sins->align_coarse(wmm, vmm));
+            //_sins->qnb = base_att_trans::a2qua(_sins->align_coarse(wmm, vmm));
+			_sins->eb = wmm / _shm->ts; 
+            _sins->db = vmm / _shm->ts + _sins->eth.gcc;
             return true;
         }
         return false;
@@ -327,7 +329,13 @@ namespace hwa_msf {
             _first_align = false;
             return false;
         }
+
         Triple endpos = pos;
+        Triple vel = endpos - _pre_pos; _pre_pos = endpos;
+        Triple blh = Cart2Geod(pos, false);
+        Triple vn = Cen(blh).transpose() * vel;
+        _sins->set_posvel(blh, vn);
+
         Triple baseline = XYZ2ENU(endpos, _first_pos);
         double dist = SQRT(SQR(baseline(0)) + SQR(baseline(1)));
 
@@ -414,6 +422,7 @@ namespace hwa_msf {
 
     void insprocesser::merge_init(const Triple& pos, const Triple& lever, const Matrix& var, SENSOR_TYPE sensor)
     {
+        if (pos.norm() == 0) return;
         _sins->eth.Update(Cart2Geod(Eigen::Vector3d(pos[0], pos[1], pos[2]), false), Eigen::Vector3d::Zero());
         _sins->Cnb = base_att_trans::q2mat(_sins->qnb);
         _sins->Ceb = _sins->eth.Cen * _sins->Cnb;
@@ -432,8 +441,17 @@ namespace hwa_msf {
            tmp_pk.block(icrdx, icrdx, 3, 3) = tmp;
            _sins->Pk = var.eval();
            _sins->Pk.block(0, 0, nq, nq) = tmp_pk;
+
+           Matrix T = Matrix::Identity(var.rows(), var.cols());
+           T(icrdx, icrdx) = -1.0;
+           T(icrdx + 1, icrdx + 1) = -1.0;
+           T(icrdx + 2, icrdx + 2) = -1.0;
+
+           _sins->Pk = T * _sins->Pk * T.transpose();
         }
-        else if (sensor == UWB) _sins->Pk.block(icrdx, icrdx, 3, 3) = var.block(0, 0, 3, 3);
+
+        //else if (sensor == UWB) _sins->Pk.block(icrdx, icrdx, 3, 3) = var.block(0, 0, 3, 3);
+
         _sins->Xk.resize(_sins->Pk.rows());
         _sins->Xk.setZero();
         if (_num_of_imu_axiliary > 0 && FuseType == STACK)
@@ -661,6 +679,7 @@ namespace hwa_msf {
             }
         }
         Fk = Fk + Matrix::Identity(nq, nq);
+
         _sins->Xk.block(0, 0, nq, 1) = Fk * _sins->Xk.block(0, 0, nq, 1).eval();
         Matrix Qk = (_sins->Qt * kfts * inflation).array().matrix().asDiagonal();
         _sins->Pk.block(0, 0, nq, nq) = Fk * _sins->Pk.block(0, 0, nq, nq).eval() * (Fk.transpose());
@@ -853,7 +872,6 @@ namespace hwa_msf {
                     Eigen::Quaterniond _dq_ext;
                     _dq_ext.w() = dq_cam.q0; _dq_ext.x() = dq_cam.q1; _dq_ext.y() = dq_cam.q2; _dq_ext.z() = dq_cam.q3;
                     _dq_ext.normalize();
-                    //_R_imui_imu0[imui] = _R_imui_imu0[imui] * (Eigen::Matrix3d::Identity() - t_gbase::askew(_sins->Xk.block(i, 0, 3, 1)));
                     _R_imui_imu0[imui] = _R_imui_imu0[imui] * _dq_ext;
                     _p_imui_imu0[imui] = _p_imui_imu0[imui] - _sins->Xk.block(i + 3, 0, 3, 1);
                 }
@@ -865,12 +883,5 @@ namespace hwa_msf {
             }
         }
         _sins->Xk = Vector::Zero(_sins->Pk.rows());
-
-        //std::cout << TimeStamp.sow() + TimeStamp.dsec() << " Cnb: " << std::fixed << std::setprecision(6) << _sins->Cnb << "\n";
-        //std::cout << TimeStamp.sow() + TimeStamp.dsec() << " eb: " << std::fixed << std::setprecision(6) << _sins->eb.transpose() << "\n";
-        //std::cout << TimeStamp.sow() + TimeStamp.dsec() << " db: " << std::fixed << std::setprecision(6) << _sins->db.transpose() << "\n";
-        //std::cout << TimeStamp.sow() + TimeStamp.dsec() << " vn: " << std::fixed << std::setprecision(6) << _sins->vn.transpose() << "\n";
-        //std::cout << TimeStamp.sow() + TimeStamp.dsec() << " Pos: " << std::fixed << std::setprecision(6) << _sins->pos_ecef.transpose() << "\n";
-
     }
 }

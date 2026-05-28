@@ -5,7 +5,7 @@
 using namespace std;
 
 namespace hwa_msf {
-    visprocesser::visprocesser(const baseprocesser& B, int ID, base_data* data) : baseprocesser(B), cam_group_id(ID),
+    visprocesser::visprocesser(const baseprocesser& B, int ID, base_data* data) : baseprocesser(B, hwa_base::VISION), cam_group_id(ID),
         vis_base(_gset.get(), ID), imgdata(dynamic_cast<vis_data*>(data)){
         _extrinsic_init();
         TimeCostDebugStatus = dynamic_cast<hwa_set::set_proc*>(_gset.get())->TimeCostDebug();
@@ -17,7 +17,7 @@ namespace hwa_msf {
         baseprocesser::_Estimator = dynamic_cast<set_ign*>(_gset.get())->fuse_type();
     };
 
-    visprocesser::visprocesser(std::shared_ptr<set_base> gset, std::string site, int ID, base_log spdlog, base_data* data, base_time _beg, base_time _end) : baseprocesser(gset, spdlog, site, _beg, _end),
+    visprocesser::visprocesser(std::shared_ptr<set_base> gset, std::string site, int ID, base_log spdlog, base_data* data, base_time _beg, base_time _end) : baseprocesser(gset, spdlog, site, hwa_base::VISION, _beg, _end),
         cam_group_id(ID), vis_base(gset.get(), ID), imgdata(dynamic_cast<vis_data*>(data))
     {
         _extrinsic_init();
@@ -44,7 +44,18 @@ namespace hwa_msf {
         double insdtime = inst.sow() + inst.dsec();
         if(imgdata->load(insdtime, dtime, get_curr_imgpath())) 
             TimeStamp = base_time(TimeStamp.gwk(), dtime);
-        return std::abs(inst.diff(TimeStamp)) < _shm->delay;
+
+        if (abs(inst.diff(TimeStamp)) < 1e-3) {
+            time_lock = true;
+            return true;
+        }
+        if (time_lock) {
+            time_lock = false;
+            return false;
+        }
+        if ((abs(inst.diff(TimeStamp)) < _shm->delay && inst >= TimeStamp))
+            return true;
+        return false;
     }
 
     bool visprocesser::load_data() {

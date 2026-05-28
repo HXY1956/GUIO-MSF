@@ -430,15 +430,16 @@ namespace hwa_set
     std::string set_gen::estimator()
     {
         std::set<std::string> src = set_base::_setvals(XMLKEY_GNSS, XMLKEY_GEN, "est");
-        if (src.empty() || ((*src.begin() != "lsq" && *src.begin() != "FLT")))
+        std::string src1 = *src.begin();
+		std::transform(src1.begin(), src1.end(), src1.begin(), ::tolower);
+        if (src.empty() || (src1 != "lsq" && src1 != "flt"))
         {
-            std::string tmp("lsq");
+            std::string tmp("flt");
             return tmp;
         }
         else
         {
-
-            return *src.begin();
+            return src1;
         }
     }
 

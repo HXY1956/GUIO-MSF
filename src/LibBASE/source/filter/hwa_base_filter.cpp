@@ -14,6 +14,15 @@ hwa_base::Updater hwa_base::str2updater(std::string str) {
     else return EKF;
 }
 
+hwa_base::ProcMode hwa_base::str2proc_mode(std::string str) {
+    std::transform(str.begin(), str.end(), str.begin(),
+        [](unsigned char c) { return std::toupper(c); });
+    if (str == "EQUAL_NOISE") return EQUAL_NOISE;
+    else if (str == "ADAPTIVE_NOISE") return ADAPTIVE_NOISE;
+    else if (str == "NO_NOISE") return NO_NOISE;
+    else return EQUAL_NOISE;
+}
+
 double hwa_base::VecNorm(Vector x) {
     double a = x.transpose() * x;
     return sqrt(a);
@@ -137,7 +146,23 @@ int hwa_base::base_updater::_meas_update_gstm(Matrix& Hk, Vector& Zk, Matrix& Rk
                 Matrix Kkm = Pxzm * Pzzm.inverse();
                 Xk = Kkm * Zk;
                 Matrix I_KH = Matrix::Identity(Kkm.rows(), Hk.cols()) - Kkm * Hk;
-                Pk = I_KH * TempPk * I_KH.transpose() + Kkm * Kkm.transpose() * proc_noise;
+
+                switch (mode) {
+
+                case EQUAL_NOISE:
+                    Pk = I_KH * Pk * I_KH.transpose() + Kkm * Kkm.transpose() * proc_noise;
+                    break;
+                case ADAPTIVE_NOISE:
+                    Pk = I_KH * Pk * I_KH.transpose() + Kkm * Rk * Kkm.transpose();
+                    break;
+                case NO_NOISE:
+                    Pk = I_KH * Pk;
+                    Pk = (Pk + Pk.transpose()) / 2;
+                    break;
+                default:
+                    break;
+
+                }
             }
 
             //Variational Bayes
@@ -216,8 +241,23 @@ int  hwa_base::base_updater::_meas_update_ekf(const Matrix& Hk, const Vector& Zk
         Matrix Kkm = Pxzm * Pzzm.inverse();
         Xk = Kkm * rm;
         Matrix I_KH = Matrix::Identity(Kkm.rows(), Hk.cols()) - Kkm * Hk;
-        //Pk = I_KH * Pk * I_KH.transpose() + Kkm * Kkm.transpose() * proc_noise;
-        Pk = I_KH * Pk * I_KH.transpose() + Kkm * Rk * Kkm.transpose();
+
+        switch (mode) {
+
+        case EQUAL_NOISE:
+            Pk = I_KH * Pk * I_KH.transpose() + Kkm * Kkm.transpose() * proc_noise;
+            break;
+        case ADAPTIVE_NOISE:
+            Pk = I_KH * Pk * I_KH.transpose() + Kkm * Rk * Kkm.transpose();
+	        break;
+        case NO_NOISE:
+            Pk = I_KH * Pk;
+            Pk = (Pk + Pk.transpose()) / 2;
+			break;
+        default:
+            break;
+
+        }       
         return 1;
     }
     catch (...) {
@@ -243,7 +283,24 @@ int  hwa_base::base_updater::_meas_update_vbakf(const Matrix& Hk, const Vector& 
             Xk = Kkm * rm;
 
             Matrix I_KH = Matrix::Identity(Kkm.rows(), Hk.cols()) - Kkm * Hk;
-            Pk = I_KH * Pk * I_KH.transpose() + Kkm * Kkm.transpose() * proc_noise;
+
+            switch (mode) {
+
+            case EQUAL_NOISE:
+                Pk = I_KH * Pk * I_KH.transpose() + Kkm * Kkm.transpose() * proc_noise;
+                break;
+            case ADAPTIVE_NOISE:
+                Pk = I_KH * Pk * I_KH.transpose() + Kkm * Rk * Kkm.transpose();
+                break;
+            case NO_NOISE:
+                Pk = I_KH * Pk;
+                Pk = (Pk + Pk.transpose()) / 2;
+                break;
+            default:
+                break;
+
+            }
+
             return 1;
         }
     }

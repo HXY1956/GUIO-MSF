@@ -5,8 +5,19 @@ using namespace std;
 hwa_set::set_lidar::set_lidar() : set_base()
 {
     _set.insert(XMLKEY_LIDAR);
+    _e0 = 0.85;
+    _g0 = 0.85;
+    _max_res_norm = 3.0;
+    _barrior = 9;
+    _kappa_sig = 0;
+    _alpha_sig = 0.001;
+    _dof1 = 1;
+    _dof2 = 15;
+    _tau = 1000;
+    _proc_noise = 0.05;
+    _max_iter = 20;
+    _num_particles = 500;
 }
-
 
 hwa_set::set_lidar::~set_lidar()
 {
@@ -17,15 +28,6 @@ void hwa_set::set_lidar::check()
     xml_node parent = _doc.child(XMLKEY_ROOT);
     xml_node node = _default_node(parent, XMLKEY_LIDAR);
     _default_attr(node, "filter", "EKF");
-    _default_attr(node, "smooth", "false");
-    _default_attr(node, "smooth_point", 5);
-    _default_attr(node, "meas_range_std", 0.3);
-    _default_attr(node, "best_range_std", 0.1);
-    _default_attr(node, "output_res", false);
-    _default_attr(node, "range_lim", 100);
-    _default_attr(node, "snr_lim", -14);
-    _default_attr(node, "max_res_norm", 3);
-
     _default_attr(node, "kappa_sig", 0);
     _default_attr(node, "alpha_sig", 0.001);
     _default_attr(node, "tau", 1000);
@@ -37,6 +39,7 @@ void hwa_set::set_lidar::check()
     _default_attr(node, "barrior", 9);
     _default_attr(node, "dof1", 1);
     _default_attr(node, "dof2", 15);
+    _default_attr(node, "max_res_norm", 3);
 }
 
 void hwa_set::set_lidar::help()
@@ -186,6 +189,16 @@ bool hwa_set::set_lidar::use_pp()
     return tmp_bool;
 }
 
+bool hwa_set::set_lidar::build_map()
+{
+    std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_LIDAR).child_value("build_map");
+    str_erase(tmp);
+    bool tmp_bool = false; // default value
+    if (tmp != "")
+        tmp_bool = (tmp == "true" || tmp == "1" || tmp == "yes");
+    return tmp_bool;
+}
+
 bool hwa_set::set_lidar::use_segmenter()
 {
     std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_LIDAR).child_value("use_segmenter");
@@ -320,3 +333,166 @@ Triple hwa_set::set_lidar::initial_lidar_extrinsic_translation_cov()
     return res;
 }
 
+double hwa_set::set_lidar::barrior()
+{
+    std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_LIDAR).child_value("barrior");
+    str_erase(tmp);
+    double tmp_double;
+    if (tmp != "")
+        tmp_double = std::stod(tmp);
+    else
+        tmp_double = _barrior; //default value
+    return tmp_double;
+}
+
+double hwa_set::set_lidar::kappa_sig()
+{
+    std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_LIDAR).child_value("kappa_sig");
+    str_erase(tmp);
+    double tmp_double;
+    if (tmp != "")
+        tmp_double = std::stod(tmp);
+    else
+        tmp_double = _kappa_sig; //default value
+    return tmp_double;
+}
+
+double hwa_set::set_lidar::alpha_sig()
+{
+    std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_LIDAR).child_value("alpha_sig");
+    str_erase(tmp);
+    double tmp_double;
+    if (tmp != "")
+        tmp_double = std::stod(tmp);
+    else
+        tmp_double = _alpha_sig; //default value
+    return tmp_double;
+}
+
+double hwa_set::set_lidar::E0()
+{
+    std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_LIDAR).child_value("e0");
+    str_erase(tmp);
+    double tmp_double;
+    if (tmp != "")
+        tmp_double = std::stod(tmp);
+    else
+        tmp_double = _e0; //default value
+    return tmp_double;
+}
+
+double hwa_set::set_lidar::G0()
+{
+    std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_LIDAR).child_value("g0");
+    str_erase(tmp);
+    double tmp_double;
+    if (tmp != "")
+        tmp_double = std::stod(tmp);
+    else
+        tmp_double = _g0; //default value
+    return tmp_double;
+}
+
+int hwa_set::set_lidar::dof1()
+{
+    std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_LIDAR).child_value("dof1");
+    str_erase(tmp);
+    int tmp_int;
+    if (tmp != "")
+        tmp_int = std::stoi(tmp);
+    else
+        tmp_int = _dof1; //default value
+    return tmp_int;
+}
+
+int hwa_set::set_lidar::dof2()
+{
+    std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_LIDAR).child_value("dof2");
+    str_erase(tmp);
+    int tmp_int;
+    if (tmp != "")
+        tmp_int = std::stoi(tmp);
+    else
+        tmp_int = _dof2; //default value
+    return tmp_int;
+}
+
+int hwa_set::set_lidar::max_iter()
+{
+    std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_LIDAR).child_value("max_iter");
+    str_erase(tmp);
+    int tmp_int;
+    if (tmp != "")
+        tmp_int = std::stoi(tmp);
+    else
+        tmp_int = _max_iter; //default value
+    return tmp_int;
+}
+
+int hwa_set::set_lidar::num_particles()
+{
+    std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_LIDAR).child_value("num_particles");
+    str_erase(tmp);
+    int tmp_int;
+    if (tmp != "")
+        tmp_int = std::stoi(tmp);
+    else
+        tmp_int = _num_particles; //default value
+    return tmp_int;
+}
+
+double hwa_set::set_lidar::Tau()
+{
+    std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_LIDAR).child_value("tau");
+    str_erase(tmp);
+    double tmp_double;
+    if (tmp != "")
+        tmp_double = std::stod(tmp);
+    else
+        tmp_double = _tau; //default value
+    return tmp_double;
+}
+
+double hwa_set::set_lidar::proc_noise()
+{
+    std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_LIDAR).child_value("proc_noise");
+    str_erase(tmp);
+    double tmp_double;
+    if (tmp != "")
+        tmp_double = std::stod(tmp);
+    else
+        tmp_double = _proc_noise; //default value
+    return tmp_double;
+}
+
+double hwa_set::set_lidar::max_res_norm()
+{
+    std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_LIDAR).child_value("max_res_norm");
+    str_erase(tmp);
+    double tmp_double;
+    if (tmp != "")
+        tmp_double = std::stod(tmp);
+    else
+        tmp_double = _max_res_norm; //default value
+    return tmp_double;
+}
+
+std::string hwa_set::set_lidar::filter()
+{
+    std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_LIDAR).child_value("filter");
+    str_erase(tmp);
+    transform(tmp.begin(), tmp.end(), tmp.begin(), ::toupper);
+    if (tmp.empty())tmp = "EKF";
+    return tmp;
+}
+
+std::string hwa_set::set_lidar::proc_mode()
+{
+    std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_LIDAR).child_value("proc_mode");
+    str_erase(tmp);
+    if (tmp.empty())
+    {
+        tmp = "equal_noise";
+    }
+    return tmp;
+}

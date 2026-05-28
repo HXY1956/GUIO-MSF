@@ -254,6 +254,7 @@ namespace hwa_gnss
         void update(const Matrix &A, const Diag &P, const Vector &l, Vector &dx, Symmetric &Q);
         void update(const Matrix &A, const Symmetric &P, const Vector &l, Vector &dx, Symmetric &Q);
         void update(const Matrix& A, const Matrix& R, const Vector& l, Vector& dx, Symmetric& Q);
+        void update(const Sparse& A, const Matrix& R, const Vector& l, Vector& dx, Symmetric& Q);
     };
 
     /** @brief class for Square root covariance filter derive from gnss_proc_flt. */

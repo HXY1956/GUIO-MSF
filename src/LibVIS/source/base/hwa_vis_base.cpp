@@ -21,7 +21,7 @@ hwa_vis::vis_base::vis_base(hwa_set::set_base* _set, int cam_group_id) :cam_stat
     feature_observation_noise *= feature_observation_noise;
     Bgs.resize(max_camstate_size, Triple::Zero());
     Bas.resize(max_camstate_size, Triple::Zero());
-    if (num_of_cam == 2 && dynamic_cast<set_vis*>(_set)->stereo(cam_group_id)) stereo = false;
+    if (num_of_cam == 2 && dynamic_cast<set_vis*>(_set)->stereo(cam_group_id)) stereo = true;
     else stereo = false;
     switch (processer) {
     case CPU:
@@ -366,7 +366,7 @@ void hwa_vis::vis_base::measurementJacobian(
             dpc1_dxc.leftCols(3) = R_w_c1 * skew(p_w - t_c1_w);
             dpc1_dxc.rightCols(3) = R_w_c1;
 
-            r = z - Eigen::Vector4d(p_c0(0) / p_c0(2), p_c0(1) / p_c0(2),
+            r =  z - Eigen::Vector4d(p_c0(0) / p_c0(2), p_c0(1) / p_c0(2),
                 p_c1(0) / p_c1(2), p_c1(1) / p_c1(2));
         }
         else if (_Estimator == INEKF) {

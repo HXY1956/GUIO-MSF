@@ -103,7 +103,7 @@ namespace hwa_base
         FCBR_L4,
         FCBR_L5, ///< receiver  base_type_conv::fractional cycle biases for indiv. freq.
         GLO_ISB,
-        GLO_ifcb,
+        GLO_IFCB,
         GLO_IFPB,
         GAL_ISB,
         BDS_ISB,

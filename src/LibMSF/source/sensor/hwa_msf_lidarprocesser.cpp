@@ -3,20 +3,129 @@
 using namespace std;
 
 namespace hwa_msf {
-    lidarprocesser::lidarprocesser(const baseprocesser& B, base_data* data) : baseprocesser(B),
+    lidarprocesser::lidarprocesser(const baseprocesser& B, base_data* data) : baseprocesser(B, hwa_base::LIDAR),
         lidar_base(_gset.get()), _lidardata(dynamic_cast<lidar_data*>(data)) {
         beg.from_secs(dynamic_cast<set_lidar*>(_gset.get())->start());
         end.from_secs(dynamic_cast<set_lidar*>(_gset.get())->end());
         TimeStamp = beg;
     };
 
-    lidarprocesser::lidarprocesser(std::shared_ptr<set_base> gset, std::string site, base_log spdlog, base_data* data, base_time _beg, base_time _end) : baseprocesser(gset, spdlog, site, _beg, _end),
+    lidarprocesser::lidarprocesser(std::shared_ptr<set_base> gset, std::string site, base_log spdlog, base_data* data, base_time _beg, base_time _end) : baseprocesser(gset, spdlog, site, hwa_base::LIDAR,_beg, _end),
         lidar_base(_gset.get()), _lidardata(dynamic_cast<lidar_data*>(data))
     {
         beg.from_secs(dynamic_cast<set_lidar*>(_gset.get())->start());
         end.from_secs(dynamic_cast<set_lidar*>(_gset.get())->end());
         TimeStamp = beg;
     };
+
+    lidarprocesser::~lidarprocesser() {
+        if (_global_map.isRun())
+            _global_map.stop();
+    };
+
+    int lidarprocesser::ProcessOneEpoch()
+    {
+        double run_epoch = TimeStamp.sow() + TimeStamp.dsec();
+        _lidarframe = lidarproc->PreProcessPointCloud(run_epoch);
+
+        if (!use_scan && !use_map && !use_pp)
+        {
+            std::cout << "Warning: if lidar measurement is needed, you should chose at least one mode from LIDAR_SCAN or LIDAR_MAP!" << std::endl;
+            getchar();
+            return NO_MEAS;
+        }
+        if (_lidarframe.fullCloud->points.size() <= 0)
+        {
+            std::cout << "Error: There are no lidar points read in!" << endl;
+            getchar();
+            return NO_MEAS;
+        }
+
+        lidar_state_id = lidar_next_id++;
+        StateAugmentation();
+
+        if (use_pp)
+        {
+            if (lidar_buffer.size() > 2)
+            {
+                Matrix H;
+                Vector r;
+                _lidarOdo.data_association(lidar_buffer);
+                build_PPHR(lidar_buffer, _lidarOdo.associations, H, r);
+                _meas_update(H, r, true);
+            }
+        }
+
+        if (use_scan)
+        {
+            Matrix H;
+            Vector r;
+            if (lidar_buffer.size() > 2)
+            {
+                ProjOdoResidual(H, r, true);
+                _meas_update(H, r, true);
+            }
+        }
+
+		isKeyframe = false;
+        if (lidar_buffer.size() == 1) {
+            _lastMappingframe = _lidarframe;
+			isKeyframe = true;
+        }
+        if (lidar_buffer.size() > window_size) {
+            auto rm_lidar_frame = *(++lidar_buffer.begin());
+            double trans = (rm_lidar_frame.t_l_e - _lastMappingframe.t_l_e).norm();
+
+            Eigen::Matrix3d dR = _lastMappingframe.R_l_e.transpose() * rm_lidar_frame.R_l_e;
+            double rot = Eigen::AngleAxisd(dR).angle();
+
+            if (trans > keyframe_trans_thresh || rot > keyframe_rot_thresh)
+            {
+                _lastMappingframe = rm_lidar_frame;
+                isKeyframe = true;
+            }
+        }
+
+        if (use_map)
+        {
+            if (lidar_buffer.size() == 1) {
+                _lidarmap.addPointcloudToMap(_lidarframe);
+            }
+            if (lidar_buffer.size() > window_size && isKeyframe) {
+                auto rm_lidar_frame = *(++lidar_buffer.begin());
+                _lidarmap.process(rm_lidar_frame);
+                auto it = lidar_states.find(lidar_state_id);
+                Matrix H;
+                Vector r;
+                lidarMeasurementJacobian(_lidarmap.lidarMapObs, H, r, 1, false, 1);
+                _gatingTest(H, r, 2, false);
+                _meas_update(H, r, false);
+                _lidarmap.addPointcloudToMap(rm_lidar_frame);
+            }
+        }
+
+        if (build_map) {
+            if (lidar_buffer.size() == 1)
+                _global_map.run();
+
+            if (isKeyframe) {
+                auto rm_lidar_frame = *(++lidar_buffer.begin());
+                _global_map.push(dTime(), rm_lidar_frame.R_l_e, rm_lidar_frame.t_l_e, rm_lidar_frame.fullCloud);
+            }
+        }
+
+        vector<LidarStateIDType> rm_lidar_state_ids(0);
+        if (lidar_buffer.size() > window_size)
+        {
+            rm_lidar_state_ids.push_back((++lidar_buffer.begin())->id);
+        }
+        removeLidar(rm_lidar_state_ids);
+
+        _lastframe = _lidarframe;
+
+        return LIDAR_MEAS;
+    }
+
 
     bool lidarprocesser::_time_valid(base_time inst)
     {
@@ -36,8 +145,7 @@ namespace hwa_msf {
         double run_epoch = TimeStamp.sow() + TimeStamp.dsec();
         double dt = _sins->t - run_epoch;
 
-        //compensate due to time 
-        Triple BLH = _sins->pos - _sins->eth.v2dp(_sins->vn, dt);//BLH
+        Triple BLH = _sins->pos - _sins->eth.v2dp(_sins->vn, dt);
         Triple XYZ = Geod2Cart(BLH, false);
 
         Triple imu_vel = _sins->vn - _sins->an * dt;//ENU
@@ -49,7 +157,6 @@ namespace hwa_msf {
         Eigen::Matrix3d R_e_i = R_n_i * R_n_e.transpose();
         Triple t_l_e = XYZ + R_n_e * R_i_n * t_l_i;
         Eigen::Matrix3d R_e_l = R_i_l * R_e_i;
-        //maintain the numerical stability of derivatives
 
         lidar_states[lidar_state_id] = LIDARState(lidar_state_id);
         LIDARState& lidar_state = lidar_states[lidar_state_id];
@@ -63,12 +170,15 @@ namespace hwa_msf {
         _lidarframe.R_l_e = iter_lidar->second.orientation;
         _lidarframe.t_l_e = iter_lidar->second.position;
         _lidarframe.empty = false;
-        ///< distort correction
+
         if (use_corrdistort)
         {
             _lidarOdo.removeDistortion(_lastframe, _lidarframe);
         }
-
+        if (mIsFirstLidar) {
+            _firstframe = _lidarframe;
+            mIsFirstLidar = false;
+        }
         if (lidar_buffer.size() < window_size + 1)
         {
             lidar_buffer.push_back(_lidarframe);
@@ -94,9 +204,7 @@ namespace hwa_msf {
         base_par crd_z_par(_name, par_type::LIDAR_CRD_Z, param_of_sins->parNumber() + 5, lidar_id);
         param_of_sins->addParam(crd_z_par);
         param_of_sins->reIndex();
-        //int ins_size = nq;
 
-        //time update
         size_t old_rows = _sins->Pk.rows();
         size_t old_cols = _sins->Pk.cols();
         Matrix J = Matrix::Zero(6, old_cols);
@@ -146,139 +254,8 @@ namespace hwa_msf {
         //keep positive definite of matrix
         _sins->Pk.block<3, 3>(old_rows, old_cols) += Matrix::Identity(3, 3) * 1e-12;
         _sins->Pk.block<3, 3>(old_rows + 3, old_cols + 3) += Matrix::Identity(3, 3) * 1e-10;
-    }
-
-    int lidarprocesser::ProcessOneEpoch()
-    {
-        double run_epoch = TimeStamp.sow() + TimeStamp.dsec();
-        _lidarframe = lidarproc->PreProcessPointCloud(run_epoch);
-
-        if (!use_scan && !use_map && !use_pp)
-        {
-            std::cout << "Warning: if lidar measurement is needed, you should chose at least one mode from LIDAR_SCAN or LIDAR_MAP!" << std::endl;
-            getchar();
-            return NO_MEAS;
-        }
-        if (_lidarframe.fullCloud.points.size() <= 0)
-        {
-            std::cout << "Error: There are no lidar points read in!" << endl;
-            getchar();
-            return NO_MEAS;
-        }
-
-        lidar_state_id = lidar_next_id++; //put this ahead
-
-        if (mIsFirstLidar)
-        {
-            double dt = _sins->t - run_epoch;
-
-            //compensate due to time 
-            Triple BLH = _sins->pos - _sins->eth.v2dp(_sins->vn, dt);//BLH
-            Triple XYZ = Geod2Cart(BLH, false);
-            Triple imu_vel = _sins->vn - _sins->an * dt;//ENU
-            const Eigen::Matrix3d& R_i_l = R_lidar_imu.transpose();
-            const Triple& t_l_i = t_lidar_imu;
-            const Eigen::Matrix3d& R_i_n = base_att_trans::q2mat(_sins->qnb);
-            Eigen::Matrix3d R_n_i = R_i_n.transpose();
-            Eigen::Matrix3d R_n_e = Cen(BLH);
-            Eigen::Matrix3d R_e_i = R_n_i * R_n_e.transpose();
-            Triple t_l_e = XYZ + R_n_e * R_i_n * t_l_i;
-            Eigen::Matrix3d R_e_l = R_i_l * R_e_i;
-
-
-            _lidarframe.R_l_e = R_e_l.transpose();
-            _lidarframe.t_l_e = t_l_e;
-            _lidarframe.empty = false;
-
-            _lastframe = _lidarframe;
-            mIsFirstLidar = false;
-
-            return LIDAR_MEAS;
-        }
-
-        StateAugmentation();
-
-        if (use_pp)
-        {
-            if (!_lidarOdo.systemInited_)
-            {
-                _lidarOdo.systemInited_ = true;
-
-                return LIDAR_MEAS;
-            }
-            else
-            {
-                if (lidar_buffer.size() > 3)
-                {
-                    Matrix H;
-                    Vector r;
-                    _lidarOdo.data_association(lidar_buffer);
-                    build_PPHR(lidar_buffer, _lidarOdo.associations, H, r);
-                    _meas_update(H, r, true);
-                }
-            }
-        }
-
-
-        if (use_scan)
-        {
-            if (!_lidarOdo.systemInited_)
-            {
-                _lidarOdo.systemInited_ = true;
-            }
-            else
-            {
-                Matrix H;
-                Vector r;
-
-                if (lidar_buffer.size() > 2)
-                {
-                    ProjOdoResidual(H, r, false);
-                    _meas_update(H, r, true);
-                }
-            }
-        }
-
-        if (use_map)
-        {
-
-            if (lidar_buffer.size() >= window_size + 1)
-            {
-                if (!_lidarmap.systemInited_)
-                {
-                    _lidarmap.process(lidar_buffer.at(0));
-                    _lidarmap.addPointcloudToMap(lidar_buffer.at(0));
-                    //_lidarmap.addPointcloudToMap(_lidarframe);
-                }
-                else
-                {
-                    //_lidarmap.process(lidar_buffer.at(1));
-                    _lidarmap.process(_lidarframe);
-                    Matrix H;
-                    Vector r;
-                    lidarMeasurementJacobian(_lidarmap.lidarMapObs, H, r, window_size, false, 1);
-                    _gatingTest(H, r, 2, false);
-                    _meas_update(H, r, false);
-                    _lidarmap.addPointcloudToMap(lidar_buffer.at(1));
-
-                }
-            }
-        }
-
-        vector<LidarStateIDType> rm_lidar_state_ids(0);
-        if (lidar_buffer.size() >= window_size + 1)
-        {
-
-            //remove the second oldest lidarframe
-
-            rm_lidar_state_ids.push_back((++lidar_buffer.begin())->id);
-        }
-        //remove corresponding lidar frame
-        removeLidar(rm_lidar_state_ids);
-
-        _lastframe = _lidarframe;
-
-        return LIDAR_MEAS;
+        _sins->Xk.resize(_sins->Pk.rows());
+		_sins->Xk.setZero();
     }
 
     void lidarprocesser::_feed_back()
@@ -289,11 +266,11 @@ namespace hwa_msf {
             if (index < 0) cerr << "Extrinsic Update Error!" << endl;
             Triple att_dx = Triple(_sins->Xk(index), _sins->Xk(index + 1), _sins->Xk(index + 2));
             Triple crd_dx = Triple(_sins->Xk(index + 3), _sins->Xk(index + 4), _sins->Xk(index + 5));
-            base_quat dq_lidar = base_att_trans::rv2q(-att_dx);
+            base_quat dq_lidar = base_att_trans::rv2q(att_dx);
             Eigen::Quaterniond _dq_ext;
             _dq_ext.w() = dq_lidar.q0; _dq_ext.x() = dq_lidar.q1; _dq_ext.y() = dq_lidar.q2; _dq_ext.z() = dq_lidar.q3;
             _dq_ext.normalize();
-            this->R_lidar_imu = R_lidar_imu * _dq_ext;
+            this->R_lidar_imu = _dq_ext * R_lidar_imu;
             this->t_lidar_imu -= crd_dx;
             this->T_lidar_imu.linear() = R_lidar_imu;
             this->T_lidar_imu.translation() = t_lidar_imu;
@@ -302,6 +279,7 @@ namespace hwa_msf {
             lidarproc->t_lidar_imu = this->t_lidar_imu;
 
         }
+
         if (lidar_states.size() > 0)
         {
             auto lidar_state_iter = lidar_states.begin();
@@ -317,12 +295,11 @@ namespace hwa_msf {
                 Triple att_dx = Triple(_sins->Xk(idx), _sins->Xk(idx + 1), _sins->Xk(idx + 2));
                 Triple crd_dx = Triple(_sins->Xk(idx + 3), _sins->Xk(idx + 4), _sins->Xk(idx + 5));
 
-
-                base_quat dq_lidar = base_att_trans::rv2q(-att_dx);
+                base_quat dq_lidar = base_att_trans::rv2q(att_dx);
                 Eigen::Quaterniond _dq_lidar;
                 _dq_lidar.w() = dq_lidar.q0; _dq_lidar.x() = dq_lidar.q1; _dq_lidar.y() = dq_lidar.q2; _dq_lidar.z() = dq_lidar.q3;
                 _dq_lidar.normalize();
-                lidar_state_iter->second.orientation = lidar_state_iter->second.orientation * _dq_lidar;
+                lidar_state_iter->second.orientation = _dq_lidar * lidar_state_iter->second.orientation;
                 lidar_state_iter->second.position -= crd_dx;
             }
         }
@@ -372,10 +349,8 @@ namespace hwa_msf {
             }
         }
 
-        _sins->Rk = Matrix::Identity(obs_size, obs_size) * lidar_obs_noise;
         if (All_H.rows() > All_H.cols())
         {
-
             Eigen::HouseholderQR<Matrix> qr_helper(All_H);
             Matrix Q = qr_helper.householderQ();
             Matrix Q1;
@@ -385,17 +360,22 @@ namespace hwa_msf {
         }
         else
         {
-
             _sins->Hk = All_H;
             _sins->Zk = r;
         }
-
-        _Updater._meas_update(_sins->Hk, _sins->Zk, _sins->Rk, _sins->Xk, _sins->Pk);
+		obs_size = _sins->Hk.rows();
+        _sins->Rk = Matrix::Identity(obs_size, obs_size) * lidar_obs_noise;
+        Vector delta_x;
+        _Updater._meas_update(_sins->Hk, _sins->Zk, _sins->Rk, delta_x, _sins->Pk);
+		_sins->Xk += delta_x;
     }
 
     bool lidarprocesser::_gatingTest(Matrix& H, Vector& r, const int& dof, bool is_scan)
     {
         int obs_count = H.rows();
+
+        if (H.rows() == 0) return false;
+
         assert(H.rows() == r.size());
         vector<int> indics;
         int pass_count = 0;
@@ -412,8 +392,6 @@ namespace hwa_msf {
             Matrix onerow_H = H.block(i, 0, 1, H.cols());
             Vector onerow_r = r.block(i, 0, 1, r.cols());
             int par_size = param_of_sins->parNumber();
-
-
             Matrix All_H = Matrix::Zero(onerow_H.rows(), par_size);
 
             auto lidar_state_iter = lidar_states.begin();
@@ -450,19 +428,16 @@ namespace hwa_msf {
             {
                 indics.push_back(1);
                 pass_count++;
-
             }
             else
             {
                 indics.push_back(0);
-
             }
         }
         cout << "all_obs_size:" << r.size() << "  pass_size:" << pass_count << "  pass_per:" << double(pass_count) / double(r.size()) << endl;
         cout << "before_remove:" << H.rows() << "," << r.size() << endl;
         for (int i = 0; i < indics.size(); i++)
         {
-
             if (indics.at(i) == 0)
             {
                 removeRow(H, i);
@@ -524,65 +499,47 @@ namespace hwa_msf {
 
     void lidarprocesser::ProjOdoResidual(Matrix& H, Vector& r, bool use_3d, float ther)
     {
-
-        //LidarFrame project_lidarframe = _lastframe;
         int buf_size = lidar_buffer.size();
-        int id = buf_size - 2;
+        int cur_id = buf_size - 1;
 
-        if (buf_size <= 3)
+        for (int i = 1; i < lidar_buffer.size() - 1; i++)
         {
-            //lidar_buffer[buf_size-1] -> project_lidarframe
-            _lidarOdo.process(lidar_buffer[buf_size - 2], lidar_buffer[buf_size - 1]);
-            lidarMeasurementJacobian(_lidarOdo.lidarOdoObs, H, r, id, use_3d, ther);
+            Matrix tmp_H; Vector tmp_r;
 
-        }
-        else
-        {
+            auto cur_project_lidarframe = lidar_buffer[i];
+            int project_id = i;
 
-            for (int i = 1; i < lidar_buffer.size() - 1; i++)
+            _lidarOdo.process(cur_project_lidarframe, lidar_buffer[cur_id]);
+            lidarMeasurementJacobian(_lidarOdo.lidarOdoObs, tmp_H, tmp_r, project_id, cur_id, use_3d, ther);
+            if (i == 1)
             {
-                Matrix tmp_H; Vector tmp_r;
-
-                auto cur_project_lidarframe = lidar_buffer[i];
-                int project_id = i;
-                int cur_id = buf_size - 1;
-
-                _lidarOdo.process(cur_project_lidarframe, lidar_buffer[buf_size - 1]);
-                lidarMeasurementJacobian(_lidarOdo.lidarOdoObs, tmp_H, tmp_r, project_id, cur_id, use_3d, ther);
-                if (i == 1)
-                {
-                    H = tmp_H;
-                    r = tmp_r;
-                }
-
-                else
-                {
-                    Matrix back_H = H;
-                    Vector back_r = r;
-                    H.resize(back_H.rows() + tmp_H.rows(), back_H.cols());
-                    r.resize(back_r.size() + tmp_r.size());
-                    H << back_H,
-                        tmp_H;
-                    r << back_r,
-                        tmp_r;
-
-                }
+                H = tmp_H;
+                r = tmp_r;
+            }
+            else
+            {
+                Matrix back_H = H;
+                Vector back_r = r;
+                H.resize(back_H.rows() + tmp_H.rows(), back_H.cols());
+                r.resize(back_r.size() + tmp_r.size());
+                H << back_H,
+                    tmp_H;
+                r << back_r,
+                    tmp_r;
             }
         }
 
         _gatingTest(H, r, 2, true);
     }
 
-    void lidarprocesser::build_PPHR(vector<LidarFrame>& buffer, map<int, vector<int>>& indexs, Matrix& H_x, Vector& r)
+    void lidarprocesser::build_PPHR(vector<LidarFrame>& buffer, map<int, std::map<int, int>>& indexs, Matrix& H_x, Vector& r)
     {
-
-
         int eft_buf_size = buffer.size() - 2;
         int eft_number = 0;
         int eft_gatingtest_number = 0;
         int stack_cntr = 0;
 
-        int max_jacobian_row_size = (3 * eft_buf_size - 3) * indexs.size();
+        int max_jacobian_row_size = 3 * eft_buf_size * indexs.size();
 
         if (lidarproc->estimate_extrinsic)
         {
@@ -595,50 +552,29 @@ namespace hwa_msf {
             r = Vector::Zero(max_jacobian_row_size);
         }
 
-
-        map<int, vector<int>>::iterator iter;
+        map<int, std::map<int, int>>::iterator iter;
         for (iter = indexs.begin(); iter != indexs.end(); iter++)
         {
-            if (iter->second.size() == eft_buf_size)
+            Matrix H_xj;
+            Vector r_j;
+
+            if (planarpatchJacobian(buffer, iter->first, iter->second, H_xj, r_j))
             {
-
-                Matrix H_xj;
-                Vector r_j;
-
-                if (planarpatchJacobian(buffer, iter->first, iter->second, H_xj, r_j))
-                {
-                    eft_number++;
-
-                }
-                //lsy change
-                if (_gatingTest(H_xj, r_j, buffer.size() - 1, scan_observation_noise))
-                {
-                    H_x.block(stack_cntr, 0, H_xj.rows(), H_xj.cols()) = H_xj;
-                    r.segment(stack_cntr, r_j.rows()) = r_j;
-                    stack_cntr += H_xj.rows();
-
-                    eft_gatingtest_number++;
-                }
-                else
-                {
-
-                    //cout << "not_gatingtest:" << endl;
-
-                }
+                eft_number++;
             }
-
+            if (_gatingTest(H_xj, r_j, buffer.size() - 1, scan_observation_noise))
+            {
+                H_x.block(stack_cntr, 0, H_xj.rows(), H_xj.cols()) = H_xj;
+                r.segment(stack_cntr, r_j.rows()) = r_j;
+                stack_cntr += H_xj.rows();
+                eft_gatingtest_number++;
+            }
         }
 
-        cout << "max_jacobian_row_size:" << max_jacobian_row_size << endl;
-        cout << "pass_gatingtest_jacobian_size:" << stack_cntr << endl;
-
-        cout << "max_process_ids_size:" << indexs.size() << endl;
         cout << "buildHR_ids_size( full observation):" << eft_number << endl;
-        cout << "pass_gating_test_ids_size:" << eft_gatingtest_number << endl;
+        cout << "pass_gatingtest_jacobian_size:" << stack_cntr << endl;
         H_x.conservativeResize(stack_cntr, H_x.cols());
         r.conservativeResize((Eigen::Index)stack_cntr);
-        //cin.get();
-
     }
 
     bool lidarprocesser::_gatingTest(Matrix& H, Vector& r, const int& dof, double obs_noise)
@@ -664,7 +600,6 @@ namespace hwa_msf {
             else
             {
                 All_H.block(0, idx, obs_size, 6) = H.block(0, 6 * i, obs_size, 6);
-
             }
         }
         Matrix P1 = All_H * _sins->Pk * All_H.transpose();
@@ -681,29 +616,8 @@ namespace hwa_msf {
         }
     }
 
-    bool lidarprocesser::planarpatchJacobian(vector<LidarFrame>& buffer, int point_id, vector<int> corr_ids, Matrix& H, Vector& r)
+    bool lidarprocesser::planarpatchJacobian(vector<LidarFrame>& buffer, int point_id, std::map<int, int> corr_ids, Matrix& H, Vector& r)
     {
-
-        assert(corr_ids.size() == buffer.size() - 2);
-        vector<Eigen::Matrix3d> R_old_curs;
-        vector<Triple> t_old_curs;
-        vector<Triple> t_curs_old;
-        for (int i = 0; i < corr_ids.size(); i++)
-        {
-            auto& oldest_lidar = buffer.at(1);
-            auto& cur_lidar = buffer.at(2 + i);
-
-
-            Eigen::Matrix3d R_old_cur = cur_lidar.R_l_e.transpose() * oldest_lidar.R_l_e;
-            Triple t_old_cur = cur_lidar.R_l_e.transpose() * (oldest_lidar.t_l_e - cur_lidar.t_l_e);
-            Triple t_cur_old = oldest_lidar.R_l_e.transpose() * (cur_lidar.t_l_e - oldest_lidar.t_l_e);
-
-            R_old_curs.push_back(R_old_cur);
-            t_old_curs.push_back(t_old_cur);
-            t_curs_old.push_back(t_cur_old);
-        }
-
-
         int par_number = 0;
         if (lidarproc->estimate_extrinsic) par_number = buffer.size() * 6 + 6;
         else par_number = buffer.size() * 6;
@@ -714,78 +628,69 @@ namespace hwa_msf {
         Vector r_j = Vector::Zero(jacobian_row_size);
 
         int stack_cntr = 0;
-        for (int i = 0; i < corr_ids.size(); i++)
+        for (auto iter : corr_ids)
         {
             Matrix H_nd_j = Matrix::Zero(3, 4);
             Matrix H_phi_j = Matrix::Zero(4, 3);
             Matrix H_x_j = Matrix::Zero(3, par_number);
             auto& oldest_lidar = buffer.at(1);
-            auto& cur_lidar = buffer.at(2 + i);
+            auto& cur_lidar = buffer.at(iter.first);
+
+            Eigen::Matrix3d R_old_cur = cur_lidar.R_l_e.transpose() * oldest_lidar.R_l_e;
+            Triple t_old_cur = cur_lidar.R_l_e.transpose() * (oldest_lidar.t_l_e - cur_lidar.t_l_e);
+            Triple t_cur_old = oldest_lidar.R_l_e.transpose() * (cur_lidar.t_l_e - oldest_lidar.t_l_e);
 
             auto& oldest_id = point_id;
-            auto& cur_id = corr_ids.at(i);
             auto& oldest_nc = oldest_lidar.ncs.at(oldest_id);
             auto& oldest_pc = oldest_lidar.pcs.at(oldest_id);
-            auto& cur_nc = cur_lidar.ncs.at(cur_id);
-            auto& cur_pc = cur_lidar.pcs.at(cur_id);
-
-            Eigen::Matrix3d& R_old_cur = R_old_curs.at(i);
-            Triple& t_old_cur = t_old_curs.at(i);
-            Triple& t_cur_old = t_curs_old.at(i);
+            auto& cur_nc = cur_lidar.ncs.at(iter.second);
+            auto& cur_pc = cur_lidar.pcs.at(iter.second);
 
             Triple oldest_phi = oldest_nc * (oldest_nc.transpose() * oldest_pc);
             Triple oldest_n = oldest_phi / oldest_phi.norm();
-
             Triple cur_phi = cur_nc * (cur_nc.transpose() * cur_pc);
             Triple cur_n = cur_phi / cur_phi.norm();
-
-            //Triple residual = cur_phi - R_old_cur * oldest_n*(oldest_phi.norm() - t_cur_old.transpose()*oldest_n);
-            Triple residual = R_old_cur * oldest_n * (oldest_phi.norm() - t_cur_old.transpose() * oldest_n) - cur_phi;
-            //cout << "recal_res:::  "<<i<<"  " << residual.transpose() << endl;
+            Triple residual = cur_phi - R_old_cur * oldest_n * (oldest_phi.norm() - t_cur_old.transpose() * oldest_n);
 
             H_nd_j.block(0, 0, 3, 3) = R_old_cur * (Eigen::Matrix3d::Identity() * (oldest_phi.norm() - t_cur_old.transpose() * oldest_n) - oldest_n * t_cur_old.transpose());
             H_nd_j.block(0, 3, 3, 1) = R_old_cur * oldest_n;
             H_phi_j.block(0, 0, 3, 3) = 1.0 / oldest_phi.norm() * (Eigen::Matrix3d::Identity() - oldest_n * oldest_n.transpose());
             H_phi_j.block(3, 0, 1, 3) = oldest_n.transpose();
 
-            double tmp_d = (oldest_phi.norm() - (oldest_lidar.R_l_e.transpose() * (cur_lidar.t_l_e - oldest_lidar.t_l_e)).transpose() * oldest_n);
             if (lidarproc->estimate_extrinsic)
             {
-                //Eigen::Matrix3d tmp = oldest_lidar.R_l_e* oldest_n * (cur_lidar.t_l_e - oldest_lidar.t_l_e).transpose()*oldest_lidar.R_l_e*skew(oldest_n);
-                //H_x_j.block(0, 2 * 6, 3, 3) = cur_lidar.R_l_e.transpose()*oldest_lidar.R_l_e*oldest_n*(cur_lidar.t_l_e - oldest_lidar.t_l_e).transpose()*oldest_lidar.R_l_e*skew(oldest_n)
-                //    -tmp_d * cur_lidar.R_l_e.transpose()*oldest_lidar.R_l_e*skew(oldest_n);
-                Eigen::Matrix3d a1 = cur_lidar.R_l_e.transpose() * oldest_lidar.R_l_e;
-                Eigen::Matrix3d a2 = oldest_n * (cur_lidar.t_l_e.transpose() - oldest_lidar.t_l_e.transpose()) * oldest_lidar.R_l_e * skew(oldest_n);
-                Eigen::Matrix3d a3 = -skew(oldest_n * oldest_phi.norm()) + skew(oldest_n * (cur_lidar.t_l_e.transpose() - oldest_lidar.t_l_e.transpose()) * oldest_lidar.R_l_e * oldest_n);
-                H_x_j.block(0, 2 * 6, 3, 3) = a1 * (a2 + a3);
-                H_x_j.block(0, 2 * 6 + 3, 3, 3) = cur_lidar.R_l_e.transpose() * oldest_lidar.R_l_e * oldest_n * (oldest_lidar.R_l_e * oldest_n).transpose();
-
-                H_x_j.block(0, 2 * 6 + (i + 1) * 6, 3, 3) = tmp_d * skew(cur_lidar.R_l_e.transpose() * oldest_lidar.R_l_e * oldest_n);
-                H_x_j.block(0, 2 * 6 + (i + 1) * 6 + 3, 3, 3) = -cur_lidar.R_l_e.transpose() * oldest_lidar.R_l_e * oldest_n * (oldest_lidar.R_l_e * oldest_n).transpose();
+				// jacobian on oldest lidar state R_l_e and t_l_e;
+                H_x_j.block(0, 6 + 1 * 6, 3, 3) = 
+                    - cur_lidar.R_l_e.transpose() * skew(oldest_lidar.R_l_e * oldest_n * (oldest_phi.norm() - oldest_n.transpose() * t_cur_old))
+                    - R_old_cur * oldest_n * oldest_n.transpose() * oldest_lidar.R_l_e.transpose() * skew(cur_lidar.t_l_e - oldest_lidar.t_l_e);
+                H_x_j.block(0, 6 + 1 * 6 + 3, 3, 3) =
+                    - R_old_cur * oldest_n * oldest_n.transpose() * oldest_lidar.R_l_e.transpose();
+                // jacobian on current lidar state R_l_e and t_l_e;
+                H_x_j.block(0, 6 + iter.first * 6, 3, 3) =
+                    cur_lidar.R_l_e.transpose() * skew(oldest_lidar.R_l_e * oldest_n * (oldest_phi.norm() - oldest_n.transpose() * t_cur_old));
+                H_x_j.block(0, 6 + iter.first * 6 + 3, 3, 3) =
+                    R_old_cur * oldest_n * oldest_n.transpose() * oldest_lidar.R_l_e.transpose();
             }
             else
             {
-                /*H_x_j.block(0, 1 * 6, 3, 3) = cur_lidar.R_l_e.transpose()*oldest_lidar.R_l_e*oldest_n*(cur_lidar.t_l_e - oldest_lidar.t_l_e).transpose()*oldest_lidar.R_l_e*skew(oldest_n)
-                    - tmp_d * cur_lidar.R_l_e.transpose()*oldest_lidar.R_l_e*skew(oldest_n);*/
-                Eigen::Matrix3d a1 = cur_lidar.R_l_e.transpose() * oldest_lidar.R_l_e;
-                Eigen::Matrix3d a2 = oldest_n * (cur_lidar.t_l_e.transpose() - oldest_lidar.t_l_e.transpose()) * oldest_lidar.R_l_e * skew(oldest_n);
-                Eigen::Matrix3d a3 = -skew(oldest_n * oldest_phi.norm()) + skew(oldest_n * (cur_lidar.t_l_e.transpose() - oldest_lidar.t_l_e.transpose()) * oldest_lidar.R_l_e * oldest_n);
-                H_x_j.block(0, 1 * 6, 3, 3) = a1 * (a2 + a3);
-                H_x_j.block(0, 1 * 6 + 3, 3, 3) = cur_lidar.R_l_e.transpose() * oldest_lidar.R_l_e * oldest_n * (oldest_lidar.R_l_e * oldest_n).transpose();
-
-                H_x_j.block(0, 1 * 6 + (i + 1) * 6, 3, 3) = tmp_d * skew(cur_lidar.R_l_e.transpose() * oldest_lidar.R_l_e * oldest_n);
-                H_x_j.block(0, 1 * 6 + (i + 1) * 6 + 3, 3, 3) = -cur_lidar.R_l_e.transpose() * oldest_lidar.R_l_e * oldest_n * (oldest_lidar.R_l_e * oldest_n).transpose();
+                // jacobian on oldest lidar state R_l_e and t_l_e;
+                H_x_j.block(0, 1 * 6, 3, 3) =
+                    - cur_lidar.R_l_e.transpose() * skew(oldest_lidar.R_l_e * oldest_n * (oldest_phi.norm() - oldest_n.transpose() * t_cur_old))
+                    - R_old_cur * oldest_n * oldest_n.transpose() * oldest_lidar.R_l_e.transpose() * skew(cur_lidar.t_l_e - oldest_lidar.t_l_e);
+                H_x_j.block(0, 1 * 6 + 3, 3, 3) =
+                    - R_old_cur * oldest_n * oldest_n.transpose() * oldest_lidar.R_l_e.transpose();
+                // jacobian on current lidar state R_l_e and t_l_e;
+                H_x_j.block(0, iter.first * 6, 3, 3) =
+                    cur_lidar.R_l_e.transpose() * skew(oldest_lidar.R_l_e * oldest_n * (oldest_phi.norm() - oldest_n.transpose() * t_cur_old));
+                H_x_j.block(0, iter.first * 6 + 3, 3, 3) =
+                    R_old_cur * oldest_n * oldest_n.transpose() * oldest_lidar.R_l_e.transpose();
             }
 
-            H_phi.block<3, 3>(stack_cntr, 0) = H_nd_j * H_phi_j;
+            H_phi.block(stack_cntr, 0, 3, 3) = H_nd_j * H_phi_j;
             H_x.block(stack_cntr, 0, 3, par_number) = H_x_j;
             r_j.segment<3>(stack_cntr) = residual;
-
             stack_cntr += 3;
         }
-
-        //cout << "stack_cntr:" << stack_cntr << endl;
-        //cout << "r_j_row" << jacobian_row_size << endl;
 
         Eigen::JacobiSVD<Matrix> svd_helper(H_phi, Eigen::ComputeFullU | Eigen::ComputeThinV);
         Matrix A = svd_helper.matrixU().rightCols(jacobian_row_size - 3);
@@ -858,8 +763,6 @@ namespace hwa_msf {
 
     void lidarprocesser::removeIDandBuffer(vector<LidarStateIDType>& rm_lidar_state_ids)
     {
-        //remove corresponding ids
-        //vector<LidarStateIDType> vTemp;
         vector<LidarFrame> vTemplidar;
         bool isRemove;
         for (int i = 0; i < lidar_buffer.size(); i++)
@@ -875,11 +778,9 @@ namespace hwa_msf {
             }
             if (!isRemove)
             {
-                //vTemp.push_back(FrameBuffer[i]);
                 vTemplidar.push_back(lidar_buffer[i]);
             }
         }
-        //FrameBuffer = vTemp;
         lidar_buffer = vTemplidar;
     }
 
@@ -901,8 +802,11 @@ namespace hwa_msf {
         }
         _lidarframe.R_l_e = (--lidar_states.end())->second.orientation;
         _lidarframe.t_l_e = (--lidar_states.end())->second.position;
-        _lastframe.R_l_e = (--(--lidar_states.end()))->second.orientation;
-        _lastframe.t_l_e = (--(--lidar_states.end()))->second.position;
+        if(lidar_states.size() > 1)
+        {
+            _lastframe.R_l_e = (--(--lidar_states.end()))->second.orientation;
+            _lastframe.t_l_e = (--(--lidar_states.end()))->second.position;
+        }
 
         if (use_map)
         {

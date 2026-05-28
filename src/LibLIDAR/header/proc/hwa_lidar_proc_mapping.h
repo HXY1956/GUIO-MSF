@@ -5,6 +5,7 @@
 #include <pcl/point_types.h>
 #include <pcl/kdtree/kdtree_flann.h>
 #include <pcl/filters/voxel_grid.h>
+#include <pcl/common/transforms.h>
 #include "hwa_lidar_utility.h"
 #include "hwa_set_base.h"
 
@@ -58,13 +59,14 @@ namespace hwa_lidar
         */
         void pointAssociateToMap(pcl::PointXYZI & pi, pcl::PointXYZI & po);
 
+    public:
         /**
         * @brief downsize the lidar map
         *
         * @param[in] cloud            data buffer of lidar point cloud 
         * @param[in] leaf_size        parameter of down sampling
         */
-        void downSample(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud, const double& leaf_size);
+        static void downSample(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud, const double& leaf_size);
 
         /**
         * @brief downsize the lidar map
@@ -73,7 +75,7 @@ namespace hwa_lidar
         * @param[in] filtered        data buffer of lidar point cloud after downsize
         * @param[in] leaf_size        parameter of down sampling
         */
-        void downSample(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud, pcl::PointCloud<pcl::PointXYZI>::Ptr filtered, const double& leaf_size);
+        static void downSample(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud, pcl::PointCloud<pcl::PointXYZI>::Ptr filtered, const double& leaf_size);
 
     public:
         bool systemInited_ = false;            ///< initialization flag
@@ -136,6 +138,34 @@ namespace hwa_lidar
         //input point cloud in cur frame after removeNAN and downSample 
         pcl::PointCloud<pcl::PointXYZI>::Ptr laserCloudCornerStack;            ///< TODO
         pcl::PointCloud<pcl::PointXYZI>::Ptr laserCloudSurfStack;            ///< TODO
+    };
+
+    class lidar_proc_global_mapping {
+    public:
+        void run();
+        void stop();
+        bool isRun() {
+            return isRunning;
+        }
+        void push(double _time, SO3 _R, Triple _t, pcl::PointCloud<pcl::PointXYZI>::Ptr _cloud) {
+            {
+                std::lock_guard<std::mutex> lock(keyframe_mutex);
+                keyframe_queue.emplace_back(KeyFrame(_time, _R, _t, _cloud));
+            }
+            keyframe_cv.notify_one();
+        }
+        void process();
+        void processKeyFrame(const KeyFrame& kf);
+     
+    private:
+        bool isRunning = false;
+        CloudPtr global_map;
+        std::deque<KeyFrame> keyframe_queue;
+        std::mutex keyframe_mutex;
+        std::mutex global_map_mutex;
+        std::condition_variable keyframe_cv;
+        std::thread mapping_thread;
+
     };
 }//end of namespace hwa_lidar
 #endif

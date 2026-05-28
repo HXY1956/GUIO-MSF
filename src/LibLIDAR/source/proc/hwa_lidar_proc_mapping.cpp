@@ -1,4 +1,5 @@
 #include "hwa_lidar_proc_mapping.h"
+#include "hwa_lidar_frame.h"
 
 namespace hwa_lidar
 {
@@ -43,30 +44,25 @@ namespace hwa_lidar
     void lidar_proc_mapping::addPointcloudToMap(const LidarFrame &frame)
     {
         if (frame.empty)
-            return;///< waiting for new data to arrive...
+            return;
 
         if (!systemInited_)
         {
             first_R_l_e = frame.R_l_e;
             first_t_l_e = frame.t_l_e;
-            //第一帧会进入该函数，改变初始化状态
             systemInited_ = true;
         }
         curr_R_l_e = frame.R_l_e;
         curr_t_l_e = frame.t_l_e;
 
-        ///< get the pose of current frame
         transformAssociateToMap();
 
-        //for (int i = 0; i < laserCloudCornerStack->points.size(); i++)
-        for (int i = 0; i < frame.LessSharp.points.size(); i++)
+        for (int i = 0; i < frame.LessSharp->points.size(); i++)
         {
             pcl::PointXYZI pointSel;
-            // Lidar坐标系转到world坐标系
-            //pointAssociateToMap(laserCloudCornerStack->points[i], pointSel);
-            pcl::PointXYZI point = frame.LessSharp.points[i];
+            pcl::PointXYZI point = frame.LessSharp->points[i];
             pointAssociateToMap(point, pointSel);
-            // 计算本次的特征点的IJK坐标，进而确定添加到哪个cube中
+
             int cubeI = int((pointSel.x + 25.0) / 50.0) + laserCloudCenWidth;
             int cubeJ = int((pointSel.y + 25.0) / 50.0) + laserCloudCenHeight;
             int cubeK = int((pointSel.z + 25.0) / 50.0) + laserCloudCenDepth;
@@ -86,12 +82,10 @@ namespace hwa_lidar
                 laserCloudCornerArray[cubeInd]->push_back(pointSel);
             }
         }
-        //for (int i = 0; i < laserCloudSurfStack->points.size(); i++)
-        for (int i = 0; i < frame.LessSurf.points.size(); i++)
+        for (int i = 0; i < frame.LessSurf->points.size(); i++)
         {
             pcl::PointXYZI pointSel;
-            pcl::PointXYZI point = frame.LessSurf.points[i];
-            //pcl::PointXYZI point = laserCloudSurfStack->points[i];
+            pcl::PointXYZI point = frame.LessSurf->points[i];
             pointAssociateToMap(point, pointSel);
 
             int cubeI = int((pointSel.x + 25.0) / 50.0) + laserCloudCenWidth;
@@ -114,8 +108,6 @@ namespace hwa_lidar
             }
         }
 
-        // whd那边是0.2和0.4
-        // 因为新增加了点云，对之前已经存有点云的cube全部重新进行一次降采样
         for (int i = 0; i < laserCloudValidNum; i++)
         {
             int ind = laserCloudValidInd[i];
@@ -133,7 +125,7 @@ namespace hwa_lidar
 
     }
 
-
+    //构建当前帧与局部地图（submap）的几何约束（点-线、点-面），为后端位姿优化/滤波提供观测
     void lidar_proc_mapping::process(const LidarFrame &frame)
     {
         if (frame.empty)
@@ -148,14 +140,14 @@ namespace hwa_lidar
         {
             first_R_l_e = frame.R_l_e;
             first_t_l_e = frame.t_l_e;
+            systemInited_ = true;
+            return;
         }
 
         curr_R_l_e = frame.R_l_e;
         curr_t_l_e = frame.t_l_e;
 
-        ///< get the pose of current frame
         transformAssociateToMap();
-        ///< get the cube position of current frame center
         int centerCubeI = int((curr_t_l_w.x() + 25.0) / 50.0) + laserCloudCenWidth;
         int centerCubeJ = int((curr_t_l_w.y() + 25.0) / 50.0) + laserCloudCenHeight;
         int centerCubeK = int((curr_t_l_w.z() + 25.0) / 50.0) + laserCloudCenDepth;
@@ -167,10 +159,6 @@ namespace hwa_lidar
         if (curr_t_l_w.z() + 25.0 < 0)
             centerCubeK--;
 
-        // 是IJK坐标系我们是可以移动的，所以这6个while loop
-            // 的作用就是调整IJK坐标系（也就是调整所有cube位置），使得载体在IJK坐标系的坐标范围处于
-            // 3 < centerCubeI < 18， 3 < centerCubeJ < 8, 3 < centerCubeK < 18，目的是为了防止后续向
-            // 四周拓展cube（图中的黄色cube就是拓展的cube）时，index（即IJK坐标）成为负数。
         while (centerCubeI < 3)
         {
             for (int j = 0; j < laserCloudHeight; j++)
@@ -182,9 +170,7 @@ namespace hwa_lidar
                         laserCloudCornerArray[i + laserCloudWidth * j + laserCloudWidth * laserCloudHeight * k];
                     pcl::PointCloud<PointType>::Ptr laserCloudCubeSurfPointer =
                         laserCloudSurfArray[i + laserCloudWidth * j + laserCloudWidth * laserCloudHeight * k];
-                    for (; i >= 1; i--)// 在I方向上，将cube[I] = cube[I-1],最后一个空出来的cube清空点云，实现IJK坐标系向I轴负方向移动一个cube的
-                                       // 效果，从相对运动的角度看，就是图中的五角星在IJK坐标系下向I轴正方向移动了一个cube，如下面的动图所示，所
-                                       // 以centerCubeI最后++，laserCloudCenWidth也会++，为下一帧Mapping时计算五角星的IJK坐标做准备。
+                    for (; i >= 1; i--)
                     {
                         laserCloudCornerArray[i + laserCloudWidth * j + laserCloudWidth * laserCloudHeight * k] =
                             laserCloudCornerArray[i - 1 + laserCloudWidth * j + laserCloudWidth * laserCloudHeight * k];
@@ -362,8 +348,6 @@ namespace hwa_lidar
         laserCloudValidNum = 0;
         laserCloudSurroundNum = 0;
 
-        // 向IJ坐标轴的正负方向各拓展2个cube，K坐标轴的正负方向各拓展1个cube，上图中五角星所在的蓝色cube就是当前位置
-        // 所处的cube，拓展的cube就是黄色的cube，这些cube就是submap的范围
         for (int i = centerCubeI - 2; i <= centerCubeI + 2; i++)
         {
             for (int j = centerCubeJ - 2; j <= centerCubeJ + 2; j++)
@@ -372,9 +356,8 @@ namespace hwa_lidar
                 {
                     if (i >= 0 && i < laserCloudWidth &&
                         j >= 0 && j < laserCloudHeight &&
-                        k >= 0 && k < laserCloudDepth)// 如果坐标合法
+                        k >= 0 && k < laserCloudDepth)
                     {
-                        // 记录submap中的所有cube的index，记为有效index
                         laserCloudValidInd[laserCloudValidNum] = i + laserCloudWidth * j + laserCloudWidth * laserCloudHeight * k;
                         laserCloudValidNum++;
                         laserCloudSurroundInd[laserCloudSurroundNum] = i + laserCloudWidth * j + laserCloudWidth * laserCloudHeight * k;
@@ -388,7 +371,6 @@ namespace hwa_lidar
         laserCloudSurfFromMap->clear();
         for (int i = 0; i < laserCloudValidNum; i++)
         {
-            // 将有效index的cube中的点云叠加到一起组成submap的特征点云
             *laserCloudCornerFromMap += *laserCloudCornerArray[laserCloudValidInd[i]];
             *laserCloudSurfFromMap += *laserCloudSurfArray[laserCloudValidInd[i]];
         }
@@ -399,19 +381,16 @@ namespace hwa_lidar
         std::vector<int> index;
         pcl::PointCloud<pcl::PointXYZI>::Ptr inputSurf(new pcl::PointCloud<pcl::PointXYZI>());
         pcl::PointCloud<pcl::PointXYZI>::Ptr inputSharp(new pcl::PointCloud<pcl::PointXYZI>());
-        pcl::removeNaNFromPointCloud(frame.LessSharp, *inputSharp, index);
-        pcl::removeNaNFromPointCloud(frame.LessSurf, *inputSurf, index);
-        
+        pcl::removeNaNFromPointCloud(*frame.Sharp, *inputSharp, index);
+        pcl::removeNaNFromPointCloud(*frame.Surf, *inputSurf, index);
+
         ///< downsize the feature points
         laserCloudCornerStack.reset(new pcl::PointCloud<pcl::PointXYZI>());
-        downSample(inputSharp,laserCloudCornerStack,0.2);
+        downSample(inputSharp,laserCloudCornerStack, 0.2);
         
-
         laserCloudSurfStack.reset(new pcl::PointCloud<pcl::PointXYZI>());
         downSample(inputSurf, laserCloudSurfStack, 0.4);
 
-        ///< construct the 
-        //首帧根本不会进来
         std::cout << "input size(surf/corner):" << laserCloudSurfStack->points.size() << "," << laserCloudCornerStack->points.size() << std::endl;
         if (laserCloudCornerFromMapNum > 10 && laserCloudSurfFromMapNum > 50)
         {
@@ -419,104 +398,68 @@ namespace hwa_lidar
             kdtreeCornerFromMap->setInputCloud(laserCloudCornerFromMap);
             kdtreeSurfFromMap->setInputCloud(laserCloudSurfFromMap);
 
-            //寻找合适的边缘点匹配的观测值
-            ///< find the corresponding points for corner features
-            for (int i = 0; i < laserCloudCornerStack->points.size(); i++)
-            {
-                pcl::PointXYZI pointOri, pointSel;
-                std::vector<int> pointSearchInd; std::vector<float> pointSearchSqDis;
-                ///< transform the point to w frame
-                pointOri = laserCloudCornerStack->points[i];
+            //for (int i = 0; i < laserCloudCornerStack->points.size(); i++)
+            //{
+            //    pcl::PointXYZI pointOri, pointSel;
+            //    std::vector<int> pointSearchInd; std::vector<float> pointSearchSqDis;
+            //    pointOri = laserCloudCornerStack->points[i];
+            //    pointAssociateToMap(pointOri, pointSel);
+            //    kdtreeCornerFromMap->nearestKSearch(pointSel, 5, pointSearchInd, pointSearchSqDis);
+            //    if (pointSearchSqDis[4] < 1)
+            //    {
+            //        std::vector<Triple> nearCorners;
+            //        Triple center(0, 0, 0);
+            //        for (int j = 0; j < 5; j++)
+            //        {
+            //            Triple tmp(laserCloudCornerFromMap->points[pointSearchInd[j]].x,
+            //                laserCloudCornerFromMap->points[pointSearchInd[j]].y,
+            //                laserCloudCornerFromMap->points[pointSearchInd[j]].z);
+            //            center = center + tmp;
+            //            nearCorners.push_back(tmp);
+            //        }
+            //        center = center / 5.0;
+            //        SO3 covMat = SO3::Zero();
+            //        for (int j = 0; j < 5; j++)
+            //        {
+            //            Eigen::Matrix<double, 3, 1> tmpZeroMean = nearCorners[j] - center;
+            //            covMat = covMat + tmpZeroMean * tmpZeroMean.transpose();
+            //        }
+            //        // 计算协方差矩阵的特征值和特征向量，用于判断这5个点是不是呈线状分布，此为PCA的原理
+            //        Eigen::SelfAdjointEigenSolver<SO3> saes(covMat);
+            //        // if is indeed line feature
+            //        // note Eigen library sort eigenvalues in increasing order
+            //        Triple unit_direction = saes.eigenvectors().col(2);// 如果5个点呈线状分布，最大的特征值对应的特征向量就是该线的方向向量
+            //        Triple curr_point(pointOri.x, pointOri.y, pointOri.z);
+            //        Triple curr_point_w(pointSel.x, pointSel.y, pointSel.z);
+            //        if (saes.eigenvalues()[2] > 4 * saes.eigenvalues()[1])// 如果最大的特征值 >> 其他特征值，则5个点确实呈线状分布，否则认为直线“不够直
+            //        {
+            //            Triple point_on_line = center;
+            //            Triple point_a, point_b;
+            //            // 从中心点沿着方向向量向两端移动0.1m，构造线上的两个点
+            //            point_a = 0.1 * unit_direction + point_on_line;
+            //            point_b = -0.1 * unit_direction + point_on_line;
+            //            Triple v_ij = point_a - point_b;
+            //            Triple v_lj = curr_point_w - point_b;
+            //            Triple v_lji = v_lj.cross(v_ij);
+            //            double length_ij = v_ij.norm();
+            //            double area = v_lji.norm();
+            //            double d_e = area / length_ij / 2;
+            //            if (fabs(d_e) < 0.5)
+            //            {
+            //                correspondCornerFeature_.currCornerPointCloud.push_back(curr_point);
+            //                correspondCornerFeature_.currCornerPointCloud_inlast.push_back(curr_point_w);
+            //                correspondCornerFeature_.correspondCornerPointCloudA.push_back(point_a);
+            //                correspondCornerFeature_.correspondCornerPointCloudB.push_back(point_b);
+            //            }
+            //        }
+            //    }
+            //}
 
-                // 需要注意的是submap中的点云都是world坐标系，而当前帧的点云都是Lidar坐标系，所以
-                // 在搜寻最近邻点时，先用预测的Mapping位姿w_curr，将Lidar坐标系下的特征点变换到world坐标系下
-                pointAssociateToMap(pointOri, pointSel);
-
-                // 在submap的corner特征点（target）中，寻找距离当前帧corner特征点（source）最近的5个点
-                kdtreeCornerFromMap->nearestKSearch(pointSel, 5, pointSearchInd, pointSearchSqDis);
-
-                if (pointSearchSqDis[4] < 1)
-                {
-                    std::vector<Triple> nearCorners;
-                    Triple center(0, 0, 0);
-                    for (int j = 0; j < 5; j++)
-                    {
-                        Triple tmp(laserCloudCornerFromMap->points[pointSearchInd[j]].x,
-                            laserCloudCornerFromMap->points[pointSearchInd[j]].y,
-                            laserCloudCornerFromMap->points[pointSearchInd[j]].z);
-                        center = center + tmp;
-                        nearCorners.push_back(tmp);
-                    }
-                    // 计算这个5个最近邻点的中心
-                    center = center / 5.0;
-                    // 协方差矩阵
-                    SO3 covMat = SO3::Zero();
-                    for (int j = 0; j < 5; j++)
-                    {
-                        Eigen::Matrix<double, 3, 1> tmpZeroMean = nearCorners[j] - center;
-                        covMat = covMat + tmpZeroMean * tmpZeroMean.transpose();
-                    }
-                    // 计算协方差矩阵的特征值和特征向量，用于判断这5个点是不是呈线状分布，此为PCA的原理
-                    Eigen::SelfAdjointEigenSolver<SO3> saes(covMat);
-
-                    // if is indeed line feature
-                    // note Eigen library sort eigenvalues in increasing order
-                    Triple unit_direction = saes.eigenvectors().col(2);// 如果5个点呈线状分布，最大的特征值对应的特征向量就是该线的方向向量
-                    Triple curr_point(pointOri.x, pointOri.y, pointOri.z);
-                    Triple curr_point_w(pointSel.x, pointSel.y, pointSel.z);
-                    if (saes.eigenvalues()[2] > 3 * saes.eigenvalues()[1])// 如果最大的特征值 >> 其他特征值，则5个点确实呈线状分布，否则认为直线“不够直
-                    {
-                        Triple point_on_line = center;
-                        Triple point_a, point_b;
-                        // 从中心点沿着方向向量向两端移动0.1m，构造线上的两个点
-                        point_a = 0.1 * unit_direction + point_on_line;
-                        point_b = -0.1 * unit_direction + point_on_line;
-
-                        Triple v_lj = point_a - point_b;
-                        Triple v_li = curr_point_w - point_b;
-                        Triple v_lji = v_lj.cross(v_li);
-                        double length_lj = sqrt(v_lj.x()*v_lj.x() + v_lj.y()*v_lj.y() + v_lj.z()*v_lj.z());
-                        double length_ljxi = sqrt(v_lji.x()*v_lji.x() + v_lji.y()*v_lji.y() + v_lji.z()*v_lji.z());
-                        double d_e = length_ljxi / length_lj;
-
-                        if (fabs(d_e) > 1e-6)
-                        {
-                            correspondCornerFeature_.currCornerPointCloud.push_back(curr_point);
-                            correspondCornerFeature_.currCornerPointCloud_inlast.push_back(curr_point_w);
-                            correspondCornerFeature_.correspondCornerPointCloudA.push_back(point_a);
-                            correspondCornerFeature_.correspondCornerPointCloudB.push_back(point_b);
-                        }
-                    }
-                }
-                /*
-                else if(pointSearchSqDis[4] < 0.01 * sqrtDis)
-                {
-                    Triple center(0, 0, 0);
-                    for (int j = 0; j < 5; j++)
-                    {
-                        Triple tmp(laserCloudCornerFromMap->points[pointSearchInd[j]].x,
-                                            laserCloudCornerFromMap->points[pointSearchInd[j]].y,
-                                            laserCloudCornerFromMap->points[pointSearchInd[j]].z);
-                        center = center + tmp;
-                    }
-                    center = center / 5.0;
-                    Triple curr_point(pointOri.x, pointOri.y, pointOri.z);
-                    ceres::CostFunction *cost_function = LidarDistanceFactor::Create(curr_point, center);
-                    problem.AddResidualBlock(cost_function, loss_function, parameters, parameters + 4);
-                }
-                */
-            }
-
-            //寻找合适的平面点匹配的观测值
-            ///< find the correspond points for surf features
             for (int i = 0; i < laserCloudSurfStack->points.size(); i++)
             {
                 pcl::PointXYZI pointOri, pointSel;
                 std::vector<int> pointSearchInd; std::vector<float> pointSearchSqDis;
-
-
                 pointOri = laserCloudSurfStack->points[i];
-
                 pointAssociateToMap(pointOri, pointSel);
 
                 kdtreeSurfFromMap->nearestKSearch(pointSel, 5, pointSearchInd, pointSearchSqDis);
@@ -526,7 +469,6 @@ namespace hwa_lidar
                 // 用上面的2个矩阵表示平面方程就是 matA0 * norm（A, B, C） = matB0，这是个超定方程组，因为数据个数超过未知数的个数
                 if (pointSearchSqDis[4] < 1.0)
                 {
-
                     for (int j = 0; j < 5; j++)
                     {
                         matA0(j, 0) = laserCloudSurfFromMap->points[pointSearchInd[j]].x;
@@ -543,11 +485,12 @@ namespace hwa_lidar
                     bool planeValid = true;
                     for (int j = 0; j < 5; j++)
                     {
-                        ///< if OX * n larger than 0.2, then plane is not fit well
                         // 点(x0, y0, z0)到平面Ax + By + Cz + D = 0 的距离公式 = fabs(Ax0 + By0 + Cz0 + D) / sqrt(A^2 + B^2 + C^2)
-                        if (fabs(norm(0) * laserCloudSurfFromMap->points[pointSearchInd[j]].x +
+                        double distance = fabs(norm(0) * laserCloudSurfFromMap->points[pointSearchInd[j]].x +
                             norm(1) * laserCloudSurfFromMap->points[pointSearchInd[j]].y +
-                            norm(2) * laserCloudSurfFromMap->points[pointSearchInd[j]].z + negative_OA_dot_norm) > 0.2)
+                            norm(2) * laserCloudSurfFromMap->points[pointSearchInd[j]].z + negative_OA_dot_norm);
+                        ///< if OX * n larger than 0.2, then plane is not fit well
+                        if (distance > 0.2)
                         {
                             planeValid = false;
                             break;
@@ -555,13 +498,19 @@ namespace hwa_lidar
                     }
                     Triple curr_point(pointOri.x, pointOri.y, pointOri.z);
                     Triple curr_point_w(pointSel.x, pointSel.y, pointSel.z);
+                    Triple point_a(laserCloudSurfFromMap->points[pointSearchInd[0]].x, laserCloudSurfFromMap->points[pointSearchInd[0]].y, laserCloudSurfFromMap->points[pointSearchInd[0]].z);
+                    Triple point_b(laserCloudSurfFromMap->points[pointSearchInd[1]].x, laserCloudSurfFromMap->points[pointSearchInd[1]].y, laserCloudSurfFromMap->points[pointSearchInd[1]].z);
+					Triple point_c(laserCloudSurfFromMap->points[pointSearchInd[2]].x, laserCloudSurfFromMap->points[pointSearchInd[2]].y, laserCloudSurfFromMap->points[pointSearchInd[2]].z);
                     if (planeValid)
                     {
                         double residual = norm.dot(curr_point_w) + negative_OA_dot_norm;
-                        if (fabs(residual) > 1e-6)
+                        if (fabs(residual) < 0.8)
                         {
                             correspondSurfFeature_.currSurfPointCloud.push_back(curr_point);
                             correspondSurfFeature_.currSurfPointCloud_inlast.push_back(curr_point_w);
+                            correspondSurfFeature_.correspondSurfPointCloudA.push_back(point_a);
+                            correspondSurfFeature_.correspondSurfPointCloudB.push_back(point_b);
+                            correspondSurfFeature_.correspondSurfPointCloudC.push_back(point_c);
                             correspondSurfFeature_.norm.push_back(norm);
                             correspondSurfFeature_.negative_OA_dot_norm.push_back(negative_OA_dot_norm);
                         }
@@ -577,59 +526,24 @@ namespace hwa_lidar
         lidarMapObs.curr_t_l_e = frame.t_l_e;
         lidarMapObs.last_R_l_e = first_R_l_e;
         lidarMapObs.last_t_l_e = first_t_l_e;
-
-        
-        //首帧不会进入该函数
-        // used for glfw
-        if (systemInited_)
-        {
-            laserCloudCornerFromMap->clear();
-            laserCloudSurfFromMap->clear();
-            for (int i = 0; i < laserCloudValidNum; i++)
-            {
-                *laserCloudCornerFromMap += *laserCloudCornerArray[laserCloudValidInd[i]];
-                *laserCloudSurfFromMap += *laserCloudSurfArray[laserCloudValidInd[i]];
-            }
-            submap_surf = PointXYZI2Triple(laserCloudSurfFromMap, first_R_l_e, first_t_l_e);
-            submap_corner = PointXYZI2Triple(laserCloudCornerFromMap, first_R_l_e, first_t_l_e);
-            
-        }
     }
-
-    //vector<Triple> lidar_proc_mapping::PointXYZI2Triple_ECEF(pcl::PointCloud<pcl::PointXYZI>::Ptr xyzi)
-    //{
-    //    vector<Triple> xyz;
-    //    for (int i = 0; i < xyzi->points.size(); i++)
-    //    {
-    //        xyz.push_back(first_R_l_e*Triple(xyzi->points[i].x, xyzi->points[i].y, xyzi->points[i].z)+first_t_l_e);
-    //    }
-    //    return xyz;
-    //}
 
     void lidar_proc_mapping::transformAssociateToMap()
     {
-        curr_R_l_w = first_R_l_e.transpose()*curr_R_l_e;
-        curr_t_l_w = first_R_l_e.transpose()*(curr_t_l_e-first_t_l_e);
+        curr_R_l_w = first_R_l_e.transpose() * curr_R_l_e;
+        curr_t_l_w = first_R_l_e.transpose() * (curr_t_l_e - first_t_l_e);
     }
 
     void lidar_proc_mapping::pointAssociateToMap(pcl::PointXYZI & pi, pcl::PointXYZI & po)
     {
         Triple point_curr(pi.x, pi.y, pi.z);
-        
         Triple point_w;
-    
-        
         point_w = curr_R_l_w * point_curr + curr_t_l_w;
-        
-        
         po.x = point_w.x();
         po.y = point_w.y();
         po.z = point_w.z();
         po.intensity = pi.intensity;
     }
-
-
-
 
     void lidar_proc_mapping::downSample(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud, const double& leaf_size)
     {
@@ -701,12 +615,7 @@ namespace hwa_lidar
             filtered->points[i].y = filtered->points[i].y + first_pt.y;
             filtered->points[i].z = filtered->points[i].z + first_pt.z;
         }
-
-        ///> 覆盖原点云
-        //*cloud = std::move(*filtered);
     }
-
-
 
     //void lidar_proc_mapping::ceresOptimize()
     //{
@@ -768,5 +677,91 @@ namespace hwa_lidar
     //    Triple curr_t_l_e = last_trans + last_rot * t_curr_last;*/
 
     //}
+}
+
+namespace hwa_lidar {
+
+    void lidar_proc_global_mapping::run()
+    {
+        isRunning = true;
+
+        mapping_thread = std::thread(
+            &lidar_proc_global_mapping::process,
+            this
+        );
+    }
+
+    void lidar_proc_global_mapping::stop()
+    {
+        {
+            std::lock_guard<std::mutex> lock(keyframe_mutex);
+
+            isRunning = false;
+        }
+
+        keyframe_cv.notify_all();
+
+        if (mapping_thread.joinable())
+        {
+            mapping_thread.join();
+        }
+    }
+
+    void lidar_proc_global_mapping::process()
+    {
+        while (true)
+        {
+            KeyFrame lidarframe;
+
+            {
+                std::unique_lock<std::mutex> lock(keyframe_mutex);
+
+                keyframe_cv.wait(lock, [&]()
+                    {
+                        return !keyframe_queue.empty() || !isRunning;
+                    });
+
+                if (!isRunning && keyframe_queue.empty())
+                {
+                    break;
+                }
+
+                lidarframe = keyframe_queue.front();
+
+                keyframe_queue.pop_front();
+            }
+
+            processKeyFrame(lidarframe);
+        }
+    }
+
+    void lidar_proc_global_mapping::processKeyFrame(
+        const KeyFrame& kf)
+    {
+        CloudPtr dsCloud(new CloudType());
+
+        lidar_proc_mapping::downSample(kf.cloud, dsCloud, 0.2);
+
+        CloudPtr worldCloud(new CloudType());
+
+        Eigen::Matrix4d T = Eigen::Matrix4d::Identity();
+
+        T.block<3, 3>(0, 0) = kf.R.matrix();
+        T.block<3, 1>(0, 3) = kf.t;
+
+        pcl::transformPointCloud(
+            *dsCloud,
+            *worldCloud,
+            T
+        );
+
+        {
+            std::lock_guard<std::mutex> lock(global_map_mutex);
+
+            *global_map += *worldCloud;
+
+            lidar_proc_mapping::downSample(global_map, 0.2);
+        }
+    }
 }
 

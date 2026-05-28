@@ -406,6 +406,7 @@ void hwa_ins::ins_viewer::Show()
     if(t) return;
     mb_stop = false;
     t = new std::thread(&ins_viewer::Run, this);
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     //t->detach();
 }
 

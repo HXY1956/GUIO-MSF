@@ -208,8 +208,8 @@ namespace hwa_lidar
         std::vector<int> index;
         pcl::PointCloud<pcl::PointXYZI>::Ptr inputSurf(new pcl::PointCloud<pcl::PointXYZI>());
         pcl::PointCloud<pcl::PointXYZI>::Ptr inputSharp(new pcl::PointCloud<pcl::PointXYZI>());
-        pcl::removeNaNFromPointCloud(frame.LessSharp, *inputSharp, index);
-        pcl::removeNaNFromPointCloud(frame.LessSurf, *inputSurf, index);
+        pcl::removeNaNFromPointCloud(*frame.LessSharp, *inputSharp, index);
+        pcl::removeNaNFromPointCloud(*frame.LessSurf, *inputSurf, index);
 
         //cout << "test4-lesssharp:" << inputSharp->points.size() << endl;
         //cout << "test4-lesssurf:" << inputSurf->points.size() << endl;

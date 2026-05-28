@@ -505,7 +505,7 @@ namespace hwa_gnss
         return true;
     }
 
-    gnss_proc_OUTLIER::gnss_proc_OUTLIER(set_base *settings)
+    gnss_proc_outlier::gnss_proc_outlier(set_base *settings)
     {
         if (1)
         {
@@ -537,7 +537,7 @@ namespace hwa_gnss
         _single_mix = {OBSCOMBIN::RAW_SINGLE, OBSCOMBIN::RAW_MIX, OBSCOMBIN::IF_P1};
     }
 
-    gnss_proc_OUTLIER::gnss_proc_OUTLIER(set_base *settings, base_log spdlog) : _spdlog(spdlog)
+    gnss_proc_outlier::gnss_proc_outlier(set_base *settings, base_log spdlog) : _spdlog(spdlog)
     {
         if (1)
         {
@@ -569,7 +569,7 @@ namespace hwa_gnss
         _single_mix = {OBSCOMBIN::RAW_SINGLE, OBSCOMBIN::RAW_MIX, OBSCOMBIN::IF_P1};
     }
 
-    gnss_proc_OUTLIER::~gnss_proc_OUTLIER()
+    gnss_proc_outlier::~gnss_proc_outlier()
     {
         if (_debug_outliers)
         {
@@ -580,7 +580,7 @@ namespace hwa_gnss
         }
     }
 
-    void gnss_proc_OUTLIER::flagRangeOutliers(std::shared_ptr<gnss_data_obs_manager> ObsPre, std::shared_ptr<gnss_data_obs_manager> Obs, double sampling)
+    void gnss_proc_outlier::flagRangeOutliers(std::shared_ptr<gnss_data_obs_manager> ObsPre, std::shared_ptr<gnss_data_obs_manager> Obs, double sampling)
     {
         std::ostringstream os;
         os.str("");
@@ -690,7 +690,7 @@ namespace hwa_gnss
         }
     }
 
-    void gnss_proc_OUTLIER::excludeBadObs(std::vector<gnss_data_sats> &obsdata)
+    void gnss_proc_outlier::excludeBadObs(std::vector<gnss_data_sats> &obsdata)
     {
         std::vector<gnss_data_sats>::iterator it;
         bool valid_SNR, valid_Code, valid_Phase, Freq_Lack;

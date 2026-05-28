@@ -34,9 +34,13 @@ namespace hwa_msf {
             return gnss_pos; 
         }
         std::set<std::string> ambs_name(){ return _param->amb_prns(); }
+        Matrix _getQx() {
+            return _Qx.matrixR();
+        }
 
     private:
         Triple lever;
+        bool time_lock = false;
     };
 }
 

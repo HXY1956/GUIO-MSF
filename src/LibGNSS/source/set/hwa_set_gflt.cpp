@@ -463,10 +463,21 @@ namespace hwa_set
 
     std::string set_flt::filter()
     {
-        std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_GNSS).child(XMLKEY_FLT).child_value("filter");
+        std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_GNSS).child(XMLKEY_FLT).child_value("update");
         str_erase(tmp);
         transform(tmp.begin(), tmp.end(), tmp.begin(), ::toupper);
         if (tmp.empty())tmp = "EKF";
+        return tmp;
+    }
+
+    std::string set_flt::proc_mode()
+    {
+        std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_GNSS).child(XMLKEY_FLT).child_value("proc_mode");
+        str_erase(tmp);
+        if (tmp.empty())
+        {
+            tmp = "equal_noise";
+        }
         return tmp;
     }
 

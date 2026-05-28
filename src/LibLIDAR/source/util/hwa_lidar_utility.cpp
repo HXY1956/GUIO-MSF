@@ -5,6 +5,8 @@ using namespace hwa_base;
 using namespace hwa_lidar;
 using namespace std;
 
+int KeyFrame::next_id = 0;
+
 vector<std::string> hwa_lidar::split(const string &s, const string &seperator) {
     vector<string> result;
     typedef string::size_type string_size;
@@ -40,16 +42,6 @@ vector<std::string> hwa_lidar::split(const string &s, const string &seperator) {
     }
     return result;
 }
-
-
-//SO3 hwa_lidar::skew(const Triple& v)
-//{
-//    SO3 vnx;
-//    vnx << 0, -v(2), v(1),
-//        v(2), 0, -v(0),
-//        -v(1), v(0), 0;
-//    return vnx;
-//}
 
 //transform from n frame to e frame
 SO3 hwa_lidar::R_ENU_ECEF(const Triple &BLH)

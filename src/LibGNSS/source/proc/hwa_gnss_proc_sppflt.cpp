@@ -529,9 +529,14 @@ namespace hwa_gnss
                 mult = 2;
                 nObs *= 2;
             }
-            if (_observ == OBSCOMBIN::RAW_ALL || _observ == OBSCOMBIN::RAW_MIX)
+            if (_observ == OBSCOMBIN::RAW_ALL)
             {
                 mult = 2;
+                nObs *= 5;
+            } // reservation for 5 freq - not used raws will be removed
+            if (_observ == OBSCOMBIN::RAW_MIX)
+            {
+                mult = 1;
                 nObs *= 5;
             } // reservation for 5 freq - not used raws will be removed
             if (_observ == OBSCOMBIN::IF_P1)
@@ -840,9 +845,9 @@ namespace hwa_gnss
             std::cout << _ztd_endStat.str_ymdhms("_ztd_endStat: ") << std::endl;
 #endif
 
-            Matrix_addRC(A, A.rows() + 1, 0);
+            Matrix_addRC(A, A.rows(), 0);
             int i = _param->getParam(_site, par_type::TRP, "");
-            A(A.rows(), i + 1) = 1;
+            A(A.rows() - 1, i) = 1;
 
             // tropo (wet part) is constrained to this value
             double TRP_fix = 0;
@@ -850,11 +855,11 @@ namespace hwa_gnss
                 TRP_fix = _aprox_ztd_xml - _gModel->tropoModel()->getZHD(ell, _epoch);
 
             // Reduced measurement
-            addR(l, l.rows() + 1);
-            l(l.rows()) = _param->operator[](i).value() - TRP_fix;
+            addR(l, l.rows());
+            l(l.rows() - 1) = _param->operator[](i).value() - TRP_fix;
 
             // weight matrix
-            P.Matrix_addRC(P.rows() + 1);
+            P.Matrix_addRC(P.rows());
             P.matrixW()(P.rows() - 1, P.cols() - 1) = 99999;
 
             iobs++;
@@ -1673,7 +1678,7 @@ namespace hwa_gnss
             }
         }
 
-        i = _param->getParam(_site, par_type::GLO_ifcb, "", FIRST_TIME, LAST_TIME);
+        i = _param->getParam(_site, par_type::GLO_IFCB, "", FIRST_TIME, LAST_TIME);
         if (i >= 0)
         {
             if (!_initialized || _Qx.matrixW()(i, i) == 0.0)
@@ -2016,7 +2021,7 @@ namespace hwa_gnss
         // Add GLO ISB parameter
         if (!parGlo && obsGlo && !onlyGlo)
         {
-            base_par newPar(_data.begin()->site(), par_type::GLO_ISB, _param->parNumber() + 1, "");
+            base_par newPar(_data.begin()->site(), par_type::GLO_ISB, _param->parNumber(), "");
             newPar.value(0.0);
             _param->addParam(newPar);
             _Qx.Matrix_addRC(_param->parNumber() - 1, _param->parNumber() - 1);
@@ -2031,7 +2036,7 @@ namespace hwa_gnss
         // Add GAL ISB parameter
         if (!parGal && obsGal && !onlyGal)
         {
-            base_par newPar(_data.begin()->site(), par_type::GAL_ISB, _param->parNumber() + 1, "");
+            base_par newPar(_data.begin()->site(), par_type::GAL_ISB, _param->parNumber(), "");
             newPar.value(0.0);
             _param->addParam(newPar);
             _Qx.Matrix_addRC(_param->parNumber() - 1, _param->parNumber() - 1);
@@ -2046,7 +2051,7 @@ namespace hwa_gnss
         // Add BDS ISB parameter
         if (!parBds && obsBds && !onlyBds)
         {
-            base_par newPar(_data.begin()->site(), par_type::BDS_ISB, _param->parNumber() + 1, "");
+            base_par newPar(_data.begin()->site(), par_type::BDS_ISB, _param->parNumber(), "");
             newPar.value(0.0);
             _param->addParam(newPar);
             _Qx.Matrix_addRC(_param->parNumber() - 1, _param->parNumber() - 1);
@@ -2061,7 +2066,7 @@ namespace hwa_gnss
         // Add QZS ISB parameter
         if (!parQzs && obsQzs && !onlyQzs)
         {
-            base_par newPar(_data.begin()->site(), par_type::QZS_ISB, _param->parNumber() + 1, "");
+            base_par newPar(_data.begin()->site(), par_type::QZS_ISB, _param->parNumber(), "");
             newPar.value(0.0);
             _param->addParam(newPar);
             _Qx.Matrix_addRC(_param->parNumber() - 1, _param->parNumber() - 1);
@@ -2154,7 +2159,7 @@ namespace hwa_gnss
                 // add ionosphere vertical delay - not in case of single frequency
                 if (_param->getParam(_site, par_type::VION, it->sat()) < 0 && _iono_est)
                 {
-                    base_par parVION(it->site(), par_type::VION, _param->parNumber() + 1, it->sat());
+                    base_par parVION(it->site(), par_type::VION, _param->parNumber(), it->sat());
                     if (_gion)
                     {
                         // apriori from iono model
@@ -2192,7 +2197,7 @@ namespace hwa_gnss
                 //std::cout << _iono_est << std::endl;
                 if (_param->getParam(_site, par_type::SION, it->sat()) < 0 && _iono_est)
                 {
-                    base_par parSION(it->site(), par_type::SION, _param->parNumber() + 1, it->sat());
+                    base_par parSION(it->site(), par_type::SION, _param->parNumber(), it->sat());
 
                     parSION.apriori(1.0); // apriori as a std::fixed value = 1 m
                     parSION.value(0.0);
@@ -2259,24 +2264,86 @@ namespace hwa_gnss
         bool obsGal = false;
         bool obsBds = false;
         bool obsQzs = false;
-        std::vector<gnss_data_sats>::iterator it;
-        for (it = _data.begin(); it != _data.end(); it++)
-        { // loop over all observations
+        bool obsGal_4 = false;
+        bool obsBds_4 = false;
+        bool obsGal_5 = false;
+        bool obsBds_5 = false;
 
-            if (it->gsys() == GPS)
-                obsGps = true;
-            if (it->gsys() == GAL)
-                obsGal = true;
-            if (it->gsys() == BDS)
-                obsBds = true;
-            if (it->gsys() == QZS)
-                obsQzs = true;
+        std::vector<gnss_data_sats>::iterator it;
+        for (it = _data.begin(); it != _data.end();)
+        {
+            map<FREQ_SEQ, GOBSBAND>& crt_bands = _band_index[it->gsys()];
+            string grec = it->site();
+            string gsat = it->sat();
+            GSYS gsys = it->gsys();
+            for (const auto& iter : crt_bands)
+            {
+                vector<pair<int, double>> coefP;
+                vector<pair<int, double>> coefL;
+                GOBSBAND band = iter.second;
+                gnss_data_obs obsP(it->select_range(band, true));
+                gnss_data_obs obsL(it->select_phase(band, true));
+                // ========================================================================================================================================
+                // check Obs Valid
+                auto freq = iter.first;
+                if (freq > _frequency)
+                    continue;
+                // check whether 3 frequencies obs_P exist
+                if ((obsP.type() == TYPE_C || obsP.type() == TYPE_P) && freq >= FREQ_3)
+                {
+                    if (gsys == GPS)
+                    {
+                        obsGps = true;
+                    }
+                    if (gsys == GAL)
+                    {
+                        obsGal = true;
+                    }
+                    if (gsys == BDS)
+                    {
+                        obsBds = true;
+                    }
+                    if (gsys == QZS)
+                    {
+                        obsQzs = true;
+                    }
+                }
+                // check whether 4 frequencies obs_P exist
+                if ((obsP.type() == TYPE_C || obsP.type() == TYPE_P) && freq >= FREQ_4)
+                {
+                    if (gsys == GAL)
+                    {
+                        obsGal_4 = true;
+                    }
+                    if (gsys == BDS)
+                    {
+                        obsBds_4 = true;
+                    }
+                }
+                // check whether 5 frequencies obs_P exist
+                if ((obsP.type() == TYPE_C || obsP.type() == TYPE_P) && freq >= FREQ_5)
+                {
+                    if (gsys == GAL)
+                    {
+                        obsGal_5 = true;
+                    }
+                    if (gsys == BDS)
+                    {
+                        obsBds_5 = true;
+                    }
+                }
+            }
+            ++it;
         }
 
         bool parGps = false;
         bool parGal = false;
         bool parBds = false;
         bool parQzs = false;
+        bool parGal_2 = false;
+        bool parBds_2 = false;
+        bool parGal_3 = false;
+        bool parBds_3 = false;
 
         for (unsigned int i = 0; i < _param->parNumber(); i++)
         {
@@ -2289,12 +2356,20 @@ namespace hwa_gnss
                 parBds = true;
             if (_param->operator[](i).parType == par_type::IFB_QZS)
                 parQzs = true;
+            if (_param->operator[](i).parType == par_type::IFB_GAL_2)
+                parGal_2 = true;
+            if (_param->operator[](i).parType == par_type::IFB_BDS_2)
+                parBds_2 = true;
+            if (_param->operator[](i).parType == par_type::IFB_GAL_3)
+                parGal_3 = true;
+            if (_param->operator[](i).parType == par_type::IFB_BDS_3)
+                parBds_3 = true;
         }
 
         // Add GLO ISB parameter
         if (!parGps && obsGps)
         {
-            base_par newPar(_data.begin()->site(), par_type::IFB_GPS, _param->parNumber() + 1, "");
+            base_par newPar(_data.begin()->site(), par_type::IFB_GPS, _param->parNumber(), "");
             newPar.value(0.0);
             _param->addParam(newPar);
             _Qx.Matrix_addRC(_param->parNumber() - 1, _param->parNumber() - 1);
@@ -2309,7 +2384,7 @@ namespace hwa_gnss
         // Add GAL ISB parameter
         if (!parGal && obsGal)
         {
-            base_par newPar(_data.begin()->site(), par_type::IFB_GAL, _param->parNumber() + 1, "");
+            base_par newPar(_data.begin()->site(), par_type::IFB_GAL, _param->parNumber(), "");
             newPar.value(0.0);
             _param->addParam(newPar);
             _Qx.Matrix_addRC(_param->parNumber() - 1, _param->parNumber() - 1);
@@ -2325,7 +2400,7 @@ namespace hwa_gnss
         // Add BDS ISB parameter
         if (!parBds && obsBds)
         {
-            base_par newPar(_data.begin()->site(), par_type::IFB_BDS, _param->parNumber() + 1, "");
+            base_par newPar(_data.begin()->site(), par_type::IFB_BDS, _param->parNumber(), "");
             newPar.value(0.0);
             _param->addParam(newPar);
             _Qx.Matrix_addRC(_param->parNumber() - 1, _param->parNumber() - 1);
@@ -2341,7 +2416,7 @@ namespace hwa_gnss
         // Add QZS ISB parameter
         if (!parQzs && obsQzs)
         {
-            base_par newPar(_data.begin()->site(), par_type::IFB_QZS, _param->parNumber() + 1, "");
+            base_par newPar(_data.begin()->site(), par_type::IFB_QZS, _param->parNumber(), "");
             newPar.value(0.0);
             _param->addParam(newPar);
             _Qx.Matrix_addRC(_param->parNumber() - 1, _param->parNumber() - 1);
@@ -2351,6 +2426,70 @@ namespace hwa_gnss
             std::cout << "QZS_QZS was added!"
                  << " Epoch: "
                  << _epoch.str_ymdhms() << std::endl;
+#endif
+        }
+
+        // Add GAL IFB_2 parameter
+        if (!parGal_2 && obsGal_4)
+        {
+            base_par newPar(_data.begin()->site(), par_type::IFB_GAL_2, _param->parNumber(), "");
+            newPar.value(0.0);
+            _param->addParam(newPar);
+            _Qx.Matrix_addRC(_param->parNumber() - 1, _param->parNumber() - 1);
+            _Qx.matrixW()(_param->parNumber() - 1, _param->parNumber() - 1) = 3000.0 * 3000;
+            ;
+#ifdef DEBUG
+            std::cout << "GAL_IFB_2 was added!"
+                << " Epoch: "
+                << _epoch.str_ymdhms() << std::endl;
+#endif
+        }
+
+        // Add GAL IFB_3 parameter
+        if (!parGal_3 && obsGal_5)
+        {
+            base_par newPar(_data.begin()->site(), par_type::IFB_GAL_3, _param->parNumber(), "");
+            newPar.value(0.0);
+            _param->addParam(newPar);
+            _Qx.Matrix_addRC(_param->parNumber() - 1, _param->parNumber() - 1);
+            _Qx.matrixW()(_param->parNumber() - 1, _param->parNumber() - 1) = 3000.0 * 3000;
+            ;
+#ifdef DEBUG
+            std::cout << "GAL_IFB_3 was added!"
+                << " Epoch: "
+                << _epoch.str_ymdhms() << std::endl;
+#endif
+        }
+
+        // Add BDS IFB_2 parameter
+        if (!parBds_2 && obsBds_4)
+        {
+            base_par newPar(_data.begin()->site(), par_type::IFB_BDS_2, _param->parNumber(), "");
+            newPar.value(0.0);
+            _param->addParam(newPar);
+            _Qx.Matrix_addRC(_param->parNumber() - 1, _param->parNumber() - 1);
+            _Qx.matrixW()(_param->parNumber() - 1, _param->parNumber() - 1) = 3000.0 * 3000;
+            ;
+#ifdef DEBUG
+            std::cout << "BDS_IFB_2 was added!"
+                << " Epoch: "
+                << _epoch.str_ymdhms() << std::endl;
+#endif
+        }
+
+        // Add BDS IFB_3 parameter
+        if (!parBds_3 && obsBds_5)
+        {
+            base_par newPar(_data.begin()->site(), par_type::IFB_BDS_3, _param->parNumber(), "");
+            newPar.value(0.0);
+            _param->addParam(newPar);
+            _Qx.Matrix_addRC(_param->parNumber() - 1, _param->parNumber() - 1);
+            _Qx.matrixW()(_param->parNumber() - 1, _param->parNumber() - 1) = 3000.0 * 3000;
+            ;
+#ifdef DEBUG
+            std::cout << "BDS_IFB_3 was added!"
+                << " Epoch: "
+                << _epoch.str_ymdhms() << std::endl;
 #endif
         }
 
@@ -2409,281 +2548,63 @@ namespace hwa_gnss
                  << _epoch.str_ymdhms() << std::endl;
 #endif
         }
-    }
-    // tyx : only double or more frequency can use this fuction
-    void gnss_proc_sppflt::_syncRcb()
-    {
-        // modified by zhshen
-        if (_data.size() == 0)return;
-        //  set<std::string> mapPRN; 
-        bool obsGps = false;
-        bool obsGal = false;
-        bool obsBds = false;
-        bool obsQzs = false;
-        std::vector<gnss_data_sats>::iterator it;
-        for (it = _data.begin(); it != _data.end(); it++) {       // loop over all observations
 
-            if (it->gsys() == GPS) obsGps = true;
-            if (it->gsys() == GAL) obsGal = true;
-            if (it->gsys() == BDS) obsBds = true;
-            if (it->gsys() == QZS) obsQzs = true;
-        }
-
-        bool parGps = false;
-        bool parGal = false;
-        bool parBds = false;
-        bool parQzs = false;
-
-        for (unsigned int i = 0; i < _param->parNumber(); i++) {
-            if (_param->operator[](i).site != _site)
-                continue;
-            if (_param->operator[](i).parType == par_type::RCB_GPS_1 || _param->operator[](i).parType == par_type::RCB_GPS_2) parGps = true;
-            if (_param->operator[](i).parType == par_type::RCB_GAL_1 || _param->operator[](i).parType == par_type::RCB_GAL_2) parGal = true;
-            if (_param->operator[](i).parType == par_type::RCB_BDS_1 || _param->operator[](i).parType == par_type::RCB_BDS_2) parBds = true;
-            if (_param->operator[](i).parType == par_type::RCB_QZS_1 || _param->operator[](i).parType == par_type::RCB_QZS_2) parQzs = true;
-        }
-
-        // Add GPS RCB parameter
-        if (!parGps && obsGps) {
-            base_par newPar1(_data.begin()->site(), par_type::RCB_GPS_1, _param->parNumber() + 1, "");
-            newPar1.value(0.0);
-            _param->addParam(newPar1);
-            _Qx.Matrix_addRC(_param->parNumber() - 1, _param->parNumber() - 1);
-            _Qx.matrixW()(_param->parNumber() - 1, _param->parNumber() - 1) = 3000 * 3000;
-
-            base_par newPar2(_data.begin()->site(), par_type::RCB_GPS_2, _param->parNumber() + 1, "");
-            newPar2.value(0.0);
-            _param->addParam(newPar2);
-            _Qx.Matrix_addRC(_param->parNumber() - 1, _param->parNumber() - 1);
-            _Qx.matrixW()(_param->parNumber() - 1, _param->parNumber() - 1) = 3000 * 3000;
-#ifdef DEBUG   
-            std::cout << "GPS_RCB was added!" << " Epoch: "
+        // Remove GAL IFB_2 paremeter
+        if (parGal_2 && !obsGal_4)
+        {
+            int i = _param->getParam(_data.begin()->site(), par_type::IFB_GAL_2, "");
+            Matrix_remRC(_Qx.matrixW(), _param->operator[](i).index, _param->operator[](i).index);
+            _param->delParam(i);
+            _param->reIndex();
+#ifdef DEBUG
+            std::cout << "GAL_IFB_2 was removed!"
+                << " Epoch: "
                 << _epoch.str_ymdhms() << std::endl;
 #endif
         }
 
-        // Add GAL RCB parameter
-        if (!parGal && obsGal) {
-            base_par newPar1(_data.begin()->site(), par_type::RCB_GAL_1, _param->parNumber() + 1, "");
-            newPar1.value(0.0);
-            _param->addParam(newPar1);
-            _Qx.Matrix_addRC(_param->parNumber() - 1, _param->parNumber() - 1);
-            _Qx.matrixW()(_param->parNumber() - 1, _param->parNumber() - 1) = 3000 * 3000;
-
-            base_par newPar2(_data.begin()->site(), par_type::RCB_GAL_2, _param->parNumber() + 1, "");
-            newPar2.value(0.0);
-            _param->addParam(newPar2);
-            _Qx.Matrix_addRC(_param->parNumber() - 1, _param->parNumber() - 1);
-            _Qx.matrixW()(_param->parNumber() - 1, _param->parNumber() - 1) = 3000 * 3000;
-#ifdef DEBUG   
-            std::cout << "GAL_RCB was added!" << " Epoch: "
+        // Remove GAL IFB_3 paremeter
+        if (parGal_3 && !obsGal_5)
+        {
+            int i = _param->getParam(_data.begin()->site(), par_type::IFB_GAL_3, "");
+            Matrix_remRC(_Qx.matrixW(), _param->operator[](i).index, _param->operator[](i).index);
+            _param->delParam(i);
+            _param->reIndex();
+#ifdef DEBUG
+            std::cout << "GAL_IFB_3 was removed!"
+                << " Epoch: "
                 << _epoch.str_ymdhms() << std::endl;
 #endif
         }
 
-        // Add BDS RCB parameter
-        if (!parBds && obsBds) {
-            base_par newPar1(_data.begin()->site(), par_type::RCB_BDS_1, _param->parNumber() + 1, "");
-            newPar1.value(0.0);
-            _param->addParam(newPar1);
-            _Qx.Matrix_addRC(_param->parNumber() - 1, _param->parNumber() - 1);
-            _Qx.matrixW()(_param->parNumber() - 1, _param->parNumber() - 1) = 3000 * 3000;
-
-            base_par newPar2(_data.begin()->site(), par_type::RCB_BDS_2, _param->parNumber() + 1, "");
-            newPar1.value(0.0);
-            _param->addParam(newPar2);
-            _Qx.Matrix_addRC(_param->parNumber() - 1, _param->parNumber() - 1);
-            _Qx.matrixW()(_param->parNumber() - 1, _param->parNumber() - 1) = 3000 * 3000;
-#ifdef DEBUG   
-            std::cout << "BDS_RCB was added!" << " Epoch: "
+        // Remove BDS IFB_2 paremeter
+        if (parBds_2 && !obsBds_4)
+        {
+            int i = _param->getParam(_data.begin()->site(), par_type::IFB_BDS_2, "");
+            Matrix_remRC(_Qx.matrixW(), _param->operator[](i).index, _param->operator[](i).index);
+            _param->delParam(i);
+            _param->reIndex();
+#ifdef DEBUG
+            std::cout << "BDS_IFB_2 was removed!"
+                << " Epoch: "
                 << _epoch.str_ymdhms() << std::endl;
 #endif
         }
 
-        // Add QZS RCB parameter
-        if (!parQzs && obsQzs) {
-            base_par newPar1(_data.begin()->site(), par_type::RCB_QZS_1, _param->parNumber() + 1, "");
-            newPar1.value(0.0);
-            _param->addParam(newPar1);
-            _Qx.Matrix_addRC(_param->parNumber() - 1, _param->parNumber() - 1);
-            _Qx.matrixW()(_param->parNumber() - 1, _param->parNumber() - 1) = 3000 * 3000;
-
-            base_par newPar2(_data.begin()->site(), par_type::RCB_QZS_2, _param->parNumber() + 1, "");
-            newPar2.value(0.0);
-            _param->addParam(newPar2);
-            _Qx.Matrix_addRC(_param->parNumber() - 1, _param->parNumber() - 1);
-            _Qx.matrixW()(_param->parNumber() - 1, _param->parNumber() - 1) = 3000 * 3000;
-#ifdef DEBUG   
-            std::cout << "QZS_RCB was added!" << " Epoch: "
+        // Remove BDS IFB_3 paremeter
+        if (parBds_3 && !obsBds_5)
+        {
+            int i = _param->getParam(_data.begin()->site(), par_type::IFB_BDS_3, "");
+            Matrix_remRC(_Qx.matrixW(), _param->operator[](i).index, _param->operator[](i).index);
+            _param->delParam(i);
+            _param->reIndex();
+#ifdef DEBUG
+            std::cout << "BDS_IFB_3 was removed!"
+                << " Epoch: "
                 << _epoch.str_ymdhms() << std::endl;
 #endif
-        }
-
-        // Remove GPS ISB paremeter
-        if (parGps && !obsGps) {
-            int i = _param->getParam(_data.begin()->site(), par_type::RCB_GPS_1, "");
-            Matrix_remRC(_Qx.matrixW(), _param->operator[](i).index, _param->operator[](i).index);
-            _param->delParam(i);
-            _param->reIndex();
-
-            i = _param->getParam(_data.begin()->site(), par_type::RCB_GPS_2, "");
-            Matrix_remRC(_Qx.matrixW(), _param->operator[](i).index, _param->operator[](i).index);
-            _param->delParam(i);
-            _param->reIndex();
-#ifdef DEBUG   
-            std::cout << "GPS_RCB was removed!" << " Epoch: "
-                << _epoch.str_ymdhms() << std::endl;
-#endif     
-        }
-
-        // Remove BDS ISB paremeter
-        if (parBds && !obsBds) {
-            int i = _param->getParam(_data.begin()->site(), par_type::RCB_BDS_1, "");
-            Matrix_remRC(_Qx.matrixW(), _param->operator[](i).index, _param->operator[](i).index);
-            _param->delParam(i);
-            _param->reIndex();
-
-            i = _param->getParam(_data.begin()->site(), par_type::RCB_BDS_2, "");
-            Matrix_remRC(_Qx.matrixW(), _param->operator[](i).index, _param->operator[](i).index);
-            _param->delParam(i);
-            _param->reIndex();
-#ifdef DEBUG   
-            std::cout << "BDS_RCB was removed!" << " Epoch: "
-                << _epoch.str_ymdhms() << std::endl;
-#endif     
-        }
-
-        // Remove GAL ISB paremeter
-        if (parGal && !obsGal) {
-            int i = _param->getParam(_data.begin()->site(), par_type::RCB_GAL_1, "");
-            Matrix_remRC(_Qx.matrixW(), _param->operator[](i).index, _param->operator[](i).index);
-            _param->delParam(i);
-            _param->reIndex();
-
-            i = _param->getParam(_data.begin()->site(), par_type::RCB_GAL_2, "");
-            Matrix_remRC(_Qx.matrixW(), _param->operator[](i).index, _param->operator[](i).index);
-            _param->delParam(i);
-            _param->reIndex();
-#ifdef DEBUG   
-            std::cout << "GAL_RCB was removed!" << " Epoch: "
-                << _epoch.str_ymdhms() << std::endl;
-#endif     
-        }
-
-        // Remove QZS ISB paremeter
-        if (parQzs && !obsQzs) {
-            int i = _param->getParam(_data.begin()->site(), par_type::RCB_QZS_1, "");
-            Matrix_remRC(_Qx.matrixW(), _param->operator[](i).index, _param->operator[](i).index);
-            _param->delParam(i);
-            _param->reIndex();
-
-            i = _param->getParam(_data.begin()->site(), par_type::RCB_QZS_2, "");
-            Matrix_remRC(_Qx.matrixW(), _param->operator[](i).index, _param->operator[](i).index);
-            _param->delParam(i);
-            _param->reIndex();
-#ifdef DEBUG   
-            std::cout << "QZS_RCB was removed!" << " Epoch: "
-                << _epoch.str_ymdhms() << std::endl;
-#endif     
         }
     }
-
-    //    void gnss_proc_sppflt::_syncIFB()
-    //    {
-    //
-    //
-    //        set<std::string> mapPRN;
-    //
-    //        std::vector<gnss_data_sats>::iterator it;
-    //        for (it = _data.begin(); it != _data.end(); it++) {       // loop over all tracked satellites
-    //            mapPRN.insert(it->sat());
-    //
-    //            if (_observ == IONO_FREE) return;
-    //
-    //            if (_observ == RAW_ALL) {
-    //
-    //                // add inter-frequency code bias for FREQ_3 (if not already)
-    //                if (!_ifb3_init && it->contain_freq(FREQ_3) && _param->getParam(_site, par_type::IFB_C3, "") < 0) {
-    //                    base_par parIFB(it->site(), par_type::IFB_C3, _param->parNumber() + 1, "");
-    //                    parIFB.value(0.0);
-    //                    _param->addParam(parIFB);
-    //                    _Qx.Matrix_addRC(_param->parNumber(), _param->parNumber());
-    //                    _Qx.matrixW()(_param->parNumber(), _param->parNumber()) = 100 * 100;
-    //                    _ifb3_init = true;
-    //                }
-    //
-    //                // add inter-frequency code bias for FREQ_4 (if not already)
-    //                if (!_ifb4_init && it->contain_freq(FREQ_4) && _param->getParam(_site, par_type::IFB_C4, "") < 0) {
-    //                    base_par parIFB(it->site(), par_type::IFB_C4, _param->parNumber() + 1, "");
-    //                    parIFB.value(0.0);
-    //                    _param->addParam(parIFB);
-    //                    _Qx.Matrix_addRC(_param->parNumber(), _param->parNumber());
-    //                    _Qx.matrixW()(_param->parNumber(), _param->parNumber()) = 100 * 100;
-    //                    _ifb4_init = true;
-    //                }
-    //
-    //                // add inter-frequency code bias for FREQ_5 (if not already)
-    //                if (!_ifb5_init && it->contain_freq(FREQ_5) && _param->getParam(_site, par_type::IFB_C5, "") < 0) {
-    //                    base_par parIFB(it->site(), par_type::IFB_C5, _param->parNumber() + 1, "");
-    //                    parIFB.value(0.0);
-    //                    _param->addParam(parIFB);
-    //                    _Qx.Matrix_addRC(_param->parNumber(), _param->parNumber());
-    //                    _Qx.matrixW()(_param->parNumber(), _param->parNumber()) = 100 * 100;
-    //                    _ifb5_init = true;
-    //                }
-    //                // add inter-frequency clock bias for FREQ_3
-    //
-    //                if (it->contain_freq(FREQ_3) && _param->getParam(_site, par_type::IFCB_F3, it->sat()) < 0) {
-    //                    base_par parIFCB(it->site(), par_type::IFCB_F3, _param->parNumber() + 1, it->sat());
-    //                    parIFCB.value(0.0);
-    //                    _param->addParam(parIFCB);
-    //                    _Qx.Matrix_addRC(_param->parNumber(), _param->parNumber());
-    //                    _Qx.matrixW()(_param->parNumber(), _param->parNumber()) = 1 * 1;
-    //                }
-    //
-    //                // add inter-frequency clock bias for FREQ_4
-    //                if (it->contain_freq(FREQ_4) && _param->getParam(_site, par_type::IFCB_F4, it->sat()) < 0) {
-    //                    base_par parIFCB(it->site(), par_type::IFCB_F4, _param->parNumber() + 1, it->sat());
-    //                    parIFCB.value(0.0);
-    //                    _param->addParam(parIFCB);
-    //                    _Qx.Matrix_addRC(_param->parNumber(), _param->parNumber());
-    //                    _Qx.matrixW()(_param->parNumber(), _param->parNumber()) = 1 * 1;
-    //                }
-    //
-    //                // add inter-frequency clock bias for FREQ_5
-    //                if (it->contain_freq(FREQ_5) && _param->getParam(_site, par_type::IFCB_F5, it->sat()) < 0) {
-    //                    base_par parIFCB(it->site(), par_type::IFCB_F5, _param->parNumber() + 1, it->sat());
-    //                    parIFCB.value(0.0);
-    //                    _param->addParam(parIFCB);
-    //                    _Qx.Matrix_addRC(_param->parNumber(), _param->parNumber());
-    //                    _Qx.matrixW()(_param->parNumber(), _param->parNumber()) = 1 * 1;
-    //                }
-    //
-    //            }
-    //
-    //        }  // end loop over all satellites
-    //
-    //        // Remove params and appropriate rows/columns covar. matrix
-    //        for (unsigned int i = 0; i <= _param->parNumber() - 1; i++) {
-    //            if (_param->operator[](i).parType == par_type::IFCB_F3 ||
-    //                _param->operator[](i).parType == par_type::IFCB_F4 ||
-    //                _param->operator[](i).parType == par_type::IFCB_F5) {
-    //
-    //                std::string sat = _param->operator[](i).prn;
-    //
-    //                set<std::string>::iterator prnITER = mapPRN.find(sat);
-    //                if (prnITER == mapPRN.end()) {
-    //
-    //                    Matrix_remRC(_Qx.matrixW(), _param->operator[](i).index, _param->operator[](i).index);
-    //                    _param->delParam(i);
-    //                    _param->reIndex();
-    //                    i--;
-    //                }
-    //            }
-    //        }
-    //
-    //        return;
-    //    }
 
     // get gnss_data_obs instance for particular prn, band, and attribute
     int gnss_proc_sppflt::_getgobs(std::string prn, GOBSTYPE type, GOBSBAND band, gnss_data_obs &gobs)

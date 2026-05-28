@@ -104,7 +104,7 @@ namespace hwa_base
         "FCBR_L4",
         "FCBR_L5", // receiver base_type_conv::fractional cycle biases for indiv. freq.
         "GLO_ISB",
-        "GLO_ifcb",
+        "GLO_IFCB",
         "GLO_IFPB",
         "GAL_ISB",
         "BDS_ISB",
@@ -516,8 +516,8 @@ namespace hwa_base
         case par_type::GLO_ISB:
             type = "GLO_ISB";
             break;
-        case par_type::GLO_ifcb:
-            type = "GLO_ifcb";
+        case par_type::GLO_IFCB:
+            type = "GLO_IFCB";
             break;
         case par_type::GLO_IFPB:
             type = "GLO_IFPB";
@@ -1237,8 +1237,8 @@ namespace hwa_base
         case par_type::GLO_ISB:
             type = "GLO_ISB";
             break;
-        case par_type::GLO_ifcb:
-            type = "GLO_ifcb";
+        case par_type::GLO_IFCB:
+            type = "GLO_IFCB";
             break;
         case par_type::GLO_IFPB:
             type = "GLO_IFPB";
@@ -2012,7 +2012,7 @@ namespace hwa_base
                 return 1.0;
             else
                 return 0.0;
-        case par_type::GLO_ifcb:
+        case par_type::GLO_IFCB:
             if (satData.site() == this->site && !gobs.is_phase() && satData.gsys() == GLO && prn == satData.sat())
                 return 1.0;
             else

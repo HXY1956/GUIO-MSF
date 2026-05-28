@@ -25,7 +25,23 @@ namespace hwa_base {
         GSTM_2
     };
 
+    enum ProcMode {
+        EQUAL_NOISE,
+		ADAPTIVE_NOISE,
+        NO_NOISE
+    };
+
+    enum SENSOR_TYPE {
+        UWB,
+        GNSS,
+        VISION,
+        HGT,
+        WIFI,
+        LIDAR
+    };
+
     Updater str2updater(std::string str);
+    ProcMode str2proc_mode(std::string str);
 
     class base_updater {
     public:
@@ -39,7 +55,7 @@ namespace hwa_base {
             max_iter = 20;
             _num_particles = 500;
         }
-        base_updater(hwa_set::set_base* _gset, std::string sensor);
+        base_updater(hwa_set::set_base* _gset, SENSOR_TYPE sensor);
         void set_particles(Matrix& Pk);
         void residual_resample(const Vector& weights, Vector_T<int>& indexes);
         int _meas_update_ekf(const Matrix& Hk, const Vector& Zk, const Matrix& Rk, Vector& Xk, Matrix& Pk);
@@ -58,7 +74,8 @@ namespace hwa_base {
             AnchorPos.clear();
             curr_iter = 0;
         }
-        Updater filter;
+        Updater filter{EKF};
+        ProcMode mode = EQUAL_NOISE;
 
     private:
         bool _particles_init = false;

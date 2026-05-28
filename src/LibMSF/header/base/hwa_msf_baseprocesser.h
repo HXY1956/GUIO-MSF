@@ -27,15 +27,6 @@ namespace hwa_msf {
         double _Cov_MeasZIHR, _Cov_MeasOdo, _Cov_MeasYaw;
     };
 
-    enum SENSOR_TYPE {
-        UWB,
-        GNSS,
-        VISION,
-        HGT,
-        WIFI,
-        LIDAR
-    };
-
     class baseprocesser {
     public:
         baseprocesser() {};
@@ -45,6 +36,13 @@ namespace hwa_msf {
         end(B.end), _shm(B._shm), _Estimator(B._Estimator), _Updater(B._Updater) 
         {
         };
+        explicit baseprocesser(const baseprocesser& B, hwa_base::SENSOR_TYPE type) :
+            _gset(B._gset), _sins(B._sins), param_of_sins(B.param_of_sins),
+            _spdlog(B._spdlog), _name(B._name), TimeStamp(B.TimeStamp), beg(B.beg),
+            end(B.end), _shm(B._shm), _Estimator(B._Estimator)
+        {
+			_Updater = base_updater(_gset.get(), type);
+        };
         explicit baseprocesser(std::shared_ptr<set_base> gset, base_log spdlog, std::string name, base_time _beg = FIRST_TIME, base_time _end = LAST_TIME) :
             _gset(gset), _spdlog(spdlog), _name(name), beg(_beg), end(_end), TimeStamp(_beg),
             _sins(std::make_shared<hwa_ins::ins_obj>(gset.get())),
@@ -52,6 +50,15 @@ namespace hwa_msf {
             param_of_sins(std::make_shared<base_allpar>())
         {
             _Estimator = dynamic_cast<set_ign*>(_gset.get())->fuse_type();
+        };
+        explicit baseprocesser(std::shared_ptr<set_base> gset, base_log spdlog, std::string name, hwa_base::SENSOR_TYPE type, base_time _beg = FIRST_TIME, base_time _end = LAST_TIME) :
+            _gset(gset), _spdlog(spdlog), _name(name), beg(_beg), end(_end), TimeStamp(_beg),
+            _sins(std::make_shared<hwa_ins::ins_obj>(gset.get())),
+            _shm(std::make_shared<hwa_ins::ins_scheme>(gset.get())),
+            param_of_sins(std::make_shared<base_allpar>())
+        {
+            _Estimator = dynamic_cast<set_ign*>(_gset.get())->fuse_type();
+            _Updater = base_updater(gset.get(), type);
         };
         ~baseprocesser() {};
         double dTime() { return TimeStamp.sow() + TimeStamp.dsec(); };
@@ -67,7 +74,7 @@ namespace hwa_msf {
         virtual bool load_data() { return true; };
         virtual void _feed_back();
         template <class T1, class T2>
-        void m_out(T1 const& name, T2 const& matrix)
+        static void m_out(T1 const& name, T2 const& matrix)
         {
             std::cout << name << std::endl;
             std::cout << std::fixed << std::setprecision(6) << std::setw(15) << matrix << std::endl;
@@ -76,6 +83,9 @@ namespace hwa_msf {
         bool timecheck() {
             return TimeStamp <= end && TimeStamp >= beg;
         };
+        Matrix _getPx() {
+            return _sins->Pk;
+		}   
 
     protected:
         std::shared_ptr<set_base> _gset;
@@ -89,7 +99,6 @@ namespace hwa_msf {
         base_log _spdlog;
         Estimator _Estimator;
         base_updater _Updater;
-
     };
 }
 

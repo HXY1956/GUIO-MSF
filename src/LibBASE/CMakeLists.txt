@@ -35,13 +35,15 @@ ${BASE_ALL_HEADER}
 
 target_include_directories(LibBASE PUBLIC
 ${BASE_HEADER_DIR}
-# ${Third_Eigen_ROOT}
 ${Third_Zlib_ROOT}
 ${Third_Ceres_ROOT}/include/
+${Third_Eigen_ROOT}
+# ${OpenBLAS64_INCLUDE_DIRS}
 )
 
 target_link_libraries(LibBASE
     PUBLIC
+#    ${OpenBLAS64_LIBRARIES}
     ${Third_Zlib_ROOT}/zlibd.lib
     ${Third_Zlib_ROOT}/zlibstatic.lib
     ${Third_Zlib_ROOT}/zlibstaticd.lib

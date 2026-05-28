@@ -1314,6 +1314,21 @@ std::string hwa_set::set_vis::filter(int cam_group_id)
     return res;
 }
 
+std::string hwa_set::set_vis::proc_mode(int cam_group_id)
+{
+    std::string res = _doc.child(XMLKEY_ROOT).child(XMLKEY_VIS).child_value("filter");
+    str_erase(res);
+    if (!_doc.child(XMLKEY_ROOT).child(XMLKEY_VIS).find_child_by_attribute("cam_group", "id", std::to_string(cam_group_id).c_str()).empty())
+    {
+        std::string tmp1 = _doc.child(XMLKEY_ROOT).child(XMLKEY_VIS).find_child_by_attribute("cam_group", "id", std::to_string(cam_group_id).c_str()).child_value("proc_mode");
+        str_erase(tmp1);
+        if (tmp1 != "")
+            res = tmp1;
+    }
+    if (res == "") res = "equal_noise";
+    return res;
+}
+
 hwa_vis::PROCESSER_TYPE hwa_set::set_vis::processer(int cam_group_id) {
     std::string res = _doc.child(XMLKEY_ROOT).child(XMLKEY_VIS).child_value("processer");
     str_erase(res);

@@ -91,6 +91,7 @@ namespace hwa_lidar
         bool use_scan;                        ///< use scan or not
         bool use_map;                        ///< use maping or not
         bool use_pp;                        ///< use planar patch or not
+		bool build_map;                        ///< build map or not
         bool use_segmenter;                    ///< use point cloud segmenter or not
 
         bool use_corrdistort;                ///< correct distortion or not

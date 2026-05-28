@@ -25,15 +25,15 @@ namespace hwa_ins {
             return IMU_TYPE::NovAtel_SPAN_FSAS;
         if (tmp == "SPAN CPT")
             return IMU_TYPE::NovAtel_SPAN_CPT;
-        if (tmp == "SPAN uIRS")
+        if (tmp == "SPAN UIRS")
             return IMU_TYPE::NovAtel_SPAN_uIRS;
         if (tmp == "SPAN LCI100C")
             return IMU_TYPE::NovAtel_SPAN_LCI100C;
-        if (tmp == "Navigation Grade")
+        if (tmp == "NAVIGATION GRADE")
             return IMU_TYPE::Navigation_Grade;
-        if (tmp == "Tactical Grade")
+        if (tmp == "TACTICAL GRADE")
             return IMU_TYPE::Tactical_Grade;
-        if (tmp == "MEMS Grade")
+        if (tmp == "MEMS GRADE")
             return IMU_TYPE::MEMS_Grade;
         if (tmp == "ADIS 16470")
             return IMU_TYPE::ADIS16470;
@@ -41,11 +41,11 @@ namespace hwa_ins {
             return IMU_TYPE::NovAtel_SPAN_ADIS16488;
         if (tmp == "StarNeto")
             return IMU_TYPE::StarNeto;
-        if (tmp == "Customize")
+        if (tmp == "CUSTOMIZE")
             return IMU_TYPE::Customize;
-        if (tmp == "MEMS Grade")
+        if (tmp == "MEMS GRADE")
             return IMU_TYPE::MEMS_Grade;
-        if (tmp == "MEMS Grade")
+        if (tmp == "MEMS GRADE")
             return IMU_TYPE::MEMS_Grade;
         return IMU_TYPE::Customize;
     }
@@ -249,7 +249,10 @@ namespace hwa_set {
         xml_node parent = _doc.child(XMLKEY_ROOT);
         xml_node node = _default_node(parent, XMLKEY_INS);
 
-        _imu_type = hwa_ins::str2imu(_doc.child(XMLKEY_ROOT).child(XMLKEY_INS).child("Estimator").child("ImuErrorModel").attribute("Type").value());
+        std::string str = _doc.child(XMLKEY_ROOT).child(XMLKEY_INS).child("Estimator").child("ImuErrorModel").attribute("Type").value();
+        std::transform(str.begin(), str.end(), str.begin(), ::toupper);
+
+        _imu_type = hwa_ins::str2imu(str);
         _map_imu_error_models = imuerror_models();
 
         _default_attr(node, "compensation", _cps);

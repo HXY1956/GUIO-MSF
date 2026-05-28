@@ -1,6 +1,7 @@
 #ifndef hwa_base_eigendef_h
 #define hwa_base_eigendef_h
 
+//#define EIGEN_USE_BLAS
 #include <Eigen/Eigen>
 #include <Eigen/Geometry>
 #include "hwa_base_glob.h"
@@ -22,6 +23,8 @@ namespace hwa_base {
     using Triple_T = Eigen::Matrix<T, 3, 1>;
     template<class T = double, class = std::enable_if_t<hwa_detail::is_allowed<T>>>
     using Dual_T = Eigen::Matrix<T, 2, 1>;
+    template<class T = double, class = std::enable_if_t<hwa_detail::is_allowed<T>>>
+    using Sparse_T = Eigen::SparseMatrix<T, Eigen::RowMajor>;
 
     template<class T = double, class = std::enable_if_t<hwa_detail::is_allowed<T>>>
     class Symmetric_T {
@@ -222,6 +225,7 @@ namespace hwa_base {
     using Symmetric = Symmetric_T<double>;
     using Diag = Diag_T<double>;
     using RowVector = RowVector_T<double>;
+	using Sparse = Sparse_T<double>;
 
     template<class T, class = std::enable_if_t<hwa_detail::is_allowed<T>>>
     Matrix_T<T> rotX(T Angle)

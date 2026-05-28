@@ -870,7 +870,7 @@ namespace hwa_gnss
             if (_observ == OBSCOMBIN::IONO_FREE && _param->getParam(_site, par_type::AMB_IF, it->sat()) < 0)
             {
 
-                base_par newPar(it->site(), par_type::AMB_IF, _param->parNumber() + 1, it->sat());
+                base_par newPar(it->site(), par_type::AMB_IF, _param->parNumber(), it->sat());
                 double cmpObs = _gModel->cmpObs(_epoch, *_param, *it, gobs1, com);
                 if (cmpObs < 0)
                     continue;
@@ -895,7 +895,7 @@ namespace hwa_gnss
                     double cmpObs = _gModel->cmpObs(_epoch, *_param, *it, gobs1, com);
                     if (cmpObs < 0)
                         continue;
-                    base_par newPar1(it->site(), par_type::AMB_L1, _param->parNumber() + 1, it->sat());
+                    base_par newPar1(it->site(), par_type::AMB_L1, _param->parNumber(), it->sat());
                     newPar1.value(L1 - cmpObs);
                     _param->addParam(newPar1);
                     _Qx.Matrix_addRC(_param->parNumber() - 1, _param->parNumber() - 1);
@@ -912,7 +912,7 @@ namespace hwa_gnss
                     double cmpObs = _gModel->cmpObs(_epoch, *_param, *it, gobs2, com);
                     if (cmpObs < 0)
                         continue;
-                    base_par newPar2(it->site(), par_type::AMB_L2, _param->parNumber() + 1, it->sat());
+                    base_par newPar2(it->site(), par_type::AMB_L2, _param->parNumber(), it->sat());
                     newPar2.value(L2 - cmpObs);
                     _param->addParam(newPar2);
                     _Qx.Matrix_addRC(_param->parNumber() - 1, _param->parNumber() - 1);
@@ -929,7 +929,7 @@ namespace hwa_gnss
                     double cmpObs = _gModel->cmpObs(_epoch, *_param, *it, gobs3, com);
                     if (cmpObs < 0)
                         continue;
-                    base_par newPar3(it->site(), par_type::AMB_L3, _param->parNumber() + 1, it->sat());
+                    base_par newPar3(it->site(), par_type::AMB_L3, _param->parNumber(), it->sat());
                     newPar3.value(L3 - cmpObs);
                     _param->addParam(newPar3);
                     _Qx.Matrix_addRC(_param->parNumber() - 1, _param->parNumber() - 1);
@@ -945,7 +945,7 @@ namespace hwa_gnss
                     double cmpObs = _gModel->cmpObs(_epoch, *_param, *it, gobs4, com);
                     if (cmpObs < 0)
                         continue;
-                    base_par newPar4(it->site(), par_type::AMB_L4, _param->parNumber() + 1, it->sat());
+                    base_par newPar4(it->site(), par_type::AMB_L4, _param->parNumber(), it->sat());
                     newPar4.value(L4 - cmpObs);
                     _param->addParam(newPar4);
                     _Qx.Matrix_addRC(_param->parNumber() - 1, _param->parNumber() - 1);
@@ -961,7 +961,7 @@ namespace hwa_gnss
                     double cmpObs = _gModel->cmpObs(_epoch, *_param, *it, gobs5, com);
                     if (cmpObs < 0)
                         continue;
-                    base_par newPar5(it->site(), par_type::AMB_L5, _param->parNumber() + 1, it->sat());
+                    base_par newPar5(it->site(), par_type::AMB_L5, _param->parNumber(), it->sat());
                     newPar5.value(L5 - cmpObs);
                     _param->addParam(newPar5);
                     _Qx.Matrix_addRC(_param->parNumber() - 1, _param->parNumber() - 1);

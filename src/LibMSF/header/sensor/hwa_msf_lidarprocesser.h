@@ -13,6 +13,7 @@
 #include "hwa_lidar_data.h"
 #include "hwa_lidar_coder.h"
 #include "hwa_msf_baseprocesser.h"
+#include <deque>
 
 using namespace hwa_lidar;
 
@@ -21,13 +22,12 @@ namespace hwa_msf {
     public:
         explicit lidarprocesser(const baseprocesser& B, base_data* data = nullptr);
         explicit lidarprocesser(std::shared_ptr<set_base> gset, std::string site, base_log spdlog = nullptr, base_data* data = nullptr, base_time _beg = FIRST_TIME, base_time _end = LAST_TIME);
-        ~lidarprocesser() {};
 
         void add_lidarframe(LidarFrame& frame);
         void getAllOdoResidual(Matrix& H, Vector& r, bool use_3d, float ther = 1);
         void ProjOdoResidual(Matrix& H, Vector& r, bool use_3d, float ther = 1);
-        void build_PPHR(vector<LidarFrame>& buffer, std::map<int, std::vector<int>>& indexs, Matrix& H, Vector& r);
-        bool planarpatchJacobian(vector<LidarFrame>& buffer, int point_id, std::vector<int> corr_ids, Matrix& H, Vector& r);
+        void build_PPHR(vector<LidarFrame>& buffer, std::map<int, std::map<int, int>>& indexs, Matrix& H, Vector& r);
+        bool planarpatchJacobian(vector<LidarFrame>& buffer, int point_id, std::map<int, int> corr_ids, Matrix& H, Vector& r);
         int updateLidarBuffer();
         bool _gatingTest(Matrix& H, Vector& r, const int& dof, bool is_scan);
         bool _gatingTest(Matrix& H, Vector& r, const int& dof, double obs_noise);
@@ -48,13 +48,20 @@ namespace hwa_msf {
         lidarPath _lidar_path;                                ///< get cur lidar path
         LidarFrame _lidarframe;                               ///< Point cloud operating at the current time
         LidarFrame _lastframe;                                ///< only used for point cloud distortion 
+		LidarFrame _firstframe;                               ///< only used for provide a reference point
+        LidarFrame _lastMappingframe;                                ///< only used for point cloud distortion 
         std::vector<LidarFrame> lidar_buffer;                 ///< store the information of lidar frames in window
 
         lidar_proc_mapping _lidarmap;                        ///< lidar map
         lidar_map _priormap;                                 ///< prior map
-        lidar_proc_odometry _lidarOdo;                           
+        lidar_proc_odometry _lidarOdo;         
+        lidar_proc_global_mapping _global_map;
 
         bool mIsFirstLidar = false;
+
+        double keyframe_trans_thresh = 1.0;
+        double keyframe_rot_thresh = 10.0 * D2R;
+        bool isKeyframe;
     };
 }
 #endif

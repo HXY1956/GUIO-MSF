@@ -45,6 +45,8 @@ namespace hwa_set
         */
         int freq();
 
+        bool build_map();
+
         /**
         * @brief get imudata frequency
         * @return int        frequency of IMU data
@@ -167,7 +169,36 @@ namespace hwa_set
         */
         Triple initial_lidar_extrinsic_translation_cov();
 
+        int num_particles();
+        double barrior();
+        double kappa_sig();
+        double alpha_sig();
+        double E0();
+        double G0();
+        int dof1();
+        int dof2();
+        int max_iter();
+        double Tau();
+        double proc_noise();
+        double max_res_norm();
+        std::string filter();
+        std::string proc_mode();
+
+
     protected:
+
+        double _e0;
+        double _g0;
+        double _max_res_norm;
+        double _barrior;
+        double _kappa_sig;
+        double _alpha_sig;
+        int _dof1;
+        int _dof2;
+        double _tau;
+        double _proc_noise;
+        int _max_iter;
+        int _num_particles;
     };
 }
 #endif

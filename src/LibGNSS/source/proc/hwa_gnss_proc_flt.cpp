@@ -267,19 +267,59 @@ namespace hwa_gnss
         Matrix NN;
 
         NN = R + A * Qx.matrixR() * A.transpose();
-        K = Qx.matrixR() * A.transpose() * NN.inverse();
+
+        Eigen::LDLT<Matrix> ldlt(NN);
+
+        K = Qx.matrixR() * A.transpose();
+        K = ldlt.solve(K.transpose()).transpose();
 
         Matrix I = Matrix::Identity(Qx.rows(), Qx.rows());
         Matrix KA = K * A;
         Matrix I_KA = I - K * A;
 
         dx = K * l;
-        Qx.matrixW() = I_KA * Qx.matrixR() * I_KA.transpose() + K * R * K.transpose();
 
-        //std::cout << "A" << std::endl << std::fixed << std::setprecision(6) << std::setw(15) << A << std::endl;
-        //std::cout << "R" << std::endl << std::fixed << std::setprecision(6) << std::setw(15) << R << std::endl;
-        //std::cout << "L" << std::endl << std::fixed << std::setprecision(6) << std::setw(15) << l << std::endl;
-        //std::cout << "dx" << std::endl << std::fixed << std::setprecision(6) << std::setw(15) << dx << std::endl;
+        Qx.matrixW() = (I - K * A) * Qx.matrixR();
+        Qx.matrixW() = 0.5 * (Qx.matrixR() + Qx.matrixR().transpose());
+
+        //Qx.matrixW() = I_KA * Qx.matrixR() * I_KA.transpose() + K * R * K.transpose();
+    }
+
+    void gnss_proc_kalman::update(
+        const Sparse& A,
+        const Matrix& R,
+        const Vector& l,
+        Vector& dx,
+        Symmetric& Qx)
+    {
+        const Matrix& P = Qx.matrixR();
+
+        Matrix AP;
+        AP.noalias() = A * P;
+
+        Matrix S;
+        S.noalias() = R + AP * A.transpose();
+
+        Eigen::LDLT<Matrix> ldlt(S);
+
+        Matrix PAt;
+        PAt.noalias() = P * A.transpose();
+
+        Matrix K;
+        K = ldlt.solve(PAt.transpose()).transpose();
+
+        dx.noalias() = K * l;
+
+        Matrix KA;
+        KA.noalias() = K * A;
+
+        Matrix I_KA =
+            Matrix::Identity(P.rows(), P.cols()) - KA;
+
+        Qx.matrixW().noalias() = I_KA * P;
+
+        Qx.matrixW() =
+            0.5 * (Qx.matrixR() + Qx.matrixR().transpose());
     }
 
     void gnss_proc_srf::update()

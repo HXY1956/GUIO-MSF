@@ -1,14 +1,14 @@
 #include "hwa_msf_gnssprocesser.h"
 
 namespace hwa_msf {
-	gnssprocesser::gnssprocesser(const baseprocesser& B, std::string site, std::string site_base, std::shared_ptr<set_base> gset, base_log spdlog, base_all_proc* allproc) : baseprocesser(B),
+	gnssprocesser::gnssprocesser(const baseprocesser& B, std::string site, std::string site_base, std::shared_ptr<set_base> gset, base_log spdlog, base_all_proc* allproc) : baseprocesser(B, hwa_base::GNSS),
         gnss_proc_spp(site, gset.get(), spdlog),
 		gnss_proc_pvtflt(site, site_base, gset.get(), spdlog, allproc) {
         lever = dynamic_cast<set_ign*>(gset.get())->gnss_lever();
 	}
 
 	gnssprocesser::gnssprocesser(std::string site, std::string site_base, std::shared_ptr<set_base> gset, base_log spdlog, base_all_proc* allproc, base_time _beg, base_time _end) :
-		baseprocesser(gset, spdlog, site, _beg, _end),
+		baseprocesser(gset, spdlog, site, hwa_base::GNSS,_beg, _end),
         gnss_proc_spp(site, gset.get(), spdlog),
 		gnss_proc_pvtflt(site, site_base, gset.get(), spdlog, allproc) {
         lever = dynamic_cast<set_ign*>(gset.get())->gnss_lever();
@@ -175,9 +175,20 @@ namespace hwa_msf {
         bool res_valid = false;
         double crt = inst.sow() + inst.dsec();
         TimeStamp = _gobs->load(_site, crt);
-        if ((abs(inst.diff(TimeStamp)) < _shm->delay && inst >= TimeStamp)
-            || abs(inst.diff(TimeStamp)) < 1e-6) 
+
+        if (abs(inst.diff(TimeStamp)) < 1e-3) {
+            time_lock = true;
             return true;
+        }
+
+        if (time_lock) {
+			time_lock = false;
+            return false;
+        }
+
+        if ((abs(inst.diff(TimeStamp)) < _shm->delay && inst >= TimeStamp)) 
+            return true;
+
         return false;
     }
 
@@ -186,6 +197,9 @@ namespace hwa_msf {
         MEAS_TYPE res_type;
         double crt = gst.sow() + gst.dsec();
         base_time runEpoch = _gobs->load(_site, crt);
+
+        double temp_t = runEpoch.sow() + runEpoch.dsec();
+
         int irc = gnss_proc_pvtflt::ProcessOneEpoch(runEpoch);
         if (irc < 0) {
             return MEAS_TYPE::NO_MEAS;
@@ -198,6 +212,9 @@ namespace hwa_msf {
         _sins->pos = Cart2Geod(m.MeasPos, false);
         _sins->vn = Cen(_sins->pos).transpose() * m.MeasVel;
 
+        std::cout << TimeStamp.str_ymdhms("Pos Debug[0] Pos: ") << std::fixed << std::setprecision(6) << _sins->pos.transpose() << "; Vel: " << _sins->vn.transpose() << "\n";
+
+
         res_type = MEAS_TYPE::POS_MEAS;
         if (!double_eq(m.MeasVel.norm(), 0.0))
             res_type = POS_VEL_MEAS;
@@ -205,6 +222,8 @@ namespace hwa_msf {
         //if (pos.PDOP > _shm->max_pdop) res_type = NO_MEAS;
         if (pos.nSat < _shm->min_sat) res_type = NO_MEAS;
         //if (_isBase && !pos.amb_state) res_type = NO_MEAS;
+
+        time_lock = true;
 
         return res_type;
     }
@@ -307,7 +326,11 @@ namespace hwa_msf {
             }
         }
         for (unsigned int Par = 0; Par < _param->parNumber(); Par++) {
-            if (_param->operator[](Par).parType == par_type::CRD_X || _param->operator[](Par).parType == par_type::CRD_Y || _param->operator[](Par).parType == par_type::CRD_Z)
+            if (_param->operator[](Par).parType == par_type::CRD_X || _param->operator[](Par).parType == par_type::CRD_Y || _param->operator[](Par).parType == par_type::CRD_Z
+                || _param->operator[](Par).parType == par_type::VEL_X || _param->operator[](Par).parType == par_type::VEL_Y || _param->operator[](Par).parType == par_type::VEL_Z
+				|| _param->operator[](Par).parType == par_type::CAM_CRD_X || _param->operator[](Par).parType == par_type::CAM_CRD_Y || _param->operator[](Par).parType == par_type::CAM_CRD_Z
+				|| _param->operator[](Par).parType == par_type::LIDAR_CRD_X || _param->operator[](Par).parType == par_type::LIDAR_CRD_Y || _param->operator[](Par).parType == par_type::LIDAR_CRD_Z            
+                )
             {
                 _param->operator[](Par).value(_param->operator[](Par).value() - _sins->Xk(_param->operator[](Par).index));
             }
@@ -330,7 +353,7 @@ namespace hwa_msf {
                 int icrdx = _param->operator[](_param->getParam(_site, par_type::CRD_X, "")).index;
                 A.block(0, icrdx, nobs, 3) = -A.block(0, icrdx, nobs, 3);
                 int iattx = _param->operator[](_param->getParam(_site, par_type::ATT_X, "")).index;
-                A.block(0, iattx, nobs, 3) = A.block(0, icrdx, nobs, 3) * askew(_sins->Ceb * lever);
+                A.block(0, iattx, nobs, 3) = -A.block(0, icrdx, nobs, 3) * askew(_sins->Ceb * lever);
             }
             else if (_Estimator == INEKF ) {
                 int icrdx = _param->operator[](_param->getParam(_site, par_type::CRD_X, "")).index;
@@ -357,6 +380,7 @@ namespace hwa_msf {
     }
 
     int gnssprocesser::ProcessOneEpoch() {
+
         _timeUpdate(TimeStamp);
         _Qx.matrixW() = _sins->Pk;
         if (_grec == nullptr)
@@ -430,6 +454,11 @@ namespace hwa_msf {
                 mult = 2;
                 nObs *= 2;
             }
+            if (_observ == OBSCOMBIN::RAW_MIX)
+            {
+                mult = 1;
+                nObs *= 5;
+            }
             if (_observ == OBSCOMBIN::RAW_ALL /*|| _observ == OBSCOMBIN::RAW_MIX*/)
             {
                 mult = 2;
@@ -469,6 +498,11 @@ namespace hwa_msf {
             _obs_index.clear();
             _generateObsIndex(equ);
 
+            //std::cout << "time" << TimeStamp.sow() + TimeStamp.dsec() << "; Before DD: " << "\n";
+            //m_out("A", _sins->Hk);
+            //m_out("P", P.matrixR());
+            //m_out("l", _sins->Zk);
+
             if (iobs < _minsat * mult)
             {
                 if (baseprocesser::_spdlog)
@@ -497,20 +531,20 @@ namespace hwa_msf {
             _sins->Rk = P.matrixR().jacobiSvd(Eigen::ComputeFullU | Eigen::ComputeFullV)
                 .solve(Matrix::Identity(P.rows(), P.cols()));
 
-            //std::cout << "time"<<TimeStamp.sow() +TimeStamp.dsec()<<"\n";
+            //std::cout << "time"<<TimeStamp.sow() + TimeStamp.dsec() << "; After DD: " << "\n";
             //m_out("A", _sins->Hk);
-            //m_out("P", P.matrixR());
+            //m_out("P", _sins->Rk);
             //m_out("l", _sins->Zk);
-            //m_out("DEBUG[0] _Qx", _Qx.matrixR());
+            //m_out("Qx", _Qx.matrixR());
 
             try
             {
                 //if (_Updater._meas_update(_sins->Hk, _sins->Zk, _sins->Rk, _sins->Xk, _Qx.matrixW()) < 0) {
                 //    _filter->update(_sins->Hk, _sins->Rk, _sins->Zk, _sins->Xk, _Qx);
                 //}
+				//Sparse temp_Hk = _sins->Hk.sparseView();
+    //            _filter->update(temp_Hk, _sins->Rk, _sins->Zk, _sins->Xk, _Qx);
                 _filter->update(_sins->Hk, _sins->Rk, _sins->Zk, _sins->Xk, _Qx);
-                //m_out("_dx", _sins->Xk);
-                //m_out("DEBUG[1] _Qx", _Qx.matrixR());
             }
 
             catch (...)
@@ -552,6 +586,8 @@ namespace hwa_msf {
         //        << std::setw(20) << std::setprecision(5) << _filter->param()[i].value() + _filter->dx()(i) 
         //        << std::setw(20) << std::setprecision(5) << _filter->stdx()(i) << std::endl;
         //}
+
+        //std::cout << "Time: " << TimeStamp.sow() + TimeStamp.dsec() << " Xk: " << std::fixed << std::setprecision(4) << _sins->Xk[6] << " " << _sins->Xk[7] << " " << _sins->Xk[8] << std::endl;
 
         _sins->Pk = _Qx.matrixR();
         _amb_resolution();

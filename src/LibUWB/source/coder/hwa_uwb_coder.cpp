@@ -16,18 +16,13 @@ hwa_uwb::uwb_coder::uwb_coder(hwa_set::set_base* s, int sz) :
 
 int hwa_uwb::uwb_coder::decode_head(char* buff, int sz, vector<string>& errmsg)
 {
-    _mutex.lock();
-
     // no header expected, but fill the buffer
     base_coder::_add2buffer(buff, sz);
-    _mutex.unlock(); return -1;
+    return -1;
 }
 
 int hwa_uwb::uwb_coder::decode_data(char* buff, int sz, int& cnt, vector<string>& errmsg)
 {
-
-    _mutex.lock();
-
     if (_order == "rangenet")
     {
         decode_rangenet(buff, sz, cnt, errmsg);
@@ -48,15 +43,12 @@ int hwa_uwb::uwb_coder::decode_data(char* buff, int sz, int& cnt, vector<string>
         decode_simulation(buff, sz, cnt, errmsg);
     }
 
-    _mutex.unlock();
     return 0;
 }
 
 int hwa_uwb::uwb_coder::decode_rangenet(char* buff, int sz, int& cnt, vector<string>& errmsg)
 {
-    _mutex.lock();
-
-    if (base_coder::_add2buffer(buff, sz) == 0) { _mutex.unlock(); return 0; };
+    if (base_coder::_add2buffer(buff, sz) == 0) { return 0; };
 
     int tmpsize = 0;
     string line;  string str;
@@ -100,21 +92,17 @@ int hwa_uwb::uwb_coder::decode_rangenet(char* buff, int sz, int& cnt, vector<str
             if (_spdlog) SPDLOG_LOGGER_INFO(_spdlog, "uwbfile", "warning: incorrect UWB data record: " + ss.str());
             else       cerr << "warning: incorrect UWB data record: " << ss.str() << endl;
             base_coder::_consume(tmpsize);
-            _mutex.unlock(); return -1;
+            return -1;
         }
         base_coder::_consume(tmpsize);
         cnt++;
     }
-
-    _mutex.unlock();
     return 0;
 }
 
 int hwa_uwb::uwb_coder::decode_tdis(char* buff, int sz, int& cnt, vector<string>& errmsg)
 {
-    _mutex.lock();
-
-    if (base_coder::_add2buffer(buff, sz) == 0) { _mutex.unlock(); return 0; };
+    if (base_coder::_add2buffer(buff, sz) == 0) { return 0; };
 
     int tmpsize = 0;
     string line;  string str;
@@ -163,21 +151,18 @@ int hwa_uwb::uwb_coder::decode_tdis(char* buff, int sz, int& cnt, vector<string>
             if (_spdlog) SPDLOG_LOGGER_INFO(_spdlog, "uwbfile", "warning: incorrect UWB data record: " + ss.str());
             else       cerr << "warning: incorrect UWB data record: " << ss.str() << endl;
             base_coder::_consume(tmpsize);
-            _mutex.unlock(); return -1;
+            return -1;
         }
         base_coder::_consume(tmpsize);
         cnt++;
     }
 
-    _mutex.unlock();
     return 0;
 }
 
 int hwa_uwb::uwb_coder::decode_nooploop(char* buff, int sz, int& cnt, vector<string>& errmsg)
 {
-    _mutex.lock();
-
-    if (base_coder::_add2buffer(buff, sz) == 0) { _mutex.unlock(); return 0; };
+    if (base_coder::_add2buffer(buff, sz) == 0) { return 0; };
 
     int tmpsize = 0;
     string line;  double str;
@@ -239,21 +224,17 @@ int hwa_uwb::uwb_coder::decode_nooploop(char* buff, int sz, int& cnt, vector<str
             if (_spdlog) SPDLOG_LOGGER_INFO(_spdlog, "uwbfile", "warning: incorrect UWB data record: " + ss.str());
             else       cerr << "warning: incorrect UWB data record: " << ss.str() << endl;
             base_coder::_consume(tmpsize);
-            _mutex.unlock(); return -1;
+            return -1;
         }
         base_coder::_consume(tmpsize);
         cnt++;
     }
-
-    _mutex.unlock();
     return 0;
 }
 
 int hwa_uwb::uwb_coder::decode_viral(char* buff, int sz, int& cnt, vector<string>& errmsg)
 {
-    _mutex.lock();
-
-    if (base_coder::_add2buffer(buff, sz) == 0) { _mutex.unlock(); return 0; };
+    if (base_coder::_add2buffer(buff, sz) == 0) { return 0; };
 
     int tmpsize = 0;
     string line;  double str;
@@ -315,22 +296,18 @@ int hwa_uwb::uwb_coder::decode_viral(char* buff, int sz, int& cnt, vector<string
             if (_spdlog) SPDLOG_LOGGER_INFO(_spdlog, "uwbfile", "warning: incorrect UWB data record: " + ss.str());
             else       cerr << "warning: incorrect UWB data record: " << ss.str() << endl;
             base_coder::_consume(tmpsize);
-            _mutex.unlock(); return -1;
+            return -1;
         }
         base_coder::_consume(tmpsize);
         cnt++;
     }
-
-    _mutex.unlock();
     return 0;
 }
 
 
 int hwa_uwb::uwb_coder::decode_simulation(char* buff, int sz, int& cnt, vector<string>& errmsg)
 {
-    _mutex.lock();
-
-    if (base_coder::_add2buffer(buff, sz) == 0) { _mutex.unlock(); return 0; };
+    if (base_coder::_add2buffer(buff, sz) == 0) { return 0; };
 
     int tmpsize = 0;
     string line;  double str;
@@ -382,12 +359,10 @@ int hwa_uwb::uwb_coder::decode_simulation(char* buff, int sz, int& cnt, vector<s
             if (_spdlog) SPDLOG_LOGGER_INFO(_spdlog, "uwbfile", "warning: incorrect UWB data record: " + ss.str());
             else       cerr << "warning: incorrect UWB data record: " << ss.str() << endl;
             base_coder::_consume(tmpsize);
-            _mutex.unlock(); return -1;
+            return -1;
         }
         base_coder::_consume(tmpsize);
         cnt++;
     }
-
-    _mutex.unlock();
     return 0;
 }

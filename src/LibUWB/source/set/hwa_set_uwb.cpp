@@ -112,6 +112,16 @@ std::string set_uwb::navarea2str(const NAVAREA& area)
     return str;
 }
 
+Triple set_uwb::_get_crd_xyz(std::string s)
+{
+    xml_node site = _doc.child(XMLKEY_ROOT).child("receiver").find_child_by_attribute("rec", "id", s.c_str());
+
+    Triple xyz(site.attribute("X").as_double(),
+        site.attribute("Y").as_double(),
+        site.attribute("Z").as_double());
+    return xyz;
+}
+
 int set_uwb::iter()
 {
     std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_UWB).child_value("iter");
@@ -295,11 +305,22 @@ double set_uwb::end()
 
 std::string set_uwb::filter()
 {
-    std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_UWB).child_value("filter_uwb");
+    std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_UWB).child_value("filter");
     str_erase(tmp);
     if (tmp.empty())
     {
         tmp = "EKF";
+    }
+    return tmp;
+}
+
+std::string set_uwb::proc_mode()
+{
+    std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_UWB).child_value("proc_mode");
+    str_erase(tmp);
+    if (tmp.empty())
+    {
+        tmp = "equal_noise";
     }
     return tmp;
 }
@@ -328,7 +349,7 @@ int set_uwb::smooth_point()
 {
     std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_UWB).child_value("smooth_point");
     str_erase(tmp);
-    int tmp_int = 0; // default value
+    int tmp_int = 5; // default value
     if (tmp != "")
         tmp_int = std::stoi(tmp);
     return tmp_int;
@@ -338,7 +359,7 @@ double set_uwb::meas_range_std()
 {
     std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_UWB).child_value("meas_range_std");
     str_erase(tmp);
-    double tmp_double = 0.0; // default value
+    double tmp_double = 0.5; // default value
     if (tmp != "")
         tmp_double = std::stod(tmp);
     return tmp_double;
@@ -348,7 +369,7 @@ double set_uwb::best_range_std()
 {
     std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_UWB).child_value("best_range_std");
     str_erase(tmp);
-    double tmp_double = 0.0; // default value
+    double tmp_double = 0.03; // default value
     if (tmp != "")
         tmp_double = std::stod(tmp);
     return tmp_double;
@@ -368,7 +389,7 @@ double set_uwb::barrior()
 {
     std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_UWB).child_value("barrior");
     str_erase(tmp);
-    double tmp_double = 0.0; // default value
+    double tmp_double = 9.0; // default value
     if (tmp != "")
         tmp_double = std::stod(tmp);
     return tmp_double;
@@ -388,7 +409,7 @@ double set_uwb::alpha_sig()
 {
     std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_UWB).child_value("alpha_sig");
     str_erase(tmp);
-    double tmp_double = 0.0; // default value
+    double tmp_double = 0.001; // default value
     if (tmp != "")
         tmp_double = std::stod(tmp);
     return tmp_double;
@@ -398,7 +419,7 @@ double set_uwb::log_parameter()
 {
     std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_UWB).child_value("log_parameter");
     str_erase(tmp);
-    double tmp_double = 0.0; // default value
+    double tmp_double = 1.0; // default value
     if (tmp != "")
         tmp_double = std::stod(tmp);
     return tmp_double;
@@ -408,7 +429,7 @@ double set_uwb::exp_parameter()
 {
     std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_UWB).child_value("exp_parameter");
     str_erase(tmp);
-    double tmp_double = 0.0; // default value
+    double tmp_double = 1.0; // default value
     if (tmp != "")
         tmp_double = std::stod(tmp);
     return tmp_double;
@@ -418,7 +439,7 @@ double set_uwb::sigmoid_parameter()
 {
     std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_UWB).child_value("sigmoid_parameter");
     str_erase(tmp);
-    double tmp_double = 0.0; // default value
+    double tmp_double = 1.0; // default value
     if (tmp != "")
         tmp_double = std::stod(tmp);
     return tmp_double;
@@ -428,7 +449,7 @@ double set_uwb::sigmoid_threshold()
 {
     std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_UWB).child_value("sigmoid_threshold");
     str_erase(tmp);
-    double tmp_double = 0.0; // default value
+    double tmp_double = 1.0; // default value
     if (tmp != "")
         tmp_double = std::stod(tmp);
     return tmp_double;
@@ -438,7 +459,7 @@ double set_uwb::tolerance()
 {
     std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_UWB).child_value("tolerance");
     str_erase(tmp);
-    double tmp_double = 0.0; // default value
+    double tmp_double = 1.0; // default value
     if (tmp != "")
         tmp_double = std::stod(tmp);
     return tmp_double;
@@ -479,7 +500,7 @@ double set_uwb::interpolation_noise()
 {
     std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_UWB).child_value("interpolation_noise");
     str_erase(tmp);
-    double tmp_double = 0.0; // default value
+    double tmp_double = 0.2; // default value
     if (tmp != "")
         tmp_double = std::stod(tmp);
     return tmp_double;
@@ -499,7 +520,7 @@ double set_uwb::gama()
 {
     std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_UWB).child_value("gama");
     str_erase(tmp);
-    double tmp_double = 0.0; // default value
+    double tmp_double = 1.0; // default value
     if (tmp != "")
         tmp_double = std::stod(tmp);
     return tmp_double;
@@ -551,7 +572,7 @@ double set_uwb::range_lim()
 {
     std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_UWB).child_value("range_lim");
     str_erase(tmp);
-    double tmp_double = 0.0; // default value
+    double tmp_double = 18.0; // default value
     if (tmp != "")
         tmp_double = std::stod(tmp);
     return tmp_double;
@@ -561,7 +582,7 @@ double set_uwb::snr_lim()
 {
     std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_UWB).child_value("snr_lim");
     str_erase(tmp);
-    double tmp_double = 0.0; // default value
+    double tmp_double = 6.0; // default value
     if (tmp != "")
         tmp_double = std::stod(tmp);
     return tmp_double;
@@ -591,7 +612,7 @@ int set_uwb::dof1()
 {
     std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_UWB).child_value("dof1");
     str_erase(tmp);
-    int tmp_int = 0; // default value
+    int tmp_int = 15; // default value
     if (tmp != "")
         tmp_int = std::stoi(tmp);
     return tmp_int;
@@ -601,7 +622,7 @@ int set_uwb::dof2()
 {
     std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_UWB).child_value("dof2");
     str_erase(tmp);
-    int tmp_int = 0; // default value
+    int tmp_int = 1; // default value
     if (tmp != "")
         tmp_int = std::stoi(tmp);
     return tmp_int;
@@ -611,7 +632,7 @@ double set_uwb::max_res_norm()
 {
     std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_UWB).child_value("max_res_norm");
     str_erase(tmp);
-    double tmp_double = 0.0; // default value
+    double tmp_double = 4.0; // default value
     if (tmp != "")
         tmp_double = std::stod(tmp);
     return tmp_double;
@@ -621,7 +642,7 @@ int set_uwb::max_iter()
 {
     std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_UWB).child_value("max_iter");
     str_erase(tmp);
-    int tmp_int = 0; // default value
+    int tmp_int = 10; // default value
     if (tmp != "")
         tmp_int = std::stoi(tmp);
     return tmp_int;
@@ -631,7 +652,7 @@ double set_uwb::Tau()
 {
     std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_UWB).child_value("tau");
     str_erase(tmp);
-    double tmp_double = 0.0; // default value
+    double tmp_double = 1000.0; // default value
     if (tmp != "")
         tmp_double = std::stod(tmp);
     return tmp_double;
@@ -641,7 +662,7 @@ double set_uwb::proc_noise()
 {
     std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_UWB).child_value("proc_noise_uwb");
     str_erase(tmp);
-    double tmp_double = 0.0; // default value
+    double tmp_double = 0.06; // default value
     if (tmp != "")
         tmp_double = std::stod(tmp);
     return tmp_double;

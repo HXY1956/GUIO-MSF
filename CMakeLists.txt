@@ -38,6 +38,7 @@ set(Third_Zlib_ROOT "D:/TeamCode/third-party/zlib/zlib-1.2.11/vs19")
 set(PCL_DIR "D:/TeamCode/third-party/PCL2022/cmake")
 
 find_package(PCL REQUIRED)
+find_package(OpenBLAS64 REQUIRED)
 find_package(Boost REQUIRED COMPONENTS thread filesystem)
 find_package(OpenCV REQUIRED)
 find_package(PkgConfig REQUIRED)

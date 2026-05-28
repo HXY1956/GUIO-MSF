@@ -26,6 +26,8 @@ namespace hwa_lidar
         /** @brief default destructor. */
         ~lidar_proc_odometry() {};
 
+
+        int max3(double a1, double a2, double a3, double& max);
         /**
         * @brief main function to find correspond "scan to scan" observation
         *
@@ -84,7 +86,7 @@ namespace hwa_lidar
 
         float scanPeriod_=0.1;       ///< time per scan
         long frameCount_=0;        ///< number of processed frames
-        bool systemInited_;      ///< initialization flag
+        bool systemInited_ = false;      ///< initialization flag
 
         pcl::KdTreeFLANN<pcl::PointXYZI> lastCornerKDTree_;   ///< last corner cloud KD-tree
         pcl::KdTreeFLANN<pcl::PointXYZI> lastSurfaceKDTree_;  ///< last surface cloud KD-tree
@@ -99,7 +101,7 @@ namespace hwa_lidar
         */
         //void data_association(vector<LidarFrame> &buffer);    
     
-        std::map<int, std::vector<int>> associations;        ///< association between lidar frames(used in lidar_PP and segmenter)
+        std::map<int, std::map<int, int>> associations;        ///< association between lidar frames(used in lidar_PP and segmenter)
 
 
         void segmenter_data_association(std::vector<LidarFrame> &buffer);

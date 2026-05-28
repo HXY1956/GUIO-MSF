@@ -10,6 +10,27 @@
 #include "hwa_base_eigendef.h"
 
 using namespace hwa_base;
+using PointType = pcl::PointXYZI;
+using CloudType = pcl::PointCloud<PointType>;
+using CloudPtr = CloudType::Ptr;
+
+namespace hwa_lidar {
+
+    struct KeyFrame
+    {
+        static int next_id;
+        int id;
+        double time;
+        SO3 R;
+        Triple t;
+        pcl::PointCloud<pcl::PointXYZI>::Ptr cloud;
+        KeyFrame() {}
+        KeyFrame(double _time, SO3 _R, Triple _t, pcl::PointCloud<pcl::PointXYZI>::Ptr _cloud) : time(_time), R(_R), t(_t), cloud(_cloud) {
+            id = next_id++;
+        }
+    };
+
+};
 
 namespace hwa_lidar
 {
@@ -142,11 +163,11 @@ namespace hwa_lidar
 
         bool empty;                            ///< whether is empty
 
-        pcl::PointCloud<pcl::PointXYZI> LessSurf;    ///< less surf point clouds
-        pcl::PointCloud<pcl::PointXYZI> LessSharp;    ///< less sharp point clouds
-        pcl::PointCloud<pcl::PointXYZI> Surf;        ///< surf point clouds
-        pcl::PointCloud<pcl::PointXYZI> Sharp;        ///< sharp point clouds
-        pcl::PointCloud<pcl::PointXYZI> fullCloud;    ///< full point clouds
+        CloudPtr LessSurf;    ///< less surf point clouds
+        CloudPtr LessSharp;    ///< less sharp point clouds
+        CloudPtr Surf;        ///< surf point clouds
+        CloudPtr Sharp;        ///< sharp point clouds
+        CloudPtr fullCloud;    ///< full point clouds
 
         std::vector<Triple> pcs;        ///< center points
         std::vector<Triple> ncs;        ///< normal vector
@@ -162,11 +183,11 @@ namespace hwa_lidar
             id = 0;                ///< lidar frame ID
             empty = true;        ///< whether is empty
 
-            LessSurf.clear();
-            LessSharp.clear();
-            Surf.clear();
-            Sharp.clear();
-            fullCloud.clear();
+            LessSurf = std::make_shared<CloudType>();
+            LessSharp = std::make_shared<CloudType>();
+            Surf = std::make_shared<CloudType>();
+            Sharp = std::make_shared<CloudType>();
+            fullCloud = std::make_shared<CloudType>();
 
             pcs.clear();
             ncs.clear();

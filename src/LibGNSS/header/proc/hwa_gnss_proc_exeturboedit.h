@@ -243,7 +243,7 @@ namespace hwa_gnss
         OBSCOMBIN _observ;
         base_iof* _debug_turbo = nullptr;
         base_iof* _cycleslipfile = nullptr;           // hlgou add 2022-05-07
-        gnss_proc_OUTLIER _outliers_proc;
+        gnss_proc_outlier _outliers_proc;
         std::map<std::string, std::map<std::string, std::map<GOBS, t_gturbo_rt>>> _rt_data;
         std::map<std::string, std::map<std::string, std::shared_ptr<gnss_data_obs_manager>>> _epoDataPre;
 

@@ -51,7 +51,8 @@ namespace hwa_msf {
         int imu_frequency;
         int _imgproc_count = 0;
         std::ofstream TimeCostDebugOutFile;
-        bool TimeCostDebugStatus;
+        bool TimeCostDebugStatus = false;
+		bool time_lock = false;
     };
 }
 #endif

@@ -111,10 +111,10 @@ namespace hwa_gnss
             }
         };
 
-        /** @brief some interface for cps
-        * @Note, tyx added for CPS in 202112
-        */
+        bool set_obs(const base_time& beg_r, const base_time& end_r);
+
         bool grec_exist() { return _grec != nullptr; };
+
         void grec_clear();
 
         bool slip_detect(const base_time& now) { return _slip_detect(now); };
@@ -230,7 +230,7 @@ namespace hwa_gnss
         int _addObsD(gnss_data_sats &satdata, unsigned int &iobs, base_allpar &param, Triple &XYZ, Matrix &A, Vector &l, Diag &P);
 
         /** @brief lvhb added post residual for rtk/ins */
-        int _postRes(const Matrix &A, const Symmetric &P, const Vector &l, Matrix &pA, Symmetric &pP, Vector &pl);
+        int _postRes(const Matrix& A, const Symmetric& P, const Vector& l, const Vector& dx);
 
         /** @brief lvhb modified for PPP/RTK processing */
         virtual int _combineMW(gnss_data_sats &satdata);

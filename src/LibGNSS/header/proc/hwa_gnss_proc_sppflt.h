@@ -90,9 +90,6 @@ namespace hwa_gnss
         /** @brief Add/Remove inter-freq. biases. */
         void _syncIFB();
 
-        // Add/Remove pseudorange bias for PPP-RTK client
-        void _syncRcb();
-
         /** @brief save observations residuals. */
         void _save_residuals(Vector &v, std::vector<gnss_data_sats> &satdata, RESIDTYPE restype);
 

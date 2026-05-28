@@ -48,7 +48,7 @@ namespace hwa_lidar
         * @return
             @retvec PointCloud        point cloud data 
         */
-        pcl::PointCloud<pcl::PointXYZI> readKittiBinData(const std::string &in_file);
+        CloudPtr readKittiBinData(const std::string &in_file);
 
         /**
         * @brief read lidar pointcloud from txt file
@@ -57,7 +57,7 @@ namespace hwa_lidar
         * @return
             @retvec PointCloud        point cloud data
         */
-        pcl::PointCloud<pcl::PointXYZI> readKittiTxtData(const std::string &filepath);
+        CloudPtr readKittiTxtData(const std::string &filepath);
 
         /**
         * @brief read lidar pointcloud from PCD file
@@ -66,13 +66,13 @@ namespace hwa_lidar
         * @return
             @retvec PointCloud        point cloud data
         */
-        pcl::PointCloud<pcl::PointXYZI> readPCDData(std::string &in_file);
+        CloudPtr readPCDData(std::string &in_file);
         /**
         * @brief classification of the lidar pointcloud
         *
         * @param[in] laserCloudIn    lidar pointcloud
         */
-        //void handleCloud(pcl::PointCloud<pcl::PointXYZI>& laserCloudIn);
+        //void handleCloud(CloudType& laserCloudIn);
 
         /**
         * @brief remove the close points in lidar pointcloud
@@ -81,8 +81,8 @@ namespace hwa_lidar
         * @param[in] thres        distance thershold of the close point
         * @param[out] cloud_out    lidar pointcloud
         */
-        void removeClosedPointCloud(pcl::PointCloud<pcl::PointXYZI> &cloud_in,
-            pcl::PointCloud<pcl::PointXYZI> &cloud_out, float thres);
+        void removeClosedPointCloud(CloudPtr cloud_in,
+            CloudPtr cloud_out, float thres);
 
         /**
         * @brief clear the history information
@@ -94,7 +94,7 @@ namespace hwa_lidar
         *
         * @param[in] laserCloudIn    lidar pointcloud
         */
-        void ExtractFeatures(pcl::PointCloud<pcl::PointXYZI>& laserCloudIn/*, const Time& scanTime*/);
+        void ExtractFeatures(CloudPtr laserCloudIn/*, const Time& scanTime*/);
 
         /**
         * @brief Extract planar patches from lidar frames
@@ -143,13 +143,13 @@ namespace hwa_lidar
         */
         int max3(double a1, double a2, double a3, double &max);
     public:
-        std::vector<pcl::PointCloud<pcl::PointXYZI> > _laserCloudScans;        ///< lidar scan point cloud data
-        pcl::PointCloud<pcl::PointXYZI> _laserCloud;                        ///< full resolution input cloud
+        std::vector<CloudType> _laserCloudScans;        ///< lidar scan point cloud data
+        CloudPtr _laserCloud;                        ///< full resolution input cloud
         std::vector<IndexRange> _scanIndices;                                ///< start and end indices of the individual scans withing the full resolution cloud
-        pcl::PointCloud<pcl::PointXYZI> _cornerPointsSharp;      ///< sharp corner points cloud
-        pcl::PointCloud<pcl::PointXYZI> _cornerPointsLessSharp;  ///< less sharp corner points cloud
-        pcl::PointCloud<pcl::PointXYZI> _surfacePointsFlat;      ///< flat surface points cloud
-        pcl::PointCloud<pcl::PointXYZI> _surfacePointsLessFlat;     ///< less flat surface points cloud
+        CloudPtr _cornerPointsSharp;      ///< sharp corner points cloud
+        CloudPtr _cornerPointsLessSharp;  ///< less sharp corner points cloud
+        CloudPtr _surfacePointsFlat;      ///< flat surface points cloud
+        CloudPtr _surfacePointsLessFlat;     ///< less flat surface points cloud
 
         // use for plane patch tracking    
         bool use_pp;                            ///< use planar patch or not

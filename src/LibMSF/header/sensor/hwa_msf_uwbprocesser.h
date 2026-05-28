@@ -38,6 +38,7 @@ namespace hwa_msf{
         Triple lever;
         double uwb_pdop;
         std::map<std::string, std::ofstream> _outfile;
+        bool time_lock = false;
     };
 }
 

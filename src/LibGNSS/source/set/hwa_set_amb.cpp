@@ -79,7 +79,9 @@ namespace hwa_set
         if (!_doc)
             str2fixmode(std::string());
         std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_GNSS).child(XMLKEY_AMBIGUITY).child_value("fix_mode");
-        return str2fixmode(hwa_base::base_type_conv::trim(tmp));
+        std::string tmp_temp = hwa_base::base_type_conv::trim(tmp);
+		std::transform(tmp_temp.begin(), tmp_temp.end(), tmp_temp.begin(), ::toupper);
+        return str2fixmode(tmp_temp);
     }
 
     void set_amb::fix_mode(FIX_MODE mode)
@@ -95,7 +97,9 @@ namespace hwa_set
         if (!_doc)
             str2upd_mode(std::string());
         std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_GNSS).child(XMLKEY_AMBIGUITY).child_value("upd_mode");
-        return str2upd_mode(hwa_base::base_type_conv::trim(tmp));
+        std::string tmp_temp = hwa_base::base_type_conv::trim(tmp);
+        std::transform(tmp_temp.begin(), tmp_temp.end(), tmp_temp.begin(), ::toupper);
+        return str2upd_mode(tmp_temp);
     }
 
     DD_MODEL set_amb::dd_mode()
@@ -103,17 +107,19 @@ namespace hwa_set
         if (!_doc)
             str2fixmode(std::string());
         std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_GNSS).child(XMLKEY_AMBIGUITY).child_value("dd_mode");
+        std::string tmp_temp = hwa_base::base_type_conv::trim(tmp);
+        std::transform(tmp_temp.begin(), tmp_temp.end(), tmp_temp.begin(), ::toupper);
 
         DD_MODEL mode;
-        if (tmp.find("IF_CB_WN") != std::string::npos)
+        if (tmp_temp.find("IF_CB_WN") != std::string::npos)
             mode = DD_MODEL::IF_CB_WN;
-        else if (tmp.find("RAW_CB_WN") != std::string::npos)
+        else if (tmp_temp.find("RAW_CB_WN") != std::string::npos)
             mode = DD_MODEL::RAW_CB_WN;
-        else if (tmp.find("RAW_CB_2") != std::string::npos)
+        else if (tmp_temp.find("RAW_CB_2") != std::string::npos)
             mode = DD_MODEL::RAW_CB_2;
-        else if (tmp.find("RAW_CB") != std::string::npos)
+        else if (tmp_temp.find("RAW_CB") != std::string::npos)
             mode = DD_MODEL::RAW_CB;
-        else if (tmp.find("NONE") != std::string::npos)
+        else if (tmp_temp.find("NONE") != std::string::npos)
             mode = DD_MODEL::NONE;
         else
         {
@@ -457,7 +463,7 @@ namespace hwa_set
         std::istringstream is(_doc.child(XMLKEY_ROOT).child(XMLKEY_GNSS).child(XMLKEY_AMBIGUITY).child_value("set_refsat"));
         std::string tmp;
         is >> tmp;
-        bool isSetRefsat = (tmp == "YES" || tmp == "yes");
+        bool isSetRefsat = (tmp == "TRUE" || tmp == "true" || tmp == "YES" || tmp == "yes");
         return isSetRefsat;
     }
 

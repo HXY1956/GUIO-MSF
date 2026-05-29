@@ -1,5 +1,8 @@
 #include "hwa_lidar_proc_mapping.h"
 #include "hwa_lidar_frame.h"
+#include <pcl/io/pcd_io.h>
+#include <filesystem>
+#include <iostream>
 
 namespace hwa_lidar
 {
@@ -550,9 +553,11 @@ namespace hwa_lidar
         if (cloud->points.size() == 0)
             return;
         pcl::PointCloud<pcl::PointXYZI>::Ptr filtered(new pcl::PointCloud<pcl::PointXYZI>);
-        pcl::PointXYZI first_pt = cloud->points[0];
         std::vector<int> index;
         pcl::removeNaNFromPointCloud(*cloud, *cloud, index);
+        if (cloud->empty())
+            return;
+        pcl::PointXYZI first_pt = cloud->points[0];
 
         ///> 为避免数值过大，降采样前先平移
         for (int i = 0; i < cloud->points.size(); i++)
@@ -579,7 +584,7 @@ namespace hwa_lidar
         }
 
         ///> 覆盖原点云
-        *cloud = std::move(*filtered);
+        *cloud = *filtered;
     }
 
     void lidar_proc_mapping::downSample(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud, pcl::PointCloud<pcl::PointXYZI>::Ptr filtered, const double& leaf_size)
@@ -589,6 +594,8 @@ namespace hwa_lidar
         pcl::PointCloud<pcl::PointXYZI>::Ptr pcloud_ptr(new pcl::PointCloud<pcl::PointXYZI>);
         std::vector<int> index; 
         pcl::removeNaNFromPointCloud(*cloud, *pcloud_ptr, index);
+        if (cloud->empty())
+            return;
         pcl::PointXYZI first_pt = pcloud_ptr->points[0];
 
         ///> 为避免数值过大，降采样前先平移
@@ -616,74 +623,21 @@ namespace hwa_lidar
             filtered->points[i].z = filtered->points[i].z + first_pt.z;
         }
     }
-
-    //void lidar_proc_mapping::ceresOptimize()
-    //{
-    //    int surf_size = lidarMapObs.surfFeature.currSurfPointCloud.size();
-    //    int corner_size = lidarMapObs.cornerFeature.currCornerPointCloud.size();
-    //    CorrespondCornerFeature& cornerf = lidarMapObs.cornerFeature;
-    //    CorrespondSurfFeature& surff = lidarMapObs.surfFeature;
-
-    //    //q_curr_last(x, y, z, w), t_curr_last
-
-    //    Eigen::Quaterniond q_c_w(curr_R_l_w);
-    //    Triple t_c_w = curr_t_l_w;
-    //    double parameters[7] = { q_c_w.x(), q_c_w.y(), q_c_w.z(), q_c_w.w(), t_c_w.x(), t_c_w.y(), t_c_w.z() };
-    //    Eigen::Map<Eigen::Quaterniond> q_w_curr(parameters);
-    //    Eigen::Map<Triple> t_w_curr(parameters + 4);
-
-    //    //build optimize problem
-    //    ceres::LossFunction *loss_function = new ceres::HuberLoss(0.1);
-    //    ceres::LocalParameterization *q_parameterization =
-    //        new ceres::EigenQuaternionParameterization();
-    //    ceres::Problem::Options problem_options;
-
-    //    ceres::Problem problem(problem_options);
-    //    problem.AddParameterBlock(parameters, 4, q_parameterization);
-    //    problem.AddParameterBlock(parameters + 4, 3);
-
-    //    if (corner_size <= 0 || surf_size <= 0)
-    //    {
-    //        cout << "There are some problem in the lidar odometry observation!" << endl;
-    //        return;
-    //    }
-
-    //    for (int i = 0; i < surf_size; i++)
-    //    {
-    //        //最后一个参数，经过雷达畸变矫正后设为1.0
-    //        ceres::CostFunction *cost_function = LidarPlaneNormFactor::Create(surff.currSurfPointCloud[i], surff.norm[i],surff.negative_OA_dot_norm[i]);
-    //        problem.AddResidualBlock(cost_function, loss_function, parameters, parameters + 4);
-    //        //surf_correspondence++;
-    //    }
-
-    //    for (int i = 0; i < corner_size; i++)
-    //    {
-    //        ceres::CostFunction *cost_function = LidarEdgeFactor::Create(cornerf.currCornerPointCloud[i], cornerf.correspondCornerPointCloudA[i], cornerf.correspondCornerPointCloudB[i], 1.0);
-    //        problem.AddResidualBlock(cost_function, loss_function, parameters, parameters + 4);
-    //        //corner_correspondence++;
-    //    }
-
-    //    ceres::Solver::Options options;
-    //    options.linear_solver_type = ceres::DENSE_QR;
-    //    options.max_num_iterations = 4;
-    //    options.minimizer_progress_to_stdout = false;
-    //    options.check_gradients = false;
-    //    options.gradient_check_relative_precision = 1e-4;
-    //    ceres::Solver::Summary summary;
-    //    ceres::Solve(options, &problem, &summary);
-
-    //    //renew the pose of current lidar frame
-    //    /*SO3 curr_R_l_e = last_rot * q_curr_last.toRotationMatrix();
-    //    Triple curr_t_l_e = last_trans + last_rot * t_curr_last;*/
-
-    //}
 }
 
 namespace hwa_lidar {
 
+    void lidar_proc_global_mapping::transformAssociateToMap(const SO3& curr_R_l_e, const Triple& curr_t_l_e)
+    {
+        curr_R_l_w = first_R_l_e.transpose() * curr_R_l_e;
+        curr_t_l_w = first_R_l_e.transpose() * (curr_t_l_e - first_t_l_e);
+    }
+
     void lidar_proc_global_mapping::run()
     {
         isRunning = true;
+        
+        global_map = std::make_shared<CloudType>();
 
         mapping_thread = std::thread(
             &lidar_proc_global_mapping::process,
@@ -705,6 +659,9 @@ namespace hwa_lidar {
         {
             mapping_thread.join();
         }
+
+        savePCDFileBinary("./map/global_map.pcd",
+            0.2);
     }
 
     void lidar_proc_global_mapping::process()
@@ -735,14 +692,45 @@ namespace hwa_lidar {
         }
     }
 
+    CloudPtr lidar_proc_global_mapping::point_management(CloudPtr cloudin) {
+		CloudPtr cloudout(new CloudType());
+        for (int i = 0; i < cloudin->points.size(); i++)
+        {
+            pcl::PointXYZI pointSel = cloudin->points[i];
+
+            int cubeI = int((pointSel.x + 25.0) / 50.0);
+            int cubeJ = int((pointSel.y + 25.0) / 50.0);
+            int cubeK = int((pointSel.z + 25.0) / 50.0);
+
+            if (pointSel.x + 25.0 < 0)
+                cubeI--;
+            if (pointSel.y + 25.0 < 0)
+                cubeJ--;
+            if (pointSel.z + 25.0 < 0)
+                cubeK--;
+
+            if (abs(cubeI) < laserCloudWidth &&
+                abs(cubeJ) < laserCloudHeight &&
+                abs(cubeK) < laserCloudDepth)
+            {
+				cloudout->points.push_back(pointSel);
+            }
+        }
+        return cloudout;
+    }
+
     void lidar_proc_global_mapping::processKeyFrame(
         const KeyFrame& kf)
     {
         CloudPtr dsCloud(new CloudType());
 
-        lidar_proc_mapping::downSample(kf.cloud, dsCloud, 0.2);
+        CloudPtr cloud_in = point_management(kf.cloud);
+
+        lidar_proc_mapping::downSample(cloud_in, dsCloud, 0.2);
 
         CloudPtr worldCloud(new CloudType());
+
+        //transformAssociateToMap(kf.R.matrix(), kf.t);
 
         Eigen::Matrix4d T = Eigen::Matrix4d::Identity();
 
@@ -759,8 +747,60 @@ namespace hwa_lidar {
             std::lock_guard<std::mutex> lock(global_map_mutex);
 
             *global_map += *worldCloud;
+        }
+    }
 
-            lidar_proc_mapping::downSample(global_map, 0.2);
+    void lidar_proc_global_mapping::savePCDFileBinary(
+        const std::string& save_path,
+        const double& leaf_size)
+    {
+        CloudPtr save_cloud(new CloudType());
+
+        {
+            std::lock_guard<std::mutex> lock(global_map_mutex);
+
+            *save_cloud = *global_map;
+        }
+
+        if (save_cloud->empty())
+        {
+            std::cout << "[Global Mapping] Empty global map.\n";
+            return;
+        }
+
+        std::cout << "[Global Mapping] Raw points: "
+            << save_cloud->size() << std::endl;
+
+        lidar_proc_mapping::downSample(
+            save_cloud,
+            leaf_size
+        );
+
+        std::cout << "[Global Mapping] Downsampled points: "
+            << save_cloud->size() << std::endl;
+
+        std::filesystem::path p(save_path);
+
+        if (!p.parent_path().empty())
+        {
+            std::filesystem::create_directories(
+                p.parent_path()
+            );
+        }
+
+        int ret = pcl::io::savePCDFileBinary(
+            save_path,
+            *save_cloud
+        );
+
+        if (ret == 0)
+        {
+            std::cout << "[Global Mapping] Saved map to:\n"
+                << save_path << std::endl;
+        }
+        else
+        {
+            std::cout << "[Global Mapping] Failed to save map.\n";
         }
     }
 }

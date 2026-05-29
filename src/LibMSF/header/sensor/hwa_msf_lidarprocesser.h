@@ -22,6 +22,7 @@ namespace hwa_msf {
     public:
         explicit lidarprocesser(const baseprocesser& B, base_data* data = nullptr);
         explicit lidarprocesser(std::shared_ptr<set_base> gset, std::string site, base_log spdlog = nullptr, base_data* data = nullptr, base_time _beg = FIRST_TIME, base_time _end = LAST_TIME);
+        ~lidarprocesser();
 
         void add_lidarframe(LidarFrame& frame);
         void getAllOdoResidual(Matrix& H, Vector& r, bool use_3d, float ther = 1);

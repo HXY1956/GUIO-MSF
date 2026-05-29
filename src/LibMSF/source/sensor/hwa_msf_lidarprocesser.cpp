@@ -105,11 +105,12 @@ namespace hwa_msf {
         }
 
         if (build_map) {
-            if (lidar_buffer.size() == 1)
+            auto rm_lidar_frame = lidar_buffer.size() == 1 ? lidar_buffer[0] : *(++lidar_buffer.begin());
+            if (lidar_buffer.size() == 1) {
                 _global_map.run();
-
+                _global_map.setReferencePose(rm_lidar_frame.R_l_e, rm_lidar_frame.t_l_e);
+            }
             if (isKeyframe) {
-                auto rm_lidar_frame = *(++lidar_buffer.begin());
                 _global_map.push(dTime(), rm_lidar_frame.R_l_e, rm_lidar_frame.t_l_e, rm_lidar_frame.fullCloud);
             }
         }

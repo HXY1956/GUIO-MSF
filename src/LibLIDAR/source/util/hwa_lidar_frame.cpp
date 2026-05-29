@@ -106,7 +106,7 @@ namespace hwa_lidar
         }
         input.seekg(0, std::ios::beg);
 
-        CloudPtr pointCloudPtrTmp;
+        CloudPtr pointCloudPtrTmp = std::make_shared<CloudType>();
         for (int i = 0; input.good() && !input.eof(); i++)
         {
             pcl::PointXYZI mPoint;
@@ -124,7 +124,7 @@ namespace hwa_lidar
     //read lidar file (format:ascii with header)
     CloudPtr lidar_frame::readPCDData(std::string &in_file)
     {
-        CloudPtr pointCloudPtrTmp;
+        CloudPtr pointCloudPtrTmp = std::make_shared<CloudType>();
         ifstream input;
         input.open(in_file);
         if (!input.good())

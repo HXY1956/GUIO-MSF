@@ -156,7 +156,16 @@ namespace hwa_lidar
         }
         void process();
         void processKeyFrame(const KeyFrame& kf);
-     
+        void savePCDFileBinary(
+            const std::string& save_path,
+            const double& leaf_size);
+        void setReferencePose(const SO3& R_l_w, const Triple& t_l_w) {
+            first_R_l_e = R_l_w;
+            first_t_l_e = t_l_w;
+        }
+        void transformAssociateToMap(const SO3& R_l_w, const Triple& t_l_w);
+        CloudPtr point_management(CloudPtr cloudin);
+
     private:
         bool isRunning = false;
         CloudPtr global_map;
@@ -165,7 +174,13 @@ namespace hwa_lidar
         std::mutex global_map_mutex;
         std::condition_variable keyframe_cv;
         std::thread mapping_thread;
-
+        SO3 first_R_l_e;
+        Triple first_t_l_e;
+        SO3 curr_R_l_w;
+        Triple curr_t_l_w;
+        int laserCloudWidth = 5;
+        int laserCloudHeight = 5;
+        int laserCloudDepth = 2;
     };
 }//end of namespace hwa_lidar
 #endif

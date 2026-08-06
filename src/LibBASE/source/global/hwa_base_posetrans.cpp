@@ -275,10 +275,10 @@ void hwa_base::delrow(Vector& V, int i)
     V.block(i, 0, m - i - 1, 1) = TMP.block(i + 1, 0, m - i - 1, 1);
 }
 
-void hwa_base::move(int& a)
-{
-    a <<= 1;
-}
+//void hwa_base::move(int& a)
+//{
+//    a <<= 1;
+//}
 
 hwa_base::base_quat hwa_base::Qbase2eigen(Eigen::Quaterniond input) {
     base_quat q;

@@ -87,7 +87,8 @@ hwa_ins::ins_scheme::ins_scheme(set_base* set) {
     _imu_inst_rot = dynamic_cast<set_ign*>(set)->imu_inst_rot();
     _imu_inst_trans = dynamic_cast<set_ign*>(set)->imu_inst_trans();
     _imu_scale = dynamic_cast<set_ign*>(set)->imu_scale();
-    delay = dynamic_cast<set_ign*>(set)->delay_t();
+    //delay = dynamic_cast<set_ign*>(set)->delay_t();
+    delay = ts;
     delay_odo = dynamic_cast<set_ign*>(set)->delay_odo();
     max_pdop = dynamic_cast<set_ign*>(set)->max_pdop();
     min_sat = dynamic_cast<set_ign*>(set)->min_sat();

@@ -36,6 +36,7 @@ namespace hwa_msf {
         void removeState(vector<LidarStateIDType>& rm_lidar_state_ids);
         void removeIDandBuffer(vector<LidarStateIDType>& rm_lidar_state_ids);
         void _meas_update(const Matrix& H, const Vector& r, bool isscan);
+		bool checkKeyframe();
         void StateAugmentation();
         int ProcessOneEpoch() override;
         void AddData(base_data* data) override { _lidardata = dynamic_cast<lidar_data*>(data); };
@@ -50,7 +51,6 @@ namespace hwa_msf {
         LidarFrame _lidarframe;                               ///< Point cloud operating at the current time
         LidarFrame _lastframe;                                ///< only used for point cloud distortion 
 		LidarFrame _firstframe;                               ///< only used for provide a reference point
-        LidarFrame _lastMappingframe;                                ///< only used for point cloud distortion 
         std::vector<LidarFrame> lidar_buffer;                 ///< store the information of lidar frames in window
 
         lidar_proc_mapping _lidarmap;                        ///< lidar map
@@ -58,7 +58,7 @@ namespace hwa_msf {
         lidar_proc_odometry _lidarOdo;         
         lidar_proc_global_mapping _global_map;
 
-        bool mIsFirstLidar = false;
+        bool mIsFirstLidar = true;
 
         double keyframe_trans_thresh = 1.0;
         double keyframe_rot_thresh = 10.0 * D2R;

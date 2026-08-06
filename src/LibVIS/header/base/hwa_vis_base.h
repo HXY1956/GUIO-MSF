@@ -35,7 +35,7 @@ namespace hwa_vis
         void PnP(Eigen::Quaterniond& q, Triple& t);
         bool keyframeCheck();
         bool checkStaticMotion();
-        bool addFeatureObservations();
+        virtual bool addFeatureObservations();
         void measurementJacobianEX(
             const CamStateIDType& cam_state_id,
             const FeatureIDType& feature_id,
@@ -55,6 +55,10 @@ namespace hwa_vis
             const CamStateIDType& cam_state_id,
             const FeatureIDType& feature_id,
             Eigen::Matrix<double, 2, 6>& H_x, Eigen::Matrix<double, 2, 3>& H_f, Eigen::Vector2d& r);
+
+        bool featureJacobian(const FeatureIDType& feature_id,
+            const std::vector<CamStateIDType>& cam_state_ids,
+            Matrix& H_x, Vector& r, Matrix& R);
 
         bool featureJacobian(const FeatureIDType& feature_id,
             const std::vector<CamStateIDType>& cam_state_ids,

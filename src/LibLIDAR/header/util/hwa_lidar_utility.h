@@ -5,6 +5,8 @@
 #include "opencv2/opencv.hpp"
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
+#include <pcl/kdtree/kdtree_flann.h>
+#include <pcl/filters/voxel_grid.h>
 #include <ceres/ceres.h>
 #include <ceres/rotation.h>
 #include "hwa_base_eigendef.h"
@@ -13,6 +15,8 @@ using namespace hwa_base;
 using PointType = pcl::PointXYZI;
 using CloudType = pcl::PointCloud<PointType>;
 using CloudPtr = CloudType::Ptr;
+using CloudRGBType = pcl::PointCloud<pcl::PointXYZRGB>;
+using CloudRGBPtr = CloudRGBType::Ptr;
 
 namespace hwa_lidar {
 
@@ -23,9 +27,9 @@ namespace hwa_lidar {
         double time;
         SO3 R;
         Triple t;
-        pcl::PointCloud<pcl::PointXYZI>::Ptr cloud;
+        CloudPtr cloud;
         KeyFrame() {}
-        KeyFrame(double _time, SO3 _R, Triple _t, pcl::PointCloud<pcl::PointXYZI>::Ptr _cloud) : time(_time), R(_R), t(_t), cloud(_cloud) {
+        KeyFrame(double _time, SO3 _R, Triple _t, CloudPtr _cloud) : time(_time), R(_R), t(_t), cloud(_cloud) {
             id = next_id++;
         }
     };
@@ -49,7 +53,7 @@ namespace hwa_lidar
         pcl::PointCloud<pcl::PointXYZI> lidar;  ///< buffer of lidar point cloud
     };
 
-    struct LIDARState
+    struct LidarState
     {
         LidarStateIDType id;                ///< id of lidar state
         double time = 0;                    ///< time when the lidar is recorded
@@ -61,7 +65,7 @@ namespace hwa_lidar
         * @brief Constructor
         * set initial parameter
         */
-        LIDARState() : id(0), time(0),
+        LidarState() : id(0), time(0),
             orientation(Eigen::Quaterniond::Identity()),
             position(Triple::Zero()),
             isKeyFrame(false) {}
@@ -70,7 +74,7 @@ namespace hwa_lidar
         * @brief Constructor
         * set initial parameter by StateID
         */
-        explicit LIDARState(const LidarStateIDType& new_id) : id(new_id), time(0),
+        explicit LidarState(const LidarStateIDType& new_id) : id(new_id), time(0),
             orientation(Eigen::Quaterniond::Identity()),
             position(Triple::Zero()),
             isKeyFrame(false) {}
@@ -222,8 +226,8 @@ namespace hwa_lidar
     * @typedef LidarStateServer
     * @brief store historical lidar information
     */
-    typedef std::map<LidarStateIDType, LIDARState, std::less<int>,
-        Eigen::aligned_allocator<std::pair<const LidarStateIDType, LIDARState>>> LidarStateServer;
+    typedef std::map<LidarStateIDType, LidarState, std::less<int>,
+        Eigen::aligned_allocator<std::pair<const LidarStateIDType, LidarState>>> LidarStateServer;
 
     ///**
     //* @brief transform a vector to skew-symmetric matrix
@@ -275,5 +279,192 @@ namespace hwa_lidar
      * @return vector<std::string>        vector of string after spliting
      */
      std::vector<std::string> split(const std::string &s, const std::string &seperator);
+
+     template<typename PointT = PointType>
+     inline void downSampleChunked(
+         typename pcl::PointCloud<PointT>::Ptr cloud,
+         double leaf_size = 0.2,
+         double chunk_size = 50)
+     {
+         if (cloud->empty())
+             return;
+
+         std::vector<int> index;
+         pcl::removeNaNFromPointCloud(*cloud, *cloud, index);
+
+         if (cloud->empty())
+             return;
+
+         PointT min_pt, max_pt;
+         pcl::getMinMax3D(*cloud, min_pt, max_pt);
+
+         struct GridKey
+         {
+             int x;
+             int y;
+             int z;
+
+             bool operator==(const GridKey& other) const
+             {
+                 return x == other.x &&
+                     y == other.y &&
+                     z == other.z;
+             }
+         };
+
+         struct Hash
+         {
+             size_t operator()(const GridKey& k) const
+             {
+                 return ((size_t)k.x * 73856093) ^
+                     ((size_t)k.y * 19349663) ^
+                     ((size_t)k.z * 83492791);
+             }
+         };
+
+         std::unordered_map<
+             GridKey,
+             typename pcl::PointCloud<PointT>::Ptr,
+             Hash> chunks;
+
+         for (const auto& pt : cloud->points)
+         {
+             GridKey key;
+
+             key.x = static_cast<int>(
+                 std::floor((pt.x - min_pt.x) / chunk_size));
+
+             key.y = static_cast<int>(
+                 std::floor((pt.y - min_pt.y) / chunk_size));
+
+             key.z = static_cast<int>(
+                 std::floor((pt.z - min_pt.z) / chunk_size));
+
+             auto& chunk = chunks[key];
+
+             if (!chunk)
+                 chunk.reset(new pcl::PointCloud<PointT>);
+
+             chunk->push_back(pt);
+         }
+
+         typename pcl::PointCloud<PointT>::Ptr result(
+             new pcl::PointCloud<PointT>);
+
+         pcl::VoxelGrid<PointT> vg;
+
+         for (auto& kv : chunks)
+         {
+             auto& chunk = kv.second;
+
+             if (chunk->empty())
+                 continue;
+
+             typename pcl::PointCloud<PointT>::Ptr filtered(
+                 new pcl::PointCloud<PointT>);
+
+             vg.setInputCloud(chunk);
+             vg.setLeafSize(
+                 leaf_size,
+                 leaf_size,
+                 leaf_size);
+
+             vg.filter(*filtered);
+
+             *result += *filtered;
+         }
+
+         result->width = result->size();
+         result->height = 1;
+         result->is_dense = false;
+
+         *cloud = *result;
+     }
+
+     template<typename PointT = PointType>
+     inline void downSample(typename pcl::PointCloud<PointT>::Ptr cloud, const double& leaf_size)
+     {
+         if (cloud->points.size() == 0)
+             return;
+         typename pcl::PointCloud<PointT>::Ptr filtered(new typename pcl::PointCloud<PointT>);
+         std::vector<int> index;
+         pcl::removeNaNFromPointCloud(*cloud, *cloud, index);
+         if (cloud->empty())
+             return;
+         PointT first_pt = cloud->points[0];
+
+         for (int i = 0; i < cloud->points.size(); i++)
+         {
+             cloud->points[i].x = cloud->points[i].x - first_pt.x;
+             cloud->points[i].y = cloud->points[i].y - first_pt.y;
+             cloud->points[i].z = cloud->points[i].z - first_pt.z;
+         }
+
+         PointT min_pt, max_pt;
+         pcl::getMinMax3D(*cloud, min_pt, max_pt);
+
+         std::cout
+             << "range = "
+             << max_pt.x - min_pt.x << ", "
+             << max_pt.y - min_pt.y << ", "
+             << max_pt.z - min_pt.z
+             << std::endl;
+
+         std::cout
+             << "leaf_size = "
+             << leaf_size
+             << std::endl;
+
+         cloud->is_dense = false;
+         pcl::VoxelGrid<PointT> downer;
+         downer.setInputCloud(cloud);
+         downer.setLeafSize(leaf_size, leaf_size, leaf_size);
+         downer.filter(*filtered);
+         cloud->clear();
+
+         for (int i = 0; i < filtered->points.size(); i++)
+         {
+             filtered->points[i].x = filtered->points[i].x + first_pt.x;
+             filtered->points[i].y = filtered->points[i].y + first_pt.y;
+             filtered->points[i].z = filtered->points[i].z + first_pt.z;
+         }
+
+         *cloud = *filtered;
+     }
+
+     template<typename PointT = PointType>
+     inline void downSample(typename pcl::PointCloud<PointT>::Ptr cloud, typename pcl::PointCloud<PointT>::Ptr filtered, const double& leaf_size)
+     {
+         if (cloud->points.size() == 0)
+             return;
+         typename pcl::PointCloud<PointT>::Ptr pcloud_ptr(new typename pcl::PointCloud<PointT>);
+         std::vector<int> index;
+         pcl::removeNaNFromPointCloud(*cloud, *pcloud_ptr, index);
+         if (pcloud_ptr->empty())
+             return;
+         PointT first_pt = pcloud_ptr->points[0];
+
+         for (int i = 0; i < pcloud_ptr->points.size(); i++)
+         {
+             pcloud_ptr->points[i].x = pcloud_ptr->points[i].x - first_pt.x;
+             pcloud_ptr->points[i].y = pcloud_ptr->points[i].y - first_pt.y;
+             pcloud_ptr->points[i].z = pcloud_ptr->points[i].z - first_pt.z;
+         }
+
+         pcloud_ptr->is_dense = false;
+
+         pcl::VoxelGrid<PointT> downer;
+         downer.setInputCloud(pcloud_ptr);
+         downer.setLeafSize(leaf_size, leaf_size, leaf_size);
+         downer.filter(*filtered);
+         cloud->clear();
+
+         for (int i = 0; i < filtered->points.size(); i++)
+         {
+             filtered->points[i].x = filtered->points[i].x + first_pt.x;
+             filtered->points[i].y = filtered->points[i].y + first_pt.y;
+             filtered->points[i].z = filtered->points[i].z + first_pt.z;
+         }
+     }
 }
 #endif

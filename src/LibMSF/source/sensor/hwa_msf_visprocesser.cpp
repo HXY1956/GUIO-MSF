@@ -42,19 +42,11 @@ namespace hwa_msf {
     bool visprocesser::_time_valid(base_time inst) {
         double dtime;
         double insdtime = inst.sow() + inst.dsec();
-        if(imgdata->load(insdtime, dtime, get_curr_imgpath())) 
+        if (imgdata->load(insdtime, dtime, get_curr_imgpath(), _shm->delay)) {
             TimeStamp = base_time(TimeStamp.gwk(), dtime);
+            return true;
+        }
 
-        if (abs(inst.diff(TimeStamp)) < 1e-3) {
-            time_lock = true;
-            return true;
-        }
-        if (time_lock) {
-            time_lock = false;
-            return false;
-        }
-        if ((abs(inst.diff(TimeStamp)) < _shm->delay && inst >= TimeStamp))
-            return true;
         return false;
     }
 
@@ -312,18 +304,16 @@ namespace hwa_msf {
                     //std::cout << TimeStamp.sod() << " Remove Triangulated Failed!" << std::endl;
                     continue;
                 }
-                else
+
+                if (!feature.initializePosition(cam_states))
                 {
-                    if (!feature.initializePosition(cam_states))
-                    {
-                        invalid_feature_ids.push_back(feature.id);
-                        pointInitialfail++;
-                        //std::cout << TimeStamp.sod() << " Remove Initiallize Failed!" << std::endl;
-                        continue;
-                    }
-                    else
-                        feature.is_initialized_NonKey = false;
+                    invalid_feature_ids.push_back(feature.id);
+                    pointInitialfail++;
+                    //std::cout << TimeStamp.sod() << " Remove Initiallize Failed!" << std::endl;
+                    continue;
                 }
+                else
+                    feature.is_initialized_NonKey = false;
             }
             int observationSize = feature.observations.size();
             if (stereo) jacobian_row_size += 4 * observationSize - 3;
@@ -335,10 +325,11 @@ namespace hwa_msf {
 
         if (processed_feature_ids.size() == 0)
             return;
-        Matrix H_x;
+        Matrix H_x, R;
         Vector r;
         H_x = Matrix::Zero(jacobian_row_size, 6 * cam_states.size() + ex_param_num);
         r = Vector::Zero(jacobian_row_size);
+		R = Matrix::Zero(jacobian_row_size, jacobian_row_size);
         int stack_cntr = 0;
         for (const auto& feature_id : processed_feature_ids)
         {
@@ -351,15 +342,17 @@ namespace hwa_msf {
             }
             Matrix H_xj;
             Vector r_j;
-            if (!featureJacobian(feature.id, cam_state_ids, H_xj, r_j))
+			Matrix R_j;
+            if (!featureJacobian(feature.id, cam_state_ids, H_xj, r_j, R_j))
             {
                 //std::cout << TimeStamp.sod() << " Remove Feature Failed!" << std::endl;
                 continue;
             }
-            if (GatingTest(H_xj, r_j, cam_state_ids.size() - 1))
+            if (GatingTest(H_xj, r_j, R_j, cam_state_ids.size() - 1))
             {
                 H_x.block(stack_cntr, 0, H_xj.rows(), H_xj.cols()) = H_xj;
                 r.segment(stack_cntr, r_j.rows()) = r_j;
+				R.block(stack_cntr, stack_cntr, R_j.rows(), R_j.cols()) = R_j;
                 stack_cntr += H_xj.rows();
             }
             else
@@ -373,7 +366,8 @@ namespace hwa_msf {
         pointUpdate = pointNum - pointInitialfail - pointGatingTestfail;
         H_x.conservativeResize(stack_cntr, H_x.cols());
         r.conservativeResize((Eigen::Index)stack_cntr);
-        meas_update(H_x, r);
+        R.conservativeResize(stack_cntr, stack_cntr);
+        meas_update(H_x, r, R);
 
         for (const auto& feature_id : processed_feature_ids)
         {
@@ -462,8 +456,9 @@ namespace hwa_msf {
             else    jacobian_row_size += 2 * involved_cam_state_ids.size() - 3;
         }
 
-        Matrix H_x;
+        Matrix H_x, R;
         H_x = Matrix::Zero(jacobian_row_size, 6 * cam_states.size() + ex_param_num);
+        R = Matrix::Zero(jacobian_row_size, jacobian_row_size);
         Vector r = Vector::Zero(jacobian_row_size);
 
         int stack_cntr = 0;
@@ -486,8 +481,9 @@ namespace hwa_msf {
 
             Matrix H_xj;
             Vector r_j;
+			Matrix R_j;
 
-            if (!featureJacobian(feature.id, involved_cam_state_ids, H_xj, r_j))
+            if (!featureJacobian(feature.id, involved_cam_state_ids, H_xj, r_j, R_j))
             {
                 for (const auto& cam_id : involved_cam_state_ids)
                     feature.observations.erase(cam_id);
@@ -495,10 +491,11 @@ namespace hwa_msf {
                 continue;
             }
 
-            if (GatingTest(H_xj, r_j, involved_cam_state_ids.size()))
+            if (GatingTest(H_xj, r_j, R_j, r_j.rows()))
             {
                 H_x.block(stack_cntr, 0, H_xj.rows(), H_xj.cols()) = H_xj;
                 r.segment(stack_cntr, r_j.rows()) = r_j;
+                R.block(stack_cntr, stack_cntr, R_j.rows(), R_j.cols()) = R_j;
                 stack_cntr += H_xj.rows();
             }
             else
@@ -511,9 +508,10 @@ namespace hwa_msf {
 
         H_x.conservativeResize(stack_cntr, H_x.cols());
         r.conservativeResize(stack_cntr);
+        R.conservativeResize(stack_cntr, stack_cntr);
         pointUpdate = pointNum - pointInitialfail - pointGatingTestfail;
 
-        meas_update(H_x, r);
+        meas_update(H_x, r, R);
 
         for (const auto& cam_id : rm_cam_state_ids)
         {
@@ -569,6 +567,46 @@ namespace hwa_msf {
         return;
     }
 
+    bool visprocesser::GatingTest(const Matrix& H, const Vector& r, const Matrix& R,const int& dof)
+    {
+        int par_size = param_of_sins->parNumber();
+        int obs_size = H.rows();
+        int N = cam_states.size();
+
+        Matrix All_H = Matrix::Zero(H.rows(), par_size);
+        assert(obs_size == r.rows());
+
+        auto cam_state_iter = cam_states.begin();
+        for (int i = 0; i < cam_states.size();
+            ++i, ++cam_state_iter)
+        {
+            std::string cam_id = camstate_id2str(cam_state_iter->first);
+            int idx = param_of_sins->getParam(_name, hwa_base::par_type::CAM_ATT_X, cam_id);
+
+            All_H.block(0, idx, obs_size, 6) = H.block(0, 6 * i + ex_param_num, obs_size, 6);
+        }
+        if (imgproc->estimate_extrinsic)
+        {
+            int idx = param_of_sins->getParam(_name, hwa_base::par_type::EX_CAM_ATT_X, "");
+            All_H.block(0, idx, obs_size, 6) = H.block(0, 0, obs_size, 6);
+
+        }
+        if (imgproc->estimate_t)
+        {
+            int idx = param_of_sins->getParam(_name, hwa_base::par_type::EXTRINSIC_T, "cam0");
+            All_H.block(0, idx, obs_size, 1) = H.block(0, ex_param_num - 1, obs_size, 1);
+        }
+        Matrix P1 = All_H * _sins->Pk * All_H.transpose();
+        double gamma = r.transpose() * (P1 + R).ldlt().solve(r);
+
+        if (gamma < chi_squared_test_table[dof]) {
+            return true;
+        }
+        else {
+            return false;
+        }
+    }
+
     bool visprocesser::GatingTest(const Matrix& H, const Vector& r, const int& dof)
     {
         int par_size = param_of_sins->parNumber();
@@ -610,13 +648,14 @@ namespace hwa_msf {
         }
     }
 
-    void visprocesser::meas_update(const Matrix& H, const Vector& r)
+    void visprocesser::meas_update(const Matrix& H, const Vector& r, const Matrix& R)
     {
         if (H.rows() == 0 || r.rows() == 0) {
             //std::cout << "Bad Visual" << std::endl;
             return;
         }
 
+        Matrix Pk_Sav = _sins->Pk;
         int par_size = param_of_sins->parNumber();
         int obs_size = H.rows();
 
@@ -662,24 +701,45 @@ namespace hwa_msf {
             Q1 = Q.leftCols(par_size);
             _sins->Hk = Q1.transpose() * All_H;
             _sins->Zk = Q1.transpose() * r;
+            _sins->Rk = Q1.transpose() * R * Q1;
         }
         else
         {
             _sins->Hk = All_H;
             _sins->Zk = r;
+            _sins->Rk = R;
         }
-        
-        _sins->Rk = feature_observation_noise * Matrix::Identity(
-            _sins->Hk.rows(), _sins->Hk.rows());
+        cal_matRank("vis measurement Hk", _sins->Hk);
         Vector delta_x;
         //TicToc timer0;
         _Updater._meas_update(_sins->Hk, _sins->Zk, _sins->Rk, delta_x, _sins->Pk);
-        //std::cerr << " meas_update[0] in RemoveLostFeatures, time cost: " << timer0.toc() << " ms" << std::endl;
 
-        //m_out("_sins->Zk", _sins->Zk);
-        //m_out("_sins->Rk", _sins->Rk);
-        //m_out("_sins->Pk", _sins->Pk);
-        //m_out("_sins->Xk", delta_x);
+        Vector post_residual = _sins->Zk - _sins->Hk * delta_x;
+        cam_state_iter = cam_states.begin();
+        std::string cam_id = camstate_id2str(cam_state_iter->first);
+        int idx = param_of_sins->getParam(_name, hwa_base::par_type::CAM_ATT_X, cam_id);
+
+        saveMatrix(_sins->Hk, "vision_measurement_matrix.csv");
+        saveMatrix(_sins->Pk, "state_matrix.csv");
+        saveMatrix(_sins->Zk, "vision_observation_matrix.csv");
+        saveMatrix(_sins->Rk, "vision_noise_matrix.csv");
+        
+		double pre_residual_norm = _sins->Zk.transpose() * _sins->Rk.inverse() * _sins->Zk;
+        double post_residual_norm = post_residual.transpose() * _sins->Rk.inverse() * post_residual;
+
+        double post_residual_norm1 = delta_x.transpose() * Pk_Sav.inverse() * delta_x;
+
+
+        std::cout << "vision measurement matrix: \n" << std::fixed << std::setprecision(3) << _sins->Hk.block(0, idx, _sins->Hk.rows(), _sins->Hk.cols() - idx) << endl;
+        std::cout << "vision measurement delta_x: " << std::fixed << std::setprecision(3) << delta_x.block(idx, 0, delta_x.rows() - idx, 1).transpose() << endl;
+        std::cout << "vision ovservations: " << std::fixed << std::setprecision(5) << _sins->Zk.transpose() << endl;
+
+        std::cout << "vision state after residual: " << std::fixed << std::setprecision(5) << post_residual_norm1 << std::endl;
+        std::cout << "vision meas pre residual: " << std::fixed << std::setprecision(5) << pre_residual_norm << endl;
+        std::cout << "vision meas after residual: " << std::fixed << std::setprecision(5) << post_residual_norm << endl;
+        std::cout << "vision update effect: " << std::fixed << std::setprecision(2) << post_residual_norm / pre_residual_norm * 100 << "%\n";
+
+        //std::cerr << " meas_update[0] in RemoveLostFeatures, time cost: " << timer0.toc() << " ms" << std::endl;
 
         _sins->Xk += delta_x;
     }

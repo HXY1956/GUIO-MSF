@@ -93,7 +93,7 @@ namespace hwa_ins {
         imu _imu;                                    /// imu data
         base_earth eth;                                /// base_earth info
         Triple att, vn, pos, an;            /// attitude,velocity,position,accelarate
-        Triple pos_store;
+        Triple pos_store, xyz_out;
         Triple fb, fn, wib, web, wnb, vb;    /// special force,angular
         Triple eb, db, Kg, Ka;                /// gyro and acce bias and scale factors
         Triple _tauG, _tauA,

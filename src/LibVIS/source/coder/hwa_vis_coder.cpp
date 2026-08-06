@@ -1,5 +1,6 @@
 #include "hwa_vis_coder.h"
 #include "hwa_vis_data.h"
+#include "hwa_set_vis.h"
 
 using namespace hwa_set;
 using namespace std;
@@ -7,6 +8,7 @@ using namespace std;
 hwa_vis::vis_coder::vis_coder(set_base* s, string version, int sz) : base_coder(s, version, sz),
 _ts(0.1)
 {
+	_ts = 1.0 / dynamic_cast<set_vis*>(s)->freq();
 }
 
 int hwa_vis::vis_coder::decode_head(char* buff, int sz, vector<string>& errmsg)
@@ -43,6 +45,15 @@ int hwa_vis::vis_coder::decode_data(char* buff, int sz, int& cnt, vector<string>
         if (time > 1e11)
             time = time / 1e9;
         ss >> path;
+       
+        double r = std::fmod(time, _ts);
+        const double eps = 5e-3;
+
+        if (r > eps && _ts - r > eps) {
+            base_coder::_consume(tmpsize);
+            continue;
+        }
+
         int idx_jpg = path.find("jpg");
         int idx_png = path.find("png");
         if (idx_jpg == string::npos && idx_png == string::npos) path = path + ".jpg";

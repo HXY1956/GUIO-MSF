@@ -503,6 +503,16 @@ namespace hwa_base {
 
         return true;
     }
+
+    inline void cal_matRank(std::string str,const Matrix& Ho) {
+        Eigen::JacobiSVD<Matrix> svd(
+            Ho,
+            Eigen::ComputeThinU | Eigen::ComputeThinV);
+
+        svd.setThreshold(1e-3);
+
+        std::cout << str <<"; matrix size: [" << Ho.rows() << "," << Ho.cols() << "]; rank = " << svd.rank() << std::endl;
+    }
 }
 
 #endif

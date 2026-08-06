@@ -8,6 +8,8 @@ namespace hwa_msf {
         beg.from_secs(dynamic_cast<set_lidar*>(_gset.get())->start());
         end.from_secs(dynamic_cast<set_lidar*>(_gset.get())->end());
         TimeStamp = beg;
+        keyframe_trans_thresh = dynamic_cast<set_lidar*>(_gset.get())->keyframe_trans_thresh();
+        keyframe_rot_thresh = dynamic_cast<set_lidar*>(_gset.get())->keyframe_rot_thresh();
     };
 
     lidarprocesser::lidarprocesser(std::shared_ptr<set_base> gset, std::string site, base_log spdlog, base_data* data, base_time _beg, base_time _end) : baseprocesser(gset, spdlog, site, hwa_base::LIDAR,_beg, _end),
@@ -16,6 +18,8 @@ namespace hwa_msf {
         beg.from_secs(dynamic_cast<set_lidar*>(_gset.get())->start());
         end.from_secs(dynamic_cast<set_lidar*>(_gset.get())->end());
         TimeStamp = beg;
+        keyframe_trans_thresh = dynamic_cast<set_lidar*>(_gset.get())->keyframe_trans_thresh();
+        keyframe_rot_thresh = dynamic_cast<set_lidar*>(_gset.get())->keyframe_rot_thresh();
     };
 
     lidarprocesser::~lidarprocesser() {
@@ -42,6 +46,9 @@ namespace hwa_msf {
         }
 
         lidar_state_id = lidar_next_id++;
+
+        if(!checkKeyframe()) return 0;
+        
         StateAugmentation();
 
         if (use_pp)
@@ -64,25 +71,6 @@ namespace hwa_msf {
             {
                 ProjOdoResidual(H, r, true);
                 _meas_update(H, r, true);
-            }
-        }
-
-		isKeyframe = false;
-        if (lidar_buffer.size() == 1) {
-            _lastMappingframe = _lidarframe;
-			isKeyframe = true;
-        }
-        if (lidar_buffer.size() > window_size) {
-            auto rm_lidar_frame = *(++lidar_buffer.begin());
-            double trans = (rm_lidar_frame.t_l_e - _lastMappingframe.t_l_e).norm();
-
-            Eigen::Matrix3d dR = _lastMappingframe.R_l_e.transpose() * rm_lidar_frame.R_l_e;
-            double rot = Eigen::AngleAxisd(dR).angle();
-
-            if (trans > keyframe_trans_thresh || rot > keyframe_rot_thresh)
-            {
-                _lastMappingframe = rm_lidar_frame;
-                isKeyframe = true;
             }
         }
 
@@ -109,8 +97,9 @@ namespace hwa_msf {
             if (lidar_buffer.size() == 1) {
                 _global_map.run();
                 _global_map.setReferencePose(rm_lidar_frame.R_l_e, rm_lidar_frame.t_l_e);
+                _global_map.push(dTime(), rm_lidar_frame.R_l_e, rm_lidar_frame.t_l_e, rm_lidar_frame.fullCloud);
             }
-            if (isKeyframe) {
+            if (lidar_buffer.size() > window_size) {
                 _global_map.push(dTime(), rm_lidar_frame.R_l_e, rm_lidar_frame.t_l_e, rm_lidar_frame.fullCloud);
             }
         }
@@ -122,11 +111,8 @@ namespace hwa_msf {
         }
         removeLidar(rm_lidar_state_ids);
 
-        _lastframe = _lidarframe;
-
         return LIDAR_MEAS;
     }
-
 
     bool lidarprocesser::_time_valid(base_time inst)
     {
@@ -141,8 +127,7 @@ namespace hwa_msf {
         return true;
     }
 
-    void lidarprocesser::StateAugmentation()
-    {
+    bool lidarprocesser::checkKeyframe(){
         double run_epoch = TimeStamp.sow() + TimeStamp.dsec();
         double dt = _sins->t - run_epoch;
 
@@ -159,27 +144,60 @@ namespace hwa_msf {
         Triple t_l_e = XYZ + R_n_e * R_i_n * t_l_i;
         Eigen::Matrix3d R_e_l = R_i_l * R_e_i;
 
-        lidar_states[lidar_state_id] = LIDARState(lidar_state_id);
-        LIDARState& lidar_state = lidar_states[lidar_state_id];
-
-        lidar_state.time = run_epoch;
-        lidar_state.orientation = R_e_l.transpose();
-        lidar_state.position = t_l_e;
-
-        auto iter_lidar = --lidar_states.end();
         _lidarframe.id = lidar_state_id;
-        _lidarframe.R_l_e = iter_lidar->second.orientation;
-        _lidarframe.t_l_e = iter_lidar->second.position;
+        _lidarframe.R_l_e = R_e_l.transpose();
+        _lidarframe.t_l_e = t_l_e;
         _lidarframe.empty = false;
 
-        if (use_corrdistort)
-        {
-            _lidarOdo.removeDistortion(_lastframe, _lidarframe);
-        }
+        isKeyframe = false;
         if (mIsFirstLidar) {
             _firstframe = _lidarframe;
+            _lastframe = _lidarframe;
             mIsFirstLidar = false;
+            isKeyframe = true;
+            return true;
         }
+
+        Triple trans_vec = _lidarframe.t_l_e - _lastframe.t_l_e;
+        //std::cout << "cur vector: " << std::fixed << std::setprecision(3) << _lidarframe.t_l_e.transpose() << "\n";
+        //std::cout << "last vector: " << std::fixed << std::setprecision(3) << _lastframe.t_l_e.transpose() << "\n";
+        //std::cout << "trans vector: "<<std::fixed<<std::setprecision(3) << trans_vec.transpose() << "\n";
+        double trans = trans_vec.norm();
+        Eigen::Matrix3d dR = _lastframe.R_l_e.transpose() * _lidarframe.R_l_e;
+        double rot = Eigen::AngleAxisd(dR).angle();
+        if (trans > keyframe_trans_thresh || rot > keyframe_rot_thresh)
+        {
+            _lastframe = _lidarframe;
+            isKeyframe = true;
+        }
+
+        return isKeyframe;
+    }
+
+    void lidarprocesser::StateAugmentation() {
+        double run_epoch = TimeStamp.sow() + TimeStamp.dsec();
+        double dt = _sins->t - run_epoch;
+
+        Triple BLH = _sins->pos - _sins->eth.v2dp(_sins->vn, dt);
+        Triple XYZ = Geod2Cart(BLH, false);
+
+        Triple imu_vel = _sins->vn - _sins->an * dt;//ENU
+        const Eigen::Matrix3d& R_i_l = R_lidar_imu.transpose();
+        const Triple& t_l_i = t_lidar_imu;
+        const Eigen::Matrix3d& R_i_n = base_att_trans::q2mat(_sins->qnb);
+        Eigen::Matrix3d R_n_i = R_i_n.transpose();
+        Eigen::Matrix3d R_n_e = Cen(BLH);
+        Eigen::Matrix3d R_e_i = R_n_i * R_n_e.transpose();
+        Triple t_l_e = XYZ + R_n_e * R_i_n * t_l_i;
+        Eigen::Matrix3d R_e_l = R_i_l * R_e_i;
+
+        lidar_states[lidar_state_id] = LidarState(lidar_state_id);
+        LidarState& lidar_state = lidar_states[lidar_state_id];
+
+        lidar_state.time = run_epoch;
+        lidar_state.orientation = _lidarframe.R_l_e;
+        lidar_state.position = _lidarframe.t_l_e;
+
         if (lidar_buffer.size() < window_size + 1)
         {
             lidar_buffer.push_back(_lidarframe);
@@ -256,7 +274,7 @@ namespace hwa_msf {
         _sins->Pk.block<3, 3>(old_rows, old_cols) += Matrix::Identity(3, 3) * 1e-12;
         _sins->Pk.block<3, 3>(old_rows + 3, old_cols + 3) += Matrix::Identity(3, 3) * 1e-10;
         _sins->Xk.resize(_sins->Pk.rows());
-		_sins->Xk.setZero();
+        _sins->Xk.setZero();
     }
 
     void lidarprocesser::_feed_back()
@@ -368,6 +386,19 @@ namespace hwa_msf {
         _sins->Rk = Matrix::Identity(obs_size, obs_size) * lidar_obs_noise;
         Vector delta_x;
         _Updater._meas_update(_sins->Hk, _sins->Zk, _sins->Rk, delta_x, _sins->Pk);
+
+		Vector post_residual = _sins->Zk - _sins->Hk * delta_x;
+        LidarStateIDType cur_id = (++lidar_states.begin())->first;
+        string _lidarid = to_string(cur_id);
+        int idx = param_of_sins->getParam(_name, par_type::LIDAR_ATT_X, _lidarid);
+
+		//std::cout << "lidar update Px: " << std::fixed << std::setprecision(2) << _sins->Pk.block(idx, idx, _sins->Pk.rows() - idx, _sins->Pk.rows() - idx) << endl;
+        std::cout << "lidar measurement matrix: \n" << std::fixed << std::setprecision(3) << _sins->Hk.block(0, idx, _sins->Hk.rows(), _sins->Hk.cols() - idx) << endl;
+		std::cout << "lidar measurement delta_x: " << std::fixed << std::setprecision(3) << delta_x.block(idx, 0 , delta_x.rows() - idx, 1).transpose() << endl;
+        std::cout << "lidar pre residual: " << std::fixed << std::setprecision(5) << _sins->Zk.transpose() << endl;
+        std::cout << "lidar after residual: " << std::fixed << std::setprecision(5) << post_residual.transpose() << endl;
+        std::cout << "lidar update effect: " <<std::fixed << std::setprecision(2) << post_residual.norm() / _sins->Zk.norm() * 100 << "%\n";
+
 		_sins->Xk += delta_x;
     }
 
@@ -563,7 +594,7 @@ namespace hwa_msf {
             {
                 eft_number++;
             }
-            if (_gatingTest(H_xj, r_j, buffer.size() - 1, scan_observation_noise))
+            if (_gatingTest(H_xj, r_j, r_j.rows(), scan_observation_noise))
             {
                 H_x.block(stack_cntr, 0, H_xj.rows(), H_xj.cols()) = H_xj;
                 r.segment(stack_cntr, r_j.rows()) = r_j;
@@ -609,6 +640,10 @@ namespace hwa_msf {
         // calculate weighted average of the residuals
         double gamma = r.transpose() * (P1 + P2).ldlt().solve(r);
 
+  //      std::cout << "gating test rx: " << std::fixed << std::setprecision(3) << r.transpose() << " < " << chi_squared_test_table[dof] << " ?" << endl;
+  //      std::cout << "gating test Px:\n" << std::fixed << std::setprecision(2) << (P1 + P2).inverse() << "\n";
+		//std::cout << "gating test detail: " << std::fixed << std::setprecision(3) << gamma << " < " << chi_squared_test_table[dof] << " ?" << endl;
+
         if (gamma < chi_squared_test_table[dof]) {
             return true;
         }
@@ -653,10 +688,10 @@ namespace hwa_msf {
             Triple cur_n = cur_phi / cur_phi.norm();
             Triple residual = cur_phi - R_old_cur * oldest_n * (oldest_phi.norm() - t_cur_old.transpose() * oldest_n);
 
-            H_nd_j.block(0, 0, 3, 3) = R_old_cur * (Eigen::Matrix3d::Identity() * (oldest_phi.norm() - t_cur_old.transpose() * oldest_n) - oldest_n * t_cur_old.transpose());
-            H_nd_j.block(0, 3, 3, 1) = R_old_cur * oldest_n;
-            H_phi_j.block(0, 0, 3, 3) = 1.0 / oldest_phi.norm() * (Eigen::Matrix3d::Identity() - oldest_n * oldest_n.transpose());
-            H_phi_j.block(3, 0, 1, 3) = oldest_n.transpose();
+            //H_nd_j.block(0, 0, 3, 3) = R_old_cur * (Eigen::Matrix3d::Identity() * (oldest_phi.norm() - t_cur_old.transpose() * oldest_n) - oldest_n * t_cur_old.transpose());
+            //H_nd_j.block(0, 3, 3, 1) = R_old_cur * oldest_n;
+            //H_phi_j.block(0, 0, 3, 3) = 1.0 / oldest_phi.norm() * (Eigen::Matrix3d::Identity() - oldest_n * oldest_n.transpose());
+            //H_phi_j.block(3, 0, 1, 3) = oldest_n.transpose();
 
             if (lidarproc->estimate_extrinsic)
             {
@@ -675,10 +710,10 @@ namespace hwa_msf {
             else
             {
                 // jacobian on oldest lidar state R_l_e and t_l_e;
-                H_x_j.block(0, 1 * 6, 3, 3) =
+                H_x_j.block(0, 6, 3, 3) =
                     - cur_lidar.R_l_e.transpose() * skew(oldest_lidar.R_l_e * oldest_n * (oldest_phi.norm() - oldest_n.transpose() * t_cur_old))
                     - R_old_cur * oldest_n * oldest_n.transpose() * oldest_lidar.R_l_e.transpose() * skew(cur_lidar.t_l_e - oldest_lidar.t_l_e);
-                H_x_j.block(0, 1 * 6 + 3, 3, 3) =
+                H_x_j.block(0, 6 + 3, 3, 3) =
                     - R_old_cur * oldest_n * oldest_n.transpose() * oldest_lidar.R_l_e.transpose();
                 // jacobian on current lidar state R_l_e and t_l_e;
                 H_x_j.block(0, iter.first * 6, 3, 3) =
@@ -693,11 +728,22 @@ namespace hwa_msf {
             stack_cntr += 3;
         }
 
-        Eigen::JacobiSVD<Matrix> svd_helper(H_phi, Eigen::ComputeFullU | Eigen::ComputeThinV);
-        Matrix A = svd_helper.matrixU().rightCols(jacobian_row_size - 3);
+        //Eigen::JacobiSVD<Matrix> svd_helper(H_phi, Eigen::ComputeFullU | Eigen::ComputeThinV);
+        //Matrix A = svd_helper.matrixU().rightCols(jacobian_row_size - 3);
 
-        H = A.transpose() * H_x;
-        r = A.transpose() * r_j;
+        //std::cout << "before marginalization Hx:\n "<<std::fixed<<std::setprecision(3) << H_x << "\n";
+        //std::cout << "before marginalization Rx:\n " << std::fixed << std::setprecision(3) << r_j.transpose() << "\n";
+
+        //H = A.transpose() * H_x;
+        //r = A.transpose() * r_j;
+
+        //std::cout << "feature matrix:\n " << std::fixed << std::setprecision(3) << H_phi << "\n";
+        //std::cout << "marginalization matrix:\n " << std::fixed << std::setprecision(3) << A.transpose() << "\n";
+        //std::cout << "after marginalization Hx:\n " << std::fixed << std::setprecision(3) << H << "\n";
+        //std::cout << "after marginalization Rx:\n " << std::fixed << std::setprecision(3) << r.transpose() << "\n";
+
+        H = H_x;
+        r = r_j;
 
         return true;
     }
@@ -800,13 +846,6 @@ namespace hwa_msf {
         {
             lidar_buffer[i].R_l_e = lidar_state_iter->second.orientation;
             lidar_buffer[i].t_l_e = lidar_state_iter->second.position;
-        }
-        _lidarframe.R_l_e = (--lidar_states.end())->second.orientation;
-        _lidarframe.t_l_e = (--lidar_states.end())->second.position;
-        if(lidar_states.size() > 1)
-        {
-            _lastframe.R_l_e = (--(--lidar_states.end()))->second.orientation;
-            _lastframe.t_l_e = (--(--lidar_states.end()))->second.position;
         }
 
         if (use_map)

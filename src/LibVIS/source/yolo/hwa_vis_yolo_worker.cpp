@@ -14,7 +14,7 @@ using namespace hwa_vis;
 
 vis_yolo_worker::vis_yolo_worker(std::shared_ptr<hwa_set::set_base> _gset, int _ID, std::shared_ptr<vis_yolo_v8ov> _yolo, QObject* parent)
     : QObject(parent), yolo(_yolo), ID(_ID){
-    detect = dynamic_cast<set_vis*>(_gset.get())->detect();
+    detect = dynamic_cast<set_vis*>(_gset.get())->detect(XMLKEY_YOLO_CIRCLE);
     camskip = dynamic_cast<set_tracker*>(_gset.get())->camskip();
     mindist = dynamic_cast<set_tracker*>(_gset.get())->mindist();
     canny = dynamic_cast<set_tracker*>(_gset.get())->canny();

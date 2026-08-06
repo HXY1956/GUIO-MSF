@@ -9,26 +9,16 @@
 #include "hwa_set_vis.h"
 #include "hwa_base_SharedResource.h"
 #include "hwa_base_eigendef.h"
+#include "hwa_vis_yolo_base.h"
 
 using namespace hwa_base;
 using namespace hwa_set;
 
 namespace hwa_vis {
-    struct Detection {
-        int class_id;
-        std::string classname;
-        float confidence;
-        cv::Rect box;
-    };
-
-    struct DetectBox {
-        float x0, y0, x1, y1;
-    };
-
     class vis_yolo_v8ov {
     public:
         vis_yolo_v8ov() {};
-        vis_yolo_v8ov(std::shared_ptr<hwa_set::set_base> _gset);
+        vis_yolo_v8ov(set_base* _gset, const char* target);
         ~vis_yolo_v8ov() {};
         std::vector<Detection> detect(const cv::Mat& frame);
         void SetCLS(const int _cls) { cls = _cls; }

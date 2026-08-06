@@ -118,6 +118,7 @@ void baseprocesser::_feed_back() {
         _sins->eb = _sins->eb - _sins->Xk.block(9, 0, 3, 1);
         _sins->db = _sins->db - _sins->Xk.block(12, 0, 3, 1);
         _sins->qeb = base_att_trans::m2qua(_sins->Ceb);
+        _sins->xyz_out = _sins->pos_ecef;
     }
 
     if (_Estimator == NORMAL) {
@@ -127,6 +128,7 @@ void baseprocesser::_feed_back() {
         _sins->eb = _sins->eb + _sins->Xk.block(9, 0, 3, 1);
         _sins->db = _sins->db + _sins->Xk.block(12, 0, 3, 1);
         _sins->Ceb = base_att_trans::q2mat(_sins->qeb);
+        _sins->xyz_out = _sins->pos_ecef;
     }
 
     int ilever = param_of_sins->getParam(_name, par_type::EXTRINSIC_CRD_X, "gnss");

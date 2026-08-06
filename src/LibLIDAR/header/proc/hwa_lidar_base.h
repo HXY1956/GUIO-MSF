@@ -98,7 +98,7 @@ namespace hwa_lidar
         int window_size = 0;                ///< size of lidar frames(after state augmentation,don't contain the first frame)
         
         LidarStateServer lidar_states;        ///< store states of lidar
-        LIDARState lidar_extrinsic;         ///< store extrinsic for estimate
+        LidarState lidar_extrinsic;         ///< store extrinsic for estimate
         LidarStateIDType lidar_state_id;    ///< ID of lidar states
         LidarStateIDType lidar_next_id;        ///< ID of next lidar
 

@@ -375,6 +375,7 @@ namespace hwa_lidar
                     if (cloudNeighborPicked[ind] == 0 &&
                         cloudCurvature[ind] > 0.1)
                     {
+                        if (cloudCurvature[ind] > 1e5) continue;
                         largestPickedNum++;
                         if (largestPickedNum <= 2)
                         {
@@ -434,7 +435,7 @@ namespace hwa_lidar
                         _surfacePointsFlat->push_back(laserCloud->points[ind]);
 
                         smallestPickedNum++;
-                        if (smallestPickedNum >= 4)
+                        if (smallestPickedNum >= 8)
                         {
                             break;
                         }
@@ -476,13 +477,11 @@ namespace hwa_lidar
                 }
             }
 
-            pcl::PointCloud<pcl::PointXYZI> surfPointsLessFlatScanDS;
             pcl::VoxelGrid<pcl::PointXYZI> downSizeFilter;
-            downSizeFilter.setInputCloud(surfacePointsLessFlatScan);
-            downSizeFilter.setLeafSize(0.2, 0.2, 0.2);
-            downSizeFilter.filter(surfPointsLessFlatScanDS);
 
-            *_surfacePointsLessFlat += surfPointsLessFlatScanDS;
+            downSampleChunked<pcl::PointXYZI>(surfacePointsLessFlatScan, 0.1, 20.0);
+
+            *_surfacePointsLessFlat += *surfacePointsLessFlatScan;
         }
     }
 

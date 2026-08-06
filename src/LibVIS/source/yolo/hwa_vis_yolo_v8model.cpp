@@ -3,21 +3,21 @@
 
 using namespace hwa_vis;
 
-vis_yolo_v8ov::vis_yolo_v8ov(std::shared_ptr<hwa_set::set_base> _gset)
+vis_yolo_v8ov::vis_yolo_v8ov(hwa_set::set_base* _gset, const char* target)
 {
     try {
-        model_path = dynamic_cast<hwa_set::set_vis*>(_gset.get())->modelpath();
-        input_size = cv::Size(dynamic_cast<hwa_set::set_vis*>(_gset.get())->inputsize().first, dynamic_cast<hwa_set::set_vis*>(_gset.get())->inputsize().second);
-        conf_th_ = dynamic_cast<hwa_set::set_vis*>(_gset.get())->conf();
-        nms_th_ = dynamic_cast<hwa_set::set_vis*>(_gset.get())->nms();
-        num_pred = dynamic_cast<hwa_set::set_vis*>(_gset.get())->numpred();
-        cls = dynamic_cast<hwa_set::set_vis*>(_gset.get())->classnumber();
-        clsname = dynamic_cast<hwa_set::set_vis*>(_gset.get())->clsname();
+        model_path = dynamic_cast<hwa_set::set_vis*>(_gset)->modelpath(target);
+        input_size = cv::Size(dynamic_cast<hwa_set::set_vis*>(_gset)->inputsize(target).first, dynamic_cast<hwa_set::set_vis*>(_gset)->inputsize(target).second);
+        conf_th_ = dynamic_cast<hwa_set::set_vis*>(_gset)->conf(target);
+        nms_th_ = dynamic_cast<hwa_set::set_vis*>(_gset)->nms(target);
+        num_pred = dynamic_cast<hwa_set::set_vis*>(_gset)->numpred(target);
+        cls = dynamic_cast<hwa_set::set_vis*>(_gset)->classnumber(target);
+        clsname = dynamic_cast<hwa_set::set_vis*>(_gset)->clsname(target);
         compiled_ = core_.compile_model(model_path, "CPU");
         req_ = compiled_.create_infer_request();
     }
     catch (const ov::Exception& e) {
-        std::cerr << "OpenVINO Exception: " << e.what() << std::endl;
+        std::cout << "OpenVINO Exception: " << e.what() << std::endl;
     }
 }
 
@@ -31,8 +31,16 @@ std::vector<Detection> vis_yolo_v8ov::detect(const cv::Mat& frame) {
     cv::Mat blog;
     preprocess(frame, blog);
     ov::Tensor input_tensor = ov::Tensor(ov::element::f32, { 1, 3, 640, 640 }, blog.data);
-    req_.set_input_tensor(input_tensor);
-    req_.infer();
+
+    try {
+        req_.set_input_tensor(input_tensor);
+        req_.infer();
+    }
+    catch (const ov::Exception& e)
+    {
+        std::cout << e.what() << std::endl;
+    }
+
     const float* raw = req_.get_output_tensor().data<const float>();
     auto shape = req_.get_output_tensor().get_shape();
     std::vector<Detection> dets;

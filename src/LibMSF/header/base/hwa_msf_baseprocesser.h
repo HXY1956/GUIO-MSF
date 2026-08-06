@@ -27,6 +27,25 @@ namespace hwa_msf {
         double _Cov_MeasZIHR, _Cov_MeasOdo, _Cov_MeasYaw;
     };
 
+    inline void saveMatrix(const Matrix& M,
+        const std::string& filename)
+    {
+        std::ofstream file(filename);
+
+        for (int i = 0; i < M.rows(); i++)
+        {
+            for (int j = 0; j < M.cols(); j++)
+            {
+                file << M(i, j);
+
+                if (j != M.cols() - 1)
+                    file << ",";
+            }
+
+            file << "\n";
+        }
+    }
+
     class baseprocesser {
     public:
         baseprocesser() {};
@@ -85,7 +104,7 @@ namespace hwa_msf {
         };
         Matrix _getPx() {
             return _sins->Pk;
-		}   
+		}
 
     protected:
         std::shared_ptr<set_base> _gset;

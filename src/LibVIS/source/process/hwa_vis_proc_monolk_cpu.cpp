@@ -23,6 +23,8 @@ PointCloud vis_mono_lk_cpu::ProcessBatch()
     _img_msg.img0 = make_shared<cv::Mat>(_img0);
     cur_img = *(_img_msg.img0);
 
+    curr_img_msg = _img_msg;
+
     if (!IsInitialized)
     {
         Initialize();
@@ -61,17 +63,24 @@ PointCloud vis_mono_lk_cpu::ProcessBatch()
     for (auto& n : track_cnt)
         n++;
 
-
     addnewFeatures();
-
+    pruneGridFeatures();
     drawFeatures();
+    publish();
 
     prev_img = cur_img;
     prev_pts = cur_pts;
     prev_time = cur_time;
     prev_ids = cur_ids;
+	prev_img_msg = curr_img_msg;
+    prev_features_ptr = curr_features_ptr;
+    curr_features_ptr.reset(new GridFeatures());
+    for (int code = 0; code < grid_row * grid_col; ++code)
+    {
+        (*curr_features_ptr)[code] = vector<FeaturePoint>(0);
+    }
 
-    publish();
+
 
     return _pointCloud;
 }
@@ -170,13 +179,55 @@ void vis_mono_lk_cpu::addnewFeatures()
     else
         n_pts.clear();
 
+    static int grid_height = cur_img.rows / grid_row;
+    static int grid_width = cur_img.cols / grid_col;
 
-    for (auto& p : n_pts)
+    GridFeatures grid_new_features;
+    for (int code = 0; code < grid_row * grid_col; ++code)
+        grid_new_features[code] = vector<FeaturePoint>();
+
+    for (int i = 0; i < n_pts.size(); ++i)
     {
-        cur_pts.push_back(p);
-        cur_ids.push_back(n_id++);
-        track_cnt.push_back(1);
+        // 计算当前特征点所属的网格单元
+        int row = static_cast<int>(n_pts[i].y / grid_height);
+        int col = static_cast<int>(n_pts[i].x / grid_width);
+
+        // 计算网格的编码
+        int code = row * grid_col + col;
+
+        // 将特征点加入到网格中
+        grid_new_features[code].push_back(FeaturePoint());
+        FeaturePoint& grid_new_feature = grid_new_features[code].back();
+
+        // 更新新特征点的属性
+        grid_new_feature.cam0_point = n_pts[i];
+        cv::Point2f vel = (n_pts[i] - n_pts[i]) /
+            (curr_img_msg.t - prev_img_msg.t);
+        grid_new_feature.velocity[0] = 0.0;
+        grid_new_feature.velocity[1] = 0.0;
     }
+
+    for (int code = 0; code < grid_row * grid_col; ++code)
+    {
+        vector<FeaturePoint>& features_this_grid = (*curr_features_ptr)[code];
+        vector<FeaturePoint>& new_features_this_grid = grid_new_features[code];
+
+        if (features_this_grid.size() >= grid_min_feature_num)
+            continue;
+
+        int vacancy_num = grid_min_feature_num - features_this_grid.size();
+        for (int k = 0; k < vacancy_num && k < new_features_this_grid.size(); ++k)
+        {
+            features_this_grid.push_back(new_features_this_grid[k]);
+            features_this_grid.back().id = n_id++;;
+            features_this_grid.back().lifetime = 1;
+
+            cur_pts.push_back(new_features_this_grid[k].cam0_point);
+            cur_ids.push_back(features_this_grid.back().id);
+            track_cnt.push_back(1);
+        }
+    }
+
     //printf("feature cnt after add %d\n", (int)cur_ids.size());
 }
 void vis_mono_lk_cpu::rejectWithF()
@@ -342,6 +393,27 @@ void vis_mono_lk_cpu::predictFeatureTracking(
     return;
 }
 
+void vis_mono_lk_cpu::pruneGridFeatures()
+{
+    // 遍历当前存储的特征点网格
+    for (auto& item : *curr_features_ptr)
+    {
+        auto& grid_features = item.second;
+
+        // 如果当前网格中的特征点数小于等于最大允许数量，则无需裁剪
+        if (grid_features.size() <= grid_max_feature_num)
+            continue;
+
+        // 按特征点的生命周期（lifetime）进行排序，生命周期长的排在前面
+        std::sort(grid_features.begin(), grid_features.end(),
+            &vis_mono_lk_cpu::featureCompareByLifetime);
+
+        // 仅保留最长生命周期的 grid_max_feature_num 个特征点
+        grid_features.erase(grid_features.begin() + grid_max_feature_num, grid_features.end());
+    }
+    return;
+}
+
 void vis_mono_lk_cpu::trackFeatures()
 {
     Matx33f cam0_R_p_c;
@@ -404,6 +476,30 @@ void vis_mono_lk_cpu::trackFeatures()
     after_twopoint_ransac = cur_pts.size();
     //cout << "after_twopoint_tracking:" << after_twopoint_ransac << endl;
 
+    static int grid_height = cur_img.rows / grid_row;
+    static int grid_width = cur_img.cols / grid_col;
+
+    for (int i = 0; i < cur_pts.size(); ++i)
+    {
+        // 计算当前特征点所属的网格单元
+        int row = static_cast<int>(cur_pts[i].y / grid_height);
+        int col = static_cast<int>(cur_pts[i].x / grid_width);
+
+        // 计算网格的编码
+        int code = row * grid_col + col;
+
+        // 将特征点加入到网格中
+        (*curr_features_ptr)[code].push_back(FeaturePoint());
+        FeaturePoint& grid_new_feature = (*curr_features_ptr)[code].back();
+
+        // 更新新特征点的属性
+        grid_new_feature.id = cur_ids[i];
+        grid_new_feature.cam0_point = cur_pts[i];
+        cv::Point2f vel = (cur_pts[i] - prev_pts[i]) /
+            (curr_img_msg.t - prev_img_msg.t);
+        grid_new_feature.velocity[0] = vel.x;
+        grid_new_feature.velocity[1] = vel.y;
+    }
 }
 
 void vis_mono_lk_cpu::rescalePoints(
@@ -759,23 +855,33 @@ void vis_mono_lk_cpu::drawFeatures()
 
 void vis_mono_lk_cpu::publish()
 {
-    vector<cv::Point2f> cur_un_pts;
-    undistortPoints(
-        cur_pts, _cam0_intrinsics, _cam0_distortion_model,
-        _cam0_distortion_coeffs, cur_un_pts);
-
+    //sensor_msgs::FeaturePoint feature_msg;
     _pointCloud.features.clear();
     FeaturePoint feature_msg;
+    //pointCloud = sensor_msgs::PointCloud();
+    _pointCloud.time = curr_img_msg.t;
 
-    _pointCloud.time = cur_time;
+    vector<long long int> curr_ids(0);
+    vector<Point2f> curr_cam0_points(0);
 
-    assert(cur_ids.size() == cur_pts.size());
-    assert(cur_ids.size() == cur_un_pts.size());
-
-    for (int i = 0; i < cur_ids.size(); ++i)
+    for (const auto& grid_features : (*curr_features_ptr))
     {
-        feature_msg.id = cur_ids[i];
-        feature_msg.cam0_point = cur_un_pts[i];
+        for (const auto& feature : grid_features.second)
+        {
+            curr_ids.push_back(feature.id);
+            curr_cam0_points.push_back(feature.cam0_point);
+        }
+    }
+    vector<Point2f> curr_cam0_points_undistorted(0);
+
+    undistortPoints(
+        curr_cam0_points, _cam0_intrinsics, _cam0_distortion_model,
+        _cam0_distortion_coeffs, curr_cam0_points_undistorted);
+
+    for (int i = 0; i < curr_ids.size(); ++i)
+    {
+        feature_msg.id = curr_ids[i];
+        feature_msg.cam0_point = curr_cam0_points_undistorted[i];
         _pointCloud.features.push_back(feature_msg);
     }
     return;

@@ -322,7 +322,7 @@ namespace hwa_qt {
         int nRet = MV_CC_EnumDevices(MV_GIGE_DEVICE | MV_USB_DEVICE, &stDeviceList);
         csize = stDeviceList.nDeviceNum;
         for (int i = 0; i < csize; ++i) {
-            yolo[i] = std::make_shared<vis_yolo_v8ov>(gset);
+            yolo[i] = std::make_shared<vis_yolo_v8ov>(gset.get(), XMLKEY_YOLO_CIRCLE);
             vwmutex_[i] = std::make_shared<std::mutex>();
             vw_[i] = std::make_shared<cv::VideoWriter>();
             labelVideo_[i] = std::make_shared<QLabel>();

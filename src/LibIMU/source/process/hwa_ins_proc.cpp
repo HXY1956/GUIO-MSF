@@ -196,8 +196,8 @@ void ins_obj::Update(const std::map<int, std::vector<Triple>>& _wm_mimu, const s
     pos = pos + eth.v2dp(vn + vn1, nts_2);    vn = vn1;
     qnb = base_att_trans::rv2q(-eth.wnin * nts) * qnb * base_att_trans::rv2q(_imu.phim);
     Cnb = base_att_trans::q2mat(qnb); att = base_att_trans::m2att(Cnb); Cbn = Cnb.transpose(); vb = Cbn * vn;
-    eth.Update(pos, vn); pos_ecef = Geod2Cart(pos, false); 
-    std::cout<<t << " att: " << att.transpose() << "; Vn: " << vn.transpose() << " POS: " << std::fixed << std::setprecision(6) << pos_ecef.transpose() << "\n";
+    eth.Update(pos, vn); xyz_out = pos_ecef = Geod2Cart(pos, false); 
+    //std::cout<<t << " att: " << att.transpose() << "; Vn: " << vn.transpose() << " POS: " << std::fixed << std::setprecision(6) << pos_ecef.transpose() << "\n";
     Ceb = eth.Cen * Cnb; Cbe = Ceb.transpose(); qeb = base_att_trans::m2qua(Ceb); ve = eth.Cen * vn; ae = eth.Cen * an;
     pure_ins_time += nts; qbe = base_att_trans::m2qua(Cbe);
 
@@ -244,7 +244,7 @@ void ins_obj::Update(const std::vector<Triple>& wm, const std::vector<Triple>& v
     pos = pos + eth.v2dp(vn + vn1, nts_2);    vn = vn1;
     qnb = hwa_base::base_att_trans::rv2q(-eth.wnin * nts) * qnb * hwa_base::base_att_trans::rv2q(_imu.phim);
     Cnb = hwa_base::base_att_trans::q2mat(qnb); att = hwa_base::base_att_trans::m2att(Cnb); Cbn = Cnb.transpose(); vb = Cbn * vn;
-    eth.Update(pos, vn); pos_ecef = Geod2Cart(pos, false);
+    eth.Update(pos, vn); xyz_out = pos_ecef = Geod2Cart(pos, false);
     Ceb = eth.Cen * Cnb; Cbe = Ceb.transpose(); qeb = hwa_base::base_att_trans::m2qua(Ceb); ve = eth.Cen * vn; ae = eth.Cen * an;
     pure_ins_time += nts; qbe = hwa_base::base_att_trans::m2qua(Cbe);
 
@@ -447,9 +447,9 @@ void ins_obj::prt_sins(std::ostringstream& os)
     Triple eb1 = eb / glv.deg * glv.hur;
     Triple db1 = db / glv.mg;
     // t_gbase_quat base_quat1 = hwa_base::base_att_trans::a2qua(hwa_base::base_att_trans::m2att(hwa_base::Cen(pos)*hwa_base::base_att_trans::a2mat(att)));
-    Triple Car_pos = Geod2Cart(pos, false);
-    Triple Geo_pos = Triple(pos(0) / glv.deg, pos(1) / glv.deg, pos(2));
-    Triple Ve = hwa_base::Cen(pos) * (vn);
+    Triple Car_pos = xyz_out;
+    Triple Geo_pos = Cart2Geod(xyz_out, true);
+    Triple Ve = hwa_base::Cen(Geo_pos) * (vn);
     // Triple Vb = Cbn * vn;
 
     Triple pos_out, vel_out, att_out;
@@ -457,30 +457,32 @@ void ins_obj::prt_sins(std::ostringstream& os)
     switch (_order)
     {
         /// the att_out is positive if defination is from north to west[-Pi,Pi]
-    case XYZ_XYZ_PRY_NW:
+    case XYZ_XYZ_PRY_NW: {
         pos_out = Car_pos;
         vel_out = Ve;
         att_out = att1;
         att_out(2) = -att_out(2);
         break;
+    }
 
         /// the att_out is positive if defination is from north to west[-Pi,Pi]
-    case BLH_ENU_PRY_NW:
+    case BLH_ENU_PRY_NW: {
         pos_out = Geo_pos;
         vel_out = vn;
         att_out = att1;
         att_out(2) = -att_out(2);
         break;
-
+    }
         /// the att_out is positive if defination is from north to west[-Pi,Pi]
         /// HOLO format is latitude,longitude,altitude,Roll,Pitch,Yaw,Ve,Vn,Vu
-    case HOLO_ODO:
+    case HOLO_ODO: {
         pos_out = Triple(Geo_pos(0), Geo_pos(1), Geo_pos(2));
         // exchange vel_out and att_out for HOLO format
         vel_out = att1;
         att_out = vn;
         vel_out(2) = -vel_out(2);
         break;
+    }
 
     default:
         break;

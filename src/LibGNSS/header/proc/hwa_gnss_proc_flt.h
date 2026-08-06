@@ -217,6 +217,8 @@ namespace hwa_gnss
         /** @brief std::set/get amb */
         bool amb() { return _amb; }
 
+        void prtDetail();
+
     protected:
         Vector _dx;    ///< dx
         Vector _stdx;  ///< stdx

@@ -22,6 +22,34 @@ int hwa_vis::vis_data::add_IMG(const double& t, const string& img0_path, const s
     return 0;
 }
 
+bool hwa_vis::vis_data::load(double& imu_t, double& img_t, IMG_PATH& img_path, const double& imu_ts)
+{
+    auto iter = _vecimg.begin();
+    auto iter_save = _vecimg.end();
+
+    for (iter = _vecimg.begin(); iter != _vecimg.end(); iter++) {
+
+        if (std::abs(iter->t - imu_t) <= imu_ts / 2) {
+            img_path = *iter;
+            img_t = iter->t;
+            _vecimg.erase(_vecimg.begin(), iter + 1);
+            return true;
+        }
+
+        if (imu_t > iter->t + imu_ts / 2)
+            iter_save = iter;
+
+        if (iter->t - imu_t > imu_ts / 2)
+            break;
+    }
+
+    if(iter_save != _vecimg.end()) {
+        _vecimg.erase(_vecimg.begin(), iter_save + 1);
+    }
+
+    return false;
+}
+
 bool hwa_vis::vis_data::load(double& imu_t, double& img_t, IMG_PATH& img_path)
 {
     auto iter = _vecimg.begin();

@@ -1384,9 +1384,9 @@ std::vector<int> hwa_set::set_vis::camera_list() {
     return list;
 }
 
-bool hwa_set::set_vis::detect()
+bool hwa_set::set_vis::detect(const char* _class_name)
 {
-    std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_VIS).child(XMLKEY_YOLO).child_value("detect");
+    std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_VIS).child(XMLKEY_YOLO).child(_class_name).child_value("detect");
     str_erase(tmp);
     bool res = false;
     if (tmp != "")
@@ -1394,16 +1394,16 @@ bool hwa_set::set_vis::detect()
     return res;
 }
 
-std::string hwa_set::set_vis::modelpath()
+std::string hwa_set::set_vis::modelpath(const char* _class_name)
 {
-    std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_VIS).child(XMLKEY_YOLO).child_value("modelpath");
+    std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_VIS).child(XMLKEY_YOLO).child(_class_name).child_value("model_path");
     str_erase(tmp);
     return tmp;
 }
 
-std::pair<int, int> hwa_set::set_vis::inputsize()
+std::pair<int, int> hwa_set::set_vis::inputsize(const char* _class_name)
 {
-    std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_VIS).child(XMLKEY_YOLO).child_value("inputsize");
+    std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_VIS).child(XMLKEY_YOLO).child(_class_name).child_value("inputsize");
 
     for (int i = 0; i < tmp.size(); i++)
     {
@@ -1419,9 +1419,9 @@ std::pair<int, int> hwa_set::set_vis::inputsize()
     return res;
 }
 
-std::vector<std::string> hwa_set::set_vis::clsname()
+std::vector<std::string> hwa_set::set_vis::clsname(const char* _class_name)
 {
-    std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_VIS).child(XMLKEY_YOLO).child_value("clsname");
+    std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_VIS).child(XMLKEY_YOLO).child(_class_name).child_value("clsname");
 
     for (int i = 0; i < tmp.size(); i++)
     {
@@ -1436,9 +1436,9 @@ std::vector<std::string> hwa_set::set_vis::clsname()
     return list;
 }
 
-float hwa_set::set_vis::conf()
+float hwa_set::set_vis::conf(const char* _class_name)
 {
-    std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_VIS).child(XMLKEY_YOLO).child_value("conf");
+    std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_VIS).child(XMLKEY_YOLO).child(_class_name).child_value("conf");
     str_erase(tmp);
     float res = 0.0f;
     if (tmp != "")
@@ -1446,9 +1446,9 @@ float hwa_set::set_vis::conf()
     return res;
 }
 
-float hwa_set::set_vis::nms()
+float hwa_set::set_vis::nms(const char* _class_name)
 {
-    std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_VIS).child(XMLKEY_YOLO).child_value("nms");
+    std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_VIS).child(XMLKEY_YOLO).child(_class_name).child_value("nms");
     str_erase(tmp);
     float res = 0.0f;
     if (tmp != "")
@@ -1456,9 +1456,9 @@ float hwa_set::set_vis::nms()
     return res;
 }
 
-int hwa_set::set_vis::classnumber()
+int hwa_set::set_vis::classnumber(const char* _class_name)
 {
-    std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_VIS).child(XMLKEY_YOLO).child_value("cls");
+    std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_VIS).child(XMLKEY_YOLO).child(_class_name).child_value("cls");
     str_erase(tmp);
     int res = 0;
     if (tmp != "")
@@ -1466,9 +1466,9 @@ int hwa_set::set_vis::classnumber()
     return res;
 }
 
-int hwa_set::set_vis::numpred()
+int hwa_set::set_vis::numpred(const char* _class_name)
 {
-    std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_VIS).child(XMLKEY_YOLO).child_value("numpred");
+    std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_VIS).child(XMLKEY_YOLO).child(_class_name).child_value("numpred");
     str_erase(tmp);
     int res = 0;
     if (tmp != "")

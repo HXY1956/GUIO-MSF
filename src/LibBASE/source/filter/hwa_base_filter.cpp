@@ -55,6 +55,7 @@ int hwa_base::base_updater::_meas_update(Matrix& Hk, Vector& Zk, Matrix& Rk, Vec
         break;
     }
     curr_iter++;
+
     return res;
 }
 

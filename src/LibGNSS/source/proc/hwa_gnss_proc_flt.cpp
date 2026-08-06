@@ -110,6 +110,24 @@ namespace hwa_gnss
         _vtpv = xx;
     }
 
+    void gnss_proc_flt::prtDetail()
+    {
+        Eigen::IOFormat fmt(
+            6,                  // precision 小数位数
+            0,                  // 不对齐
+            ", ",               // 列之间分隔
+            "\n",               // 行之间换行
+            "[",                // 开始符号
+            "]"                 // 结束符号
+        );
+        std::cout << "========== A ==========" << std::endl;
+        std::cout << _A.format(fmt) << std::endl;
+        std::cout << "========== P ==========" << std::endl;
+        std::cout << _P.matrixR().format(fmt) << std::endl;
+        std::cout << "========== l ==========" << std::endl;
+        std::cout << _l.format(fmt) << std::endl;
+    }
+
     Vector gnss_proc_flt::stdx()
     {
         _stdx.resize(_Qx.rows());

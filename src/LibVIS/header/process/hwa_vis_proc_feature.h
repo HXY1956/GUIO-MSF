@@ -11,6 +11,17 @@ using namespace hwa_set;
 
 namespace hwa_vis
 {
+    class feature_per_frame {
+    public:
+        feature_per_frame() {
+            cur_td = 0;
+        }
+    public:
+		Eigen::Vector4d position;        ///< store the observation of the feature in the image frame
+		Eigen::Vector2d velocity; 		  ///< store the velocity of the feature in the image frame
+        double cur_td;
+    };
+
     class vis_feature
     {
     public:
@@ -22,7 +33,7 @@ namespace hwa_vis
 
         bool checkMotion(const CamStateServer& cam_states) const;
 
-        void generateInitialGuess(
+        bool generateInitialGuess(
             const SE3& T_c1_c2, const Eigen::Vector2d& z1,
             const Eigen::Vector2d& z2, Triple& p) const;
 
@@ -45,9 +56,9 @@ namespace hwa_vis
         }
      
     public:
-        std::map<CamStateIDType, Eigen::Vector4d, std::less<CamStateIDType>,
+        std::map<CamStateIDType, feature_per_frame, std::less<CamStateIDType>,
             Eigen::aligned_allocator<
-            std::pair<const CamStateIDType, Eigen::Vector4d> > > observations;        ///< store all the observations of the feature 
+            std::pair<const CamStateIDType, feature_per_frame> > > observations;        ///< store all the observations of the feature 
 
         FeatureIDType id;                ///< cur feature id
         Triple position;        ///< 3d postion of the feature in  world frame.
@@ -56,13 +67,14 @@ namespace hwa_vis
         bool is_KeyFrame;                ///< A indicator to show if feature is generated on the keyframe
         bool is_initialized_NonKey;     ///< A indicator to show if feature is initialized by nonkeyframe
         bool isLost = false;            ///< A indicator to show if feature track lost
+        double inv_depth = -1;
         
-        double translation_threshold=0.2;            ///< transformation matrix threshold
-        double huber_epsilon=0.01;                    ///< kernel function
-        double estimation_precision=0.0000005;            ///< threshold of whether the update quantity is iterative
-        double initial_damping=0.001;                ///< initial lambda of Levenberg-Marquart
-        int outler_loop_max_iteration=10;        ///< iterations
-        int inner_loop_max_iteration=10;            ///< iterations of depth
+        static double translation_threshold;            ///< transformation matrix threshold
+        static double huber_epsilon;                    ///< kernel function
+        static double estimation_precision;            ///< threshold of whether the update quantity is iterative
+        static double initial_damping;                ///< initial lambda of Levenberg-Marquart
+        static int outler_loop_max_iteration;        ///< iterations
+        static int inner_loop_max_iteration;            ///< iterations of depth
         static SE3 T_cam0_cam1;            ///< transformation matrix between cam0 and cam1
         bool stereo;                            ///< stereo or num
 

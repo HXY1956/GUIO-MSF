@@ -373,7 +373,7 @@ namespace hwa_gnss
         }
 
         // 若开启固定功能且为NL模式，执行LAMBDA搜索
-        if (_fix_mode != FIX_MODE::NO && mode == "NL") {
+        if (_fix_mode != FIX_MODE::NO /* && mode == "NL" */ ) {
             if (!_ambSolve(&amb_cmn, fixed_amb, mode)) return -1;
         }
 
@@ -1015,8 +1015,8 @@ namespace hwa_gnss
                 if (_pdC) { delete _pdC; _pdC = nullptr; }
 
                 // 分配新内存，留冗余空间防越界
-                _pdE = new double[iMaxamb_ow * (iMaxamb_for_check + 100)];
-                _pdC = new double[iMaxamb_for_check + 100];
+                _pdE = new double[iMaxamb_ow * (iMaxamb_for_check + 1 + 100)];
+                _pdC = new double[iMaxamb_for_check + 1 + 100];
                 if (iMaxamb_ow == 0 || iMaxamb_for_check == 0)
                     throw std::string("***ERROR: memory allocatation for e&c ");
 
@@ -1033,9 +1033,9 @@ namespace hwa_gnss
             for (i = 0; i < *iNdef; i++) {
                 _pdC[i] = 0.0;
                 for (j = 0; j < iN_oneway; j++) {
-                    if (arriIpt2ow[j] > iNdim_ow)
+                    if (arriIpt2ow[j] < 0 || arriIpt2ow[j] >= iNdim_ow)
                         throw std::string("***ERROR: base element beyond the allocated memory ");
-                    _pdC[i] += _pdE[(arriIpt2ow[j] - 1) * (iNdim_for_check + 1) + i] * dOper[j];
+                    _pdC[i] += _pdE[(arriIpt2ow[j]) * (iNdim_for_check + 1) + i] * dOper[j];
                 }
                 dC_dot += _pdC[i] * _pdC[i];
             }
@@ -1052,7 +1052,7 @@ namespace hwa_gnss
                 _pdE[j * (iNdim_for_check + 1) + *iNdef] = 0.0;
             }
             for (j = 0; j < iN_oneway; j++) {
-                _pdE[(arriIpt2ow[j] - 1) * (iNdim_for_check + 1) + *iNdef] = dOper[j];
+                _pdE[(arriIpt2ow[j]) * (iNdim_for_check + 1) + *iNdef] = dOper[j];
             }
 
             // Step 4: Gram-Schmidt 正交化处理
@@ -1076,7 +1076,7 @@ namespace hwa_gnss
             else {
                 dC_dot = sqrt(iN_oneway * 1.0);
                 for (j = 0; j < iN_oneway; j++) {
-                    _pdE[(arriIpt2ow[j] - 1) * (iNdim_for_check + 1) + *iNdef] /= dC_dot;
+                    _pdE[(arriIpt2ow[j]) * (iNdim_for_check + 1) + *iNdef] /= dC_dot;
                 }
             }
 
@@ -1157,7 +1157,7 @@ namespace hwa_gnss
 
         // 构建双差组合（遍历所有模糊度对）
         for (auto itsat1 = params.begin(); itsat1 != params.end() - 1; itsat1++) {
-            amb_idx1 = distance(params.begin(), itsat1) + 1;
+            amb_idx1 = distance(params.begin(), itsat1);
             for (auto itsat2 = itsat1 + 1; itsat2 != params.end(); itsat2++) {
 
                 // 判断是否属于同一系统/同一站点
@@ -1183,7 +1183,7 @@ namespace hwa_gnss
 
                 dd.ambtype = itsat1->str_type().substr(0, 6);
                 dd.isEwlFixed = dd.isEwl24Fixed = dd.isEwl25Fixed = dd.isWlFixed = dd.isNlFixed = false;
-                amb_idx2 = distance(params.begin(), itsat2) + 1;
+                amb_idx2 = distance(params.begin(), itsat2);
                 dd.ddSats.push_back(std::make_tuple(itsat1->prn, itsat1->index, amb_idx1));
                 dd.ddSats.push_back(std::make_tuple(itsat2->prn, itsat2->index, amb_idx2));
                 dd.site = itsat1->site;
@@ -1374,10 +1374,10 @@ namespace hwa_gnss
                     }
 
                     // 计算宽巷协方差
-                    qq = amb_cmn->Qx()(get<1>(itdd->ddSats[0]), get<1>(itdd1->ddSats[0])) / lambda_1 * lambda_1
-                        - amb_cmn->Qx()(get<1>(itdd->ddSats[0]), get<1>(itdd1->ddSats[1])) / lambda_1 * lambda_2
-                        - amb_cmn->Qx()(get<1>(itdd->ddSats[1]), get<1>(itdd1->ddSats[0])) / lambda_1 * lambda_2
-                        + amb_cmn->Qx()(get<1>(itdd->ddSats[1]), get<1>(itdd1->ddSats[1])) / lambda_2 * lambda_2;
+                    qq = amb_cmn->Qx()(get<1>(itdd->ddSats[0]), get<1>(itdd1->ddSats[0])) / (lambda_1 * lambda_1)
+                        - amb_cmn->Qx()(get<1>(itdd->ddSats[0]), get<1>(itdd1->ddSats[1])) / (lambda_1 * lambda_2)
+                        - amb_cmn->Qx()(get<1>(itdd->ddSats[1]), get<1>(itdd1->ddSats[0])) / (lambda_1 * lambda_2)
+                        + amb_cmn->Qx()(get<1>(itdd->ddSats[1]), get<1>(itdd1->ddSats[1])) / (lambda_2 * lambda_2);
 
                     if (double_eq(qq, 0.0)) // 避免除零错误
                         continue;
@@ -1386,7 +1386,7 @@ namespace hwa_gnss
                         continue;
 
                     // 计算宽巷模糊度标准差srwl
-                    itdd->srwl = itdd->srlc / lambda_1 * lambda_1 + itdd1->srlc / lambda_2 * lambda_2
+                    itdd->srwl = itdd->srlc / (lambda_1 * lambda_1) + itdd1->srlc / (lambda_2 * lambda_2)
                         - 2 * (amb_cmn->sigma0() * sqrt(abs(qq)) * qq / abs(qq));
 
                     // 保存宽巷双差对应的两个模糊度项
@@ -2231,6 +2231,36 @@ namespace hwa_gnss
         return true;
     }
 
+    void _printDDInfo(const gnss_amb_dd_base& dd, int index, int korder)
+    {
+        auto sat1 = get<0>(dd.ddSats[0]);
+        auto sat2 = get<0>(dd.ddSats[1]);
+
+        int ow1 = get<2>(dd.ddSats[0]);
+        int ow2 = get<2>(dd.ddSats[1]);
+
+        std::cout
+            << "--------------------------------------------------\n"
+            << "DD Index        : " << index << "\n"
+            << "Site            : " << dd.site << "\n"
+            << "Sat pair        : "
+            << sat1 << " - " << sat2 << "\n"
+            << "Sat OW index    : "
+            << ow1 << " - " << ow2 << "\n"
+            << "Fixed status:\n"
+            << "  NL fixed      : "
+            << dd.isNlFixed << "\n"
+            << "  WL fixed      : "
+            << dd.isWlFixed << "\n"
+            << "  EWL fixed     : "
+            << dd.isEwlFixed << "\n"
+            << "  EWL24 fixed   : "
+            << dd.isEwl24Fixed << "\n"
+            << "  EWL25 fixed   : "
+            << dd.isEwl25Fixed << "\n"
+            << "Current korder : "
+            << korder << "\n";
+    }
 
     // _selectAmb: 选择独立的双差模糊度组合（DD Ambiguities）
  // 参数:
@@ -2254,8 +2284,11 @@ namespace hwa_gnss
         // 遍历所有双差模糊度
         for (auto itdd = _DD.begin(); itdd != _DD.end();)
         {
-            // 根据模糊度类型过滤未固定项
-            if (korder == 1 && !itdd->isNlFixed)
+            //_printDDInfo(*itdd, distance(_DD.begin(), itdd), korder);
+
+            bool wl_fix = (_obstype == OBSCOMBIN::RAW_MIX && itdd->isSngleFreq != true || _obstype != OBSCOMBIN::RAW_MIX && _obstype != OBSCOMBIN::RAW_SINGLE);
+
+            if (korder == 1 && (!itdd->isNlFixed || !itdd->isWlFixed && wl_fix))
             {
                 itdd = _DD.erase(itdd);
                 continue;
@@ -2438,10 +2471,10 @@ namespace hwa_gnss
                 Matrix Q(2, 2);
 
                 // Covariance of ambiguity between four satellites
-                Q(0, 0) = amb_cmn->Qx()(get<1>(itdd1->ddSats[0]), get<1>(itdd2->ddSats[0])) * op_dd(1) + amb_cmn->Qx()(get<1>(itdd1->ddSats[0]), get<1>(itdd2->ddSats[2])) * op_dd(2) + amb_cmn->Qx()(get<1>(itdd1->ddSats[2]), get<1>(itdd2->ddSats[0])) * op_dd(3) + amb_cmn->Qx()(get<1>(itdd1->ddSats[2]), get<1>(itdd2->ddSats[2])) * op_dd(4);
-                Q(0, 1) = amb_cmn->Qx()(get<1>(itdd1->ddSats[0]), get<1>(itdd2->ddSats[1])) * op_dd(1) + amb_cmn->Qx()(get<1>(itdd1->ddSats[0]), get<1>(itdd2->ddSats[3])) * op_dd(2) + amb_cmn->Qx()(get<1>(itdd1->ddSats[2]), get<1>(itdd2->ddSats[1])) * op_dd(3) + amb_cmn->Qx()(get<1>(itdd1->ddSats[2]), get<1>(itdd2->ddSats[3])) * op_dd(4);
-                Q(1, 0) = amb_cmn->Qx()(get<1>(itdd1->ddSats[1]), get<1>(itdd2->ddSats[0])) * op_dd(1) + amb_cmn->Qx()(get<1>(itdd1->ddSats[1]), get<1>(itdd2->ddSats[2])) * op_dd(2) + amb_cmn->Qx()(get<1>(itdd1->ddSats[3]), get<1>(itdd2->ddSats[0])) * op_dd(3) + amb_cmn->Qx()(get<1>(itdd1->ddSats[3]), get<1>(itdd2->ddSats[2])) * op_dd(4);
-                Q(1, 1) = amb_cmn->Qx()(get<1>(itdd1->ddSats[1]), get<1>(itdd2->ddSats[1])) * op_dd(1) + amb_cmn->Qx()(get<1>(itdd1->ddSats[1]), get<1>(itdd2->ddSats[3])) * op_dd(2) + amb_cmn->Qx()(get<1>(itdd1->ddSats[3]), get<1>(itdd2->ddSats[1])) * op_dd(3) + amb_cmn->Qx()(get<1>(itdd1->ddSats[3]), get<1>(itdd2->ddSats[3])) * op_dd(4);
+                Q(0, 0) = amb_cmn->Qx()(get<1>(itdd1->ddSats[0]), get<1>(itdd2->ddSats[0])) * op_dd(0) + amb_cmn->Qx()(get<1>(itdd1->ddSats[0]), get<1>(itdd2->ddSats[2])) * op_dd(1) + amb_cmn->Qx()(get<1>(itdd1->ddSats[2]), get<1>(itdd2->ddSats[0])) * op_dd(2) + amb_cmn->Qx()(get<1>(itdd1->ddSats[2]), get<1>(itdd2->ddSats[2])) * op_dd(3);
+                Q(0, 1) = amb_cmn->Qx()(get<1>(itdd1->ddSats[0]), get<1>(itdd2->ddSats[1])) * op_dd(0) + amb_cmn->Qx()(get<1>(itdd1->ddSats[0]), get<1>(itdd2->ddSats[3])) * op_dd(1) + amb_cmn->Qx()(get<1>(itdd1->ddSats[2]), get<1>(itdd2->ddSats[1])) * op_dd(2) + amb_cmn->Qx()(get<1>(itdd1->ddSats[2]), get<1>(itdd2->ddSats[3])) * op_dd(3);
+                Q(1, 0) = amb_cmn->Qx()(get<1>(itdd1->ddSats[1]), get<1>(itdd2->ddSats[0])) * op_dd(0) + amb_cmn->Qx()(get<1>(itdd1->ddSats[1]), get<1>(itdd2->ddSats[2])) * op_dd(1) + amb_cmn->Qx()(get<1>(itdd1->ddSats[3]), get<1>(itdd2->ddSats[0])) * op_dd(2) + amb_cmn->Qx()(get<1>(itdd1->ddSats[3]), get<1>(itdd2->ddSats[2])) * op_dd(3);
+                Q(1, 1) = amb_cmn->Qx()(get<1>(itdd1->ddSats[1]), get<1>(itdd2->ddSats[1])) * op_dd(0) + amb_cmn->Qx()(get<1>(itdd1->ddSats[1]), get<1>(itdd2->ddSats[3])) * op_dd(1) + amb_cmn->Qx()(get<1>(itdd1->ddSats[3]), get<1>(itdd2->ddSats[1])) * op_dd(2) + amb_cmn->Qx()(get<1>(itdd1->ddSats[3]), get<1>(itdd2->ddSats[3])) * op_dd(3);
 
                 // Combinatorial transformation
                 auto tmp = Q(0, 0) - Q(1, 0) - Q(0, 1) + Q(1, 1);
@@ -2910,6 +2943,9 @@ namespace hwa_gnss
         try
         {
             gflt->update(); // 尝试更新滤波器状态
+
+            //std::cout << "=========== NL UPDATE =============\n";
+            //gflt->prtDetail(); // 打印滤波器的详细信息
         }
         catch (exception e)
         {
@@ -2941,32 +2977,32 @@ namespace hwa_gnss
                 continue; // 跳过不满足条件的历史记录
 
             // 初始化参数索引
-            index_sat1 = 0, index_sat2 = 0;
+            index_sat1 = -1, index_sat2 = -1;
 
             // 在参数列表中找到两个对应卫星的模糊度参数索引
             for (auto it_par = params_all.begin(); it_par != params_all.end(); it_par++)
             {
-                it_par->index = distance(params_all.begin(), it_par) + 1;
-                if (index_sat1 == 0 &&
+                it_par->index = distance(params_all.begin(), it_par);
+                if (index_sat1 == -1 &&
                     it_par->str_type().find("AMB") != std::string::npos &&
                     it_par->prn == get<0>(itdd->ddSats[0]) &&
                     !double_eq(it_par->value(), 0.0) &&
                     (itdd->beg_epo >= it_par->beg && itdd->end_epo <= it_par->end))
                 {
-                    index_sat1 = distance(params_all.begin(), it_par) + 1;
+                    index_sat1 = distance(params_all.begin(), it_par);
                 }
 
-                if (index_sat2 == 0 &&
+                if (index_sat2 == -1 &&
                     it_par->str_type().find("AMB") != std::string::npos &&
                     it_par->prn == get<0>(itdd->ddSats[1]) &&
                     !double_eq(it_par->value(), 0.0) &&
                     (itdd->beg_epo >= it_par->beg && itdd->end_epo <= it_par->end))
                 {
-                    index_sat2 = distance(params_all.begin(), it_par) + 1;
+                    index_sat2 = distance(params_all.begin(), it_par);
                 }
             }
 
-            if (index_sat1 == 0 || index_sat2 == 0)
+            if (index_sat1 == -1 || index_sat2 == -1)
                 continue; // 如果有一个未找到参数索引，跳过
 
             // 获取当前估计的模糊度差值
@@ -3249,6 +3285,9 @@ namespace hwa_gnss
         try
         {
             gflt->update(); // 更新滤波器状态
+
+   //         std::cout << "=========== WL UPDATE =============\n";
+			//gflt->prtDetail(); // 打印滤波器的详细信息
         }
         catch (exception e)
         {

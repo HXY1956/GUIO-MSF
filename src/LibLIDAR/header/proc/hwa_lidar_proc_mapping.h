@@ -60,24 +60,6 @@ namespace hwa_lidar
         void pointAssociateToMap(pcl::PointXYZI & pi, pcl::PointXYZI & po);
 
     public:
-        /**
-        * @brief downsize the lidar map
-        *
-        * @param[in] cloud            data buffer of lidar point cloud 
-        * @param[in] leaf_size        parameter of down sampling
-        */
-        static void downSample(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud, const double& leaf_size);
-
-        /**
-        * @brief downsize the lidar map
-        *
-        * @param[in] cloud            data buffer of lidar point cloud
-        * @param[in] filtered        data buffer of lidar point cloud after downsize
-        * @param[in] leaf_size        parameter of down sampling
-        */
-        static void downSample(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud, pcl::PointCloud<pcl::PointXYZI>::Ptr filtered, const double& leaf_size);
-
-    public:
         bool systemInited_ = false;            ///< initialization flag
         ///< store the pose of first lidar frame(used as the transform between w frame and e frame)
         SO3 first_R_l_e;        ///< attitude of first lidar frame in the global frame
@@ -122,13 +104,13 @@ namespace hwa_lidar
 
         ///< surround points in submap to build kdtree
         // A submap composed of valid 125 cubes is also used to visualize temporary variables
-        pcl::PointCloud<pcl::PointXYZI>::Ptr laserCloudCornerFromMap;    ///< TODO
-        pcl::PointCloud<pcl::PointXYZI>::Ptr laserCloudSurfFromMap;        ///< TODO
+        CloudPtr laserCloudCornerFromMap;    ///< TODO
+        CloudPtr laserCloudSurfFromMap;        ///< TODO
 
         ///< points in every cube
         //Used to store all point cloud features
-        pcl::PointCloud<pcl::PointXYZI>::Ptr laserCloudCornerArray[4851];    ///< TODO
-        pcl::PointCloud<pcl::PointXYZI>::Ptr laserCloudSurfArray[4851];        ///< TODO
+        CloudPtr laserCloudCornerArray[4851];    ///< TODO
+        CloudPtr laserCloudSurfArray[4851];        ///< TODO
 
         ///< kd-tree
         //Used when matching observations
@@ -136,8 +118,8 @@ namespace hwa_lidar
         pcl::KdTreeFLANN<pcl::PointXYZI>::Ptr kdtreeSurfFromMap;            ///< TODO
 
         //input point cloud in cur frame after removeNAN and downSample 
-        pcl::PointCloud<pcl::PointXYZI>::Ptr laserCloudCornerStack;            ///< TODO
-        pcl::PointCloud<pcl::PointXYZI>::Ptr laserCloudSurfStack;            ///< TODO
+        CloudPtr laserCloudCornerStack;            ///< TODO
+        CloudPtr laserCloudSurfStack;            ///< TODO
     };
 
     class lidar_proc_global_mapping {
@@ -147,10 +129,10 @@ namespace hwa_lidar
         bool isRun() {
             return isRunning;
         }
-        void push(double _time, SO3 _R, Triple _t, pcl::PointCloud<pcl::PointXYZI>::Ptr _cloud) {
+        void push(double _time, SO3 _R, Triple _t, CloudPtr _fullCloud) {
             {
                 std::lock_guard<std::mutex> lock(keyframe_mutex);
-                keyframe_queue.emplace_back(KeyFrame(_time, _R, _t, _cloud));
+                keyframe_queue.emplace_back(KeyFrame(_time, _R, _t, _fullCloud));
             }
             keyframe_cv.notify_one();
         }
@@ -164,11 +146,11 @@ namespace hwa_lidar
             first_t_l_e = t_l_w;
         }
         void transformAssociateToMap(const SO3& R_l_w, const Triple& t_l_w);
-        CloudPtr point_management(CloudPtr cloudin);
+        CloudRGBPtr point_management(CloudPtr cloudin);
 
     private:
         bool isRunning = false;
-        CloudPtr global_map;
+        CloudRGBPtr global_map;
         std::deque<KeyFrame> keyframe_queue;
         std::mutex keyframe_mutex;
         std::mutex global_map_mutex;
@@ -178,9 +160,38 @@ namespace hwa_lidar
         Triple first_t_l_e;
         SO3 curr_R_l_w;
         Triple curr_t_l_w;
-        int laserCloudWidth = 5;
-        int laserCloudHeight = 5;
-        int laserCloudDepth = 2;
+        int laserCloudWidth = 2;
+        int laserCloudHeight = 2;
+        int laserCloudDepth = 1;
     };
+
+    inline void jetColor(float t, uint8_t& r, uint8_t& g, uint8_t& b)
+    {
+        t = std::max(0.0f, std::min(1.0f, t));
+
+        float rf = std::min(std::max(1.5f - std::abs(4.0f * t - 3.0f), 0.0f), 1.0f);
+        float gf = std::min(std::max(1.5f - std::abs(4.0f * t - 2.0f), 0.0f), 1.0f);
+        float bf = std::min(std::max(1.5f - std::abs(4.0f * t - 1.0f), 0.0f), 1.0f);
+
+        r = static_cast<uint8_t>(rf * 255);
+        g = static_cast<uint8_t>(gf * 255);
+        b = static_cast<uint8_t>(bf * 255);
+    }
+
+    inline void binaryColor(float t, uint8_t& r, uint8_t& g, uint8_t& b)
+    {
+        if (t < 0.2f)
+        {
+            r = 0;
+            g = 0;
+            b = 255;
+        }
+        else
+        {
+            r = 255;
+            g = 0;
+            b = 0;
+        }
+    }
 }//end of namespace hwa_lidar
 #endif

@@ -221,6 +221,15 @@ namespace hwa_vis {
 
         void drawFeatures();
 
+        void pruneGridFeatures();
+
+        static bool featureCompareByLifetime(
+            const FeaturePoint& f1,
+            const FeaturePoint& f2)
+        {
+            return f1.lifetime > f2.lifetime;
+        }
+
         void rescalePoints(
             std::vector<cv::Point2f>& pts1, std::vector<cv::Point2f>& pts2,
             float& scaling_factor);
@@ -244,6 +253,8 @@ namespace hwa_vis {
             const cv::Vec4d& new_intrinsics = cv::Vec4d(1, 1, 0, 0));
 
     public:
+        typedef std::map<int, std::vector<FeaturePoint> > GridFeatures;
+
         int row = 0, col = 0;                        ///< rows and columns
         cv::Mat mask;                            ///< to remove feature points that stay close
         cv::Mat prev_img, cur_img;                ///< mat form used for KLT
@@ -251,6 +262,10 @@ namespace hwa_vis {
         std::vector<cv::Point2f> prev_pts, cur_pts;    ///< record pts in cur and prev feature point
         std::vector<int> prev_ids, cur_ids;            ///< record id in cur and prev img
         std::vector<int> track_cnt;                    ///< track number
+        std::shared_ptr<GridFeatures> prev_features_ptr;    ///< store all feature observations in pre frame
+        std::shared_ptr<GridFeatures> curr_features_ptr;    ///< store all feature observations in cur frame
+        ONE_FRAME curr_img_msg;                                ///< store information about cur img
+        ONE_FRAME prev_img_msg;                                ///< store information about pre img,used for tracking in next frame
 
         double cur_time = 0;                        ///< current time
         double prev_time = 0;                        ///< previous time

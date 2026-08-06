@@ -1222,6 +1222,7 @@ int hwa_gnss::gnss_proc_pvtflt::_preprocess(const std::string &ssite, std::vecto
             shared_ptr<gnss_data_pcv> sat_pcv = sat_obj->pcv(_epoch);
             if (!sat_pcv)
             {
+                std::cout << "remove satellite " + satname + " due to missing PCV data";
                 iter = sdata.erase(iter);
                 continue;
             }

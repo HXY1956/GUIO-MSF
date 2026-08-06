@@ -48,6 +48,7 @@ namespace hwa_vis
         */
         bool load(double& imu_t, double& img_t, IMG_PATH& img_path);
 
+        bool load(double& imu_t, double& img_t, IMG_PATH& img_path, const double& imu_ts);
         /**
         * @brief load data into img_path according to imu_t
         *

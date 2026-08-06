@@ -339,6 +339,13 @@ namespace hwa_msf {
                 _param->operator[](Par).value(_param->operator[](Par).value() + _sins->Xk(_param->operator[](Par).index));
             }
         }
+
+        base_posdata::data_pos _pos;
+        _get_result(TimeStamp, _pos);
+        if (_pos.pos[0] != 0)
+            _sins->xyz_out = _pos.pos;
+        else
+            _sins->xyz_out = _sins->pos_ecef;
     }
 
     int gnssprocesser::_merge(Matrix& A)
@@ -537,6 +544,17 @@ namespace hwa_msf {
             //m_out("l", _sins->Zk);
             //m_out("Qx", _Qx.matrixR());
 
+            //if (_sins->Hk.rows() > _sins->Hk.cols())
+            //{
+            //    Eigen::HouseholderQR<Matrix> qr_helper(_sins->Hk);
+            //    Matrix Q = qr_helper.householderQ();
+            //    Matrix Q1;
+            //    Q1 = Q.leftCols(_sins->Hk.cols());
+            //    _sins->Hk = Q1.transpose() * _sins->Hk;
+            //    _sins->Zk = Q1.transpose() * _sins->Zk;
+            //    _sins->Rk = Q1.transpose() * _sins->Rk * Q1;
+            //}
+
             try
             {
                 //if (_Updater._meas_update(_sins->Hk, _sins->Zk, _sins->Rk, _sins->Xk, _Qx.matrixW()) < 0) {
@@ -577,6 +595,19 @@ namespace hwa_msf {
         _filter->add_data(*_param, _sins->Xk, _Qx, _sig_unit, Qsav);
         _filter->add_data(_sins->Hk, P, _sins->Zk);
         _filter->add_data(vtpv, _sins->Hk.rows(), _sins->Hk.cols());
+
+        Vector post_residual = _sins->Zk - _sins->Hk * _sins->Xk;
+        double pre_residual_norm = _sins->Zk.transpose() * P.matrixR() * _sins->Zk;
+        double post_residual_norm = post_residual.transpose() * P.matrixR() * post_residual;
+
+        double post_residual_norm1 = _sins->Xk.transpose() * Qsav.matrixR().inverse() * _sins->Xk;
+
+        //std::cout << "gnss measurement matrix: \n" << std::fixed << std::setprecision(3) << _sins->Hk.block(0, 0, _sins->Hk.rows(), 15) << std::endl;
+        //std::cout << "gnss measurement delta_x: " << std::fixed << std::setprecision(3) << _sins->Xk.block(0, 0, 15, 1).transpose() << std::endl;
+        std::cout << "gnss state after residual: " << std::fixed << std::setprecision(5) << post_residual_norm1  << std::endl;
+        std::cout << "gnss meas pre residual: " << std::fixed << std::setprecision(5) << pre_residual_norm << std::endl;
+        std::cout << "gnss meas after residual: " << std::fixed << std::setprecision(5) << post_residual_norm << std::endl;
+        std::cout << "gnss update effect: " << std::fixed << std::setprecision(2) << post_residual_norm / pre_residual_norm * 100 << "%\n";
 
         //for (int i = 0; i < _param->parNumber(); i++)
         //{

@@ -181,14 +181,14 @@ namespace hwa_msf {
         _sins->gyo_noise = angle_tmp * hwa_base::glv.dpsh;
         _sins->acc_noise = v_tmp * hwa_base::glv.mgpsHz;
         _sins->ba_noise = db_tmp * hwa_base::glv.mgpsh;
-        _sins->bg_noise = eb_tmp * hwa_base::glv.dphpsh;
+        _sins->bg_noise = eb_tmp * hwa_base::glv.dpsh;
 
         if (_Estimator == NORMAL) {
-            _sins->Qt << angle_tmp * hwa_base::glv.dpsh, v_tmp* hwa_base::glv.mgpsHz, pos_tmp* hwa_base::glv.mpsh, eb_tmp* hwa_base::glv.dphpsh, db_tmp* hwa_base::glv.mgpsh;
+            _sins->Qt << _sins->gyo_noise, _sins->acc_noise, pos_tmp* hwa_base::glv.mpsh, _sins->bg_noise, _sins->ba_noise;
         }
         else if (_Estimator == INEKF) {
             _sins->Qt = Vector(nq - 3);
-            _sins->Qt << angle_tmp * hwa_base::glv.dpsh, v_tmp* hwa_base::glv.mgpsHz, eb_tmp* hwa_base::glv.dphpsh, db_tmp* hwa_base::glv.mgpsh;
+            _sins->Qt << _sins->gyo_noise, _sins->acc_noise, _sins->bg_noise, _sins->ba_noise;
         }
         if (_num_of_imu_axiliary > 0 && FuseType == STACK)
         {

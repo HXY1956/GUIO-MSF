@@ -89,6 +89,10 @@ namespace hwa_set
         * @brief get sharp resolution of map
         * @return double    sharp resolution of map
         */
+        double keyframe_trans_thresh();
+
+		double keyframe_rot_thresh();
+
         double map_resolution_sharp();
 
         /**

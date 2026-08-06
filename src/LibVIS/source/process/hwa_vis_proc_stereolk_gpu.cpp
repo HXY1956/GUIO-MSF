@@ -271,7 +271,7 @@ void hwa_vis::vis_stereo_lk_gpu::trackFeatures()
         cam1_R_p_c, _cam1_intrinsics, _cam1_distortion_model,
         _cam1_distortion_coeffs, ransac_threshold, 0.99
     );
-    after_ransac1 = d_currPts0.cols;
+    after_ransac1 = d_currPts1.cols;
 
     std::cout << "candidates: " << before_tracking
         << "; after_track: " << static_cast<double>(after_tracking) / before_tracking
@@ -349,12 +349,21 @@ void hwa_vis::vis_stereo_lk_gpu::publish()
 
     Points curr_cam0_points_undistorted(0);
     Points curr_cam1_points_undistorted(0);
+    Points prev_cam0_points_undistorted(0);
+    Points prev_cam1_points_undistorted(0);
     undistortPoints(
         d_currPts0, _cam0_intrinsics, _cam0_distortion_model,
         _cam0_distortion_coeffs, curr_cam0_points_undistorted);
     undistortPoints(
         d_currPts1, _cam1_intrinsics, _cam1_distortion_model,
         _cam1_distortion_coeffs, curr_cam1_points_undistorted);
+    undistortPoints(
+        d_prevPts0, _cam0_intrinsics, _cam0_distortion_model,
+        _cam0_distortion_coeffs, prev_cam0_points_undistorted);
+    undistortPoints(
+        d_prevPts1, _cam1_intrinsics, _cam1_distortion_model,
+        _cam1_distortion_coeffs, prev_cam1_points_undistorted);
+
     thrust::host_vector<int> _ids(ids.begin(), ids.end());
     thrust::host_vector<int> _lifetime(lifetime.begin(), lifetime.end());
 

@@ -13,7 +13,13 @@ hwa_vis::vis_base::vis_base(hwa_set::set_base* _set, int cam_group_id) :cam_stat
     R_cam0_cam1 = dynamic_cast<set_vis*>(_set)->R_cam0_cam1(cam_group_id);
     t_cam0_cam1 = dynamic_cast<set_vis*>(_set)->t_cam0_cam1(cam_group_id);
     T_cam0_cam1 = dynamic_cast<set_vis*>(_set)->T_cam0_cam1(cam_group_id);
-    vis_feature::read_Tc0c1(T_cam0_cam1);
+    vis_feature::T_cam0_cam1 = T_cam0_cam1;
+    vis_feature::translation_threshold = dynamic_cast<set_vis*>(_set)->translation_threshold(cam_group_id);
+    vis_feature::huber_epsilon = dynamic_cast<set_vis*>(_set)->huber_epsilon(cam_group_id);
+    vis_feature::estimation_precision = dynamic_cast<set_vis*>(_set)->estimation_precision(cam_group_id);
+    vis_feature::initial_damping = dynamic_cast<set_vis*>(_set)->initial_damping(cam_group_id);
+    vis_feature::outler_loop_max_iteration = dynamic_cast<set_vis*>(_set)->outler_loop_max_iteration(cam_group_id);
+    vis_feature::inner_loop_max_iteration = dynamic_cast<set_vis*>(_set)->inner_loop_max_iteration(cam_group_id);
     usingstereorecity = dynamic_cast<set_vis*>(_set)->usingstereorecify(cam_group_id);
     cam0_intrinsics = dynamic_cast<set_vis*>(_set)->cam0_intrinsics(cam_group_id);
     num_of_cam = dynamic_cast<set_vis*>(_set)->num_of_cam(cam_group_id);
@@ -146,7 +152,7 @@ bool hwa_vis::vis_base::keyframeCheck()
             Eigen::Vector4d uv_cur = Eigen::Vector4d(pts.cam0_point.x, pts.cam0_point.y, pts.cam1_point.x, pts.cam1_point.y);
             ++tracked_feature_num;
             auto obser = iter->second.observations.rbegin();
-            Eigen::Vector4d uv_pre = obser->second;
+            Eigen::Vector4d uv_pre = obser->second.position;
             double du = uv_cur(0) - uv_pre(0);
             double dv = uv_cur(1) - uv_pre(1);
             parallax = sqrt(du * du + dv * dv);
@@ -168,7 +174,7 @@ bool hwa_vis::vis_base::keyframeCheck()
     }
 
     double ans = parallax_sum / parallax_num;
-    if (tracked_feature_num < 20 || nonFrame_num >= 30 || ans >= MIN_PARALLAX)
+    if (ans >= MIN_PARALLAX)
     {
         //std::cout << "Cam-" << cam_state_id << ": KeyFrame " << ": parallax: " << ans << " Feature Num: " << tracked_feature_num << std::endl;
         nonFrame_num = 0;
@@ -209,7 +215,7 @@ void hwa_vis::vis_base::measurementJacobianEX(
     Triple t_c1_w = t_c0_w - R_w_c1.transpose() * t_c0_c1;
 
     const Triple& p_w = feature.position;
-    const Eigen::Vector4d& z = feature.observations.find(cam_state_id)->second;
+    const Eigen::Vector4d& z = feature.observations.find(cam_state_id)->second.position;
 
     Triple p_c0 = R_w_c0 * (p_w - t_c0_w);
     Triple p_c1 = R_w_c1 * (p_w - t_c1_w);
@@ -322,19 +328,16 @@ void hwa_vis::vis_base::measurementJacobian(
     const CamState& imu_state = imu_states[cam_state_id];
     const vis_feature& feature = map_server[feature_id];
 
-
-    //SO3 R_w_c0 = cam_state.orientation.toRotationMatrix();
     SO3 R_w_c0 = cam_state.orientation.toRotationMatrix().transpose();
     const Triple& t_c0_w = cam_state.position;
     const Triple& t_i_w = imu_state.position;
-
 
     SO3 R_c0_c1 = T_cam0_cam1.linear();
     SO3 R_w_c1 = T_cam0_cam1.linear() * R_w_c0;
     Triple t_c1_w = t_c0_w - R_w_c1.transpose() * T_cam0_cam1.translation();
 
     const Triple& p_w = feature.position;
-    const Eigen::Vector4d& z = feature.observations.find(cam_state_id)->second;
+    const Eigen::Vector4d& z = feature.observations.find(cam_state_id)->second.position;
 
     Triple p_c0 = R_w_c0 * (p_w - t_c0_w);
     Triple p_c1 = R_w_c1 * (p_w - t_c1_w);
@@ -356,13 +359,9 @@ void hwa_vis::vis_base::measurementJacobian(
 
     if (clone == CAMERA) {
         if (_Estimator == NORMAL) {
-            //dpc0_dxc.leftCols(3) = skew(p_c0);
-            //dpc0_dxc.rightCols(3) = -R_w_c0;
             dpc0_dxc.leftCols(3) = R_w_c0 * skew(p_w - t_c0_w);
             dpc0_dxc.rightCols(3) = R_w_c0;
 
-            //dpc1_dxc.leftCols(3) = R_c0_c1 * skew(p_c0);
-            //dpc1_dxc.rightCols(3) = -R_w_c1;
             dpc1_dxc.leftCols(3) = R_w_c1 * skew(p_w - t_c1_w);
             dpc1_dxc.rightCols(3) = R_w_c1;
 
@@ -405,23 +404,11 @@ void hwa_vis::vis_base::measurementJacobian(
     
     }
     
-
-    SO3 dpc0_dpg = R_w_c0;
-    SO3 dpc1_dpg = R_w_c1;
+    SO3 dpc0_dpg = - R_w_c0;
+    SO3 dpc1_dpg = - R_w_c1;
 
     H_x = dz_dpc0 * dpc0_dxc + dz_dpc1 * dpc1_dxc;
     H_f = dz_dpc0 * dpc0_dpg + dz_dpc1 * dpc1_dpg;
-
-    //if (_Estimator == NORMAL) {
-    //    //OC
-    //    Eigen::Matrix<double, 4, 6> A = H_x;
-    //    Eigen::Matrix<double, 6, 1> u = Eigen::Matrix<double, 6, 1>::Zero();
-    //    u.block<3, 1>(0, 0) = cam_state.orientation_null.toRotationMatrix() * cam_state.gravity;
-    //    u.block<3, 1>(3, 0) = skew(p_w - cam_state.position_null) * cam_state.gravity;
-    //    H_x = A - A * u * (u.transpose() * u).inverse() * u.transpose();
-    //    H_f = -H_x.block<4, 3>(0, 3);
-    //}
-
 }
 
 
@@ -445,8 +432,8 @@ void hwa_vis::vis_base::measurementJacobianEX(
     const Triple& t_c0_w = cam_state.position;
 
     const Triple& p_w = feature.position;
-    const Eigen::Vector2d z = Eigen::Vector2d(feature.observations.find(cam_state_id)->second(0),
-        feature.observations.find(cam_state_id)->second(1));
+    const Eigen::Vector2d z = Eigen::Vector2d(feature.observations.find(cam_state_id)->second.position(0),
+        feature.observations.find(cam_state_id)->second.position(1));
 
     Triple p_c0 = R_w_c0 * (p_w - t_c0_w);
 
@@ -529,8 +516,8 @@ void hwa_vis::vis_base::measurementJacobian(
     const Triple& t_c0_w = cam_state.position;
 
     const Triple& p_w = feature.position;
-    const Eigen::Vector2d z = Eigen::Vector2d(feature.observations.find(cam_state_id)->second(0),
-        feature.observations.find(cam_state_id)->second(1));
+    const Eigen::Vector2d z = Eigen::Vector2d(feature.observations.find(cam_state_id)->second.position(0),
+        feature.observations.find(cam_state_id)->second.position(1));
 
     Triple p_c0 = R_w_c0 * (p_w - t_c0_w);
 
@@ -588,6 +575,108 @@ void hwa_vis::vis_base::measurementJacobian(
     //    H_x = A - A * u * (u.transpose() * u).inverse() * u.transpose();
     //    H_f = -H_x.block<2, 3>(0, 3);
     //}
+}
+
+bool hwa_vis::vis_base::featureJacobian(const FeatureIDType& feature_id,
+    const std::vector<CamStateIDType>& cam_state_ids,
+    Matrix& H_x, Vector& r, Matrix& R)
+{
+    const auto& feature = map_server[feature_id];
+    std::vector<CamStateIDType> valid_cam_state_ids(0);
+    for (const auto& cam_id : cam_state_ids)
+    {
+        if (feature.observations.find(cam_id) == feature.observations.end())
+            continue;
+
+        valid_cam_state_ids.push_back(cam_id);
+    }
+
+    int jacobian_row_size = 0;
+
+    if (stereo) jacobian_row_size = 4 * valid_cam_state_ids.size();
+    else jacobian_row_size = 2 * valid_cam_state_ids.size();
+
+    Matrix H_xj;
+    if (imgproc->estimate_extrinsic)
+        H_xj = Matrix::Zero(jacobian_row_size, cam_states.size() * 6 + 6);
+    else
+        H_xj = Matrix::Zero(jacobian_row_size, cam_states.size() * 6);
+    Matrix H_fj = Matrix::Zero(jacobian_row_size, 3);
+    Vector r_j = Vector::Zero(jacobian_row_size);
+    int stack_cntr = 0;
+    if (stereo)
+    {
+        for (const auto& cam_id : valid_cam_state_ids)
+        {
+            Eigen::Matrix<double, 4, 6> H_xi = Eigen::Matrix<double, 4, 6>::Zero();
+            Eigen::Matrix<double, 4, 6> H_xi_ex = Eigen::Matrix<double, 4, 6>::Zero();
+            Eigen::Matrix<double, 4, 3> H_fi = Eigen::Matrix<double, 4, 3>::Zero();
+            Eigen::Vector4d r_i = Eigen::Vector4d::Zero();
+
+            if (imgproc->estimate_extrinsic) measurementJacobianEX(cam_id, feature.id, H_xi, H_xi_ex, H_fi, r_i);
+            else measurementJacobian(cam_id, feature.id, H_xi, H_fi, r_i);
+
+            auto cam_state_iter = cam_states.find(cam_id);
+            int cam_state_cntr;
+
+            if (imgproc->estimate_extrinsic) {
+                H_xj.block<4, 6>(stack_cntr, 0) = H_xi_ex;
+                cam_state_cntr = std::distance(cam_states.begin(), cam_state_iter) + 1;
+            }
+            else
+                cam_state_cntr = std::distance(cam_states.begin(), cam_state_iter);
+
+            H_xj.block<4, 6>(stack_cntr, 6 * cam_state_cntr) = H_xi;
+            H_fj.block<4, 3>(stack_cntr, 0) = H_fi;
+            r_j.segment<4>(stack_cntr) = r_i;
+            stack_cntr += 4;
+        }
+    }
+    else
+    {
+        for (const auto& cam_id : valid_cam_state_ids)
+        {
+            Eigen::Matrix<double, 2, 6> H_xi = Eigen::Matrix<double, 2, 6>::Zero();
+            Eigen::Matrix<double, 2, 3> H_fi = Eigen::Matrix<double, 2, 3>::Zero();
+            Eigen::Matrix<double, 2, 6> H_xi_ex = Eigen::Matrix<double, 2, 6>::Zero();
+            Eigen::Vector2d r_i = Eigen::Vector2d::Zero();
+
+            if (imgproc->estimate_extrinsic) measurementJacobianEX(cam_id, feature.id, H_xi, H_xi_ex, H_fi, r_i);
+            else measurementJacobian(cam_id, feature.id, H_xi, H_fi, r_i);
+
+            auto cam_state_iter = cam_states.find(cam_id);
+
+            int cam_state_cntr;
+            if (imgproc->estimate_extrinsic) {
+                H_xj.block<2, 6>(stack_cntr, 0) = H_xi_ex;
+                cam_state_cntr = std::distance(cam_states.begin(), cam_state_iter) + 1;
+            }
+            else
+                cam_state_cntr = std::distance(cam_states.begin(), cam_state_iter);
+
+
+            H_xj.block<2, 6>(stack_cntr, 6 * cam_state_cntr) = H_xi;
+            //H_xj.block<2, 6>(stack_cntr, 15 + 6 * cam_state_cntr) = H_xi;
+            H_fj.block<2, 3>(stack_cntr, 0) = H_fi;
+            r_j.segment<2>(stack_cntr) = r_i;
+            stack_cntr += 2;
+        }
+    }
+
+    if (H_fj.rows() == 0) return false;
+
+    Eigen::JacobiSVD<Matrix> svd_helper(H_fj, Eigen::ComputeFullU | Eigen::ComputeThinV);
+    Matrix A = svd_helper.matrixU().rightCols(
+        jacobian_row_size - 3);
+
+    //cal_matRank("before margin H_xj", H_xj);
+
+    H_x = A.transpose() * H_xj;
+    r = A.transpose() * r_j;
+    R = A.transpose() * feature_observation_noise * Matrix::Identity(r_j.rows(), r_j.rows()) * A;
+
+    //cal_matRank("after margin H_xj", H_x);
+    return true;
 }
 
 
@@ -714,8 +803,12 @@ bool hwa_vis::vis_base::featureJacobian(const FeatureIDType& feature_id,
     Matrix A = svd_helper.matrixU().rightCols(
         jacobian_row_size - 3);
     
+    cal_matRank("before margin H_xj", H_xj);
+
     H_x = A.transpose() * H_xj;
     r = A.transpose() * r_j;
+
+    cal_matRank("after margin H_xj", H_x);
 
     //std::cout << "Test: " <<std::setiosflags(ios::fixed)<<std::setprecision(6)<< std::endl << A.transpose() * H_fj<<std::endl<<std::endl;
 
@@ -1220,9 +1313,9 @@ std::vector<std::pair<Eigen::Vector2d, Eigen::Vector2d>> hwa_vis::vis_base::getC
             int idx_r = frame_count_r - it.start_frame;
             auto tmp_it = it.observations.begin();
             std::advance(tmp_it, idx_l);  
-            a = tmp_it->second.head<2>(); 
+            a = tmp_it->second.position.head<2>();
             std::advance(tmp_it, idx_r);  
-            b = tmp_it->second.head<2>();
+            b = tmp_it->second.position.head<2>();
             corres.push_back(std::make_pair(a, b));
         }
     }
@@ -1279,13 +1372,13 @@ bool hwa_vis::vis_base::addFeatureObservations()
             map_server[feature.id] = hwa_vis::vis_feature(feature.id);
             if (stereo)
             {
-                map_server[feature.id].observations[cam_state_id] =
+                map_server[feature.id].observations[cam_state_id].position =
                     Eigen::Vector4d(feature.cam0_point.x, feature.cam0_point.y,
                         feature.cam1_point.x, feature.cam1_point.y);
             }
             else
             {
-                map_server[feature.id].observations[cam_state_id] =
+                map_server[feature.id].observations[cam_state_id].position =
                     Eigen::Vector4d(feature.cam0_point.x, feature.cam0_point.y,
                         0.0, 0.0);
             }
@@ -1300,13 +1393,13 @@ bool hwa_vis::vis_base::addFeatureObservations()
         {
             if (stereo)
             {
-                map_server[feature.id].observations[cam_state_id] =
+                map_server[feature.id].observations[cam_state_id].position =
                     Eigen::Vector4d(feature.cam0_point.x, feature.cam0_point.y,
                         feature.cam1_point.x, feature.cam1_point.y);
             }
             else
             {
-                map_server[feature.id].observations[cam_state_id] =
+                map_server[feature.id].observations[cam_state_id].position =
                     Eigen::Vector4d(feature.cam0_point.x, feature.cam0_point.y,
                         0.0, 0.0);
             }
@@ -1354,8 +1447,8 @@ bool hwa_vis::vis_base::checkStaticMotion()
             double x1, y1, x2, y2;
             x1 = fx * pts.cam0_point.x + cx;
             y1 = fy * pts.cam0_point.y + cy;
-            x2 = fx * iter->second.observations.rbegin()->second(0) + cx;
-            y2 = fy * iter->second.observations.rbegin()->second(1) + cy;
+            x2 = fx * iter->second.observations.rbegin()->second.position(0) + cx;
+            y2 = fy * iter->second.observations.rbegin()->second.position(1) + cy;
             double dx = x2 - x1;
             double dy = y2 - y1;
             mean_motion += sqrt(dx * dx + dy * dy);
@@ -1431,7 +1524,7 @@ bool hwa_vis::vis_base::initialStructure()
         for (auto& it_per_frame : it.observations)
         {
             imu_j++;
-            tmp_feature.observation.push_back(std::make_pair(imu_j, it_per_frame.second.head<2>()));
+            tmp_feature.observation.push_back(std::make_pair(imu_j, it_per_frame.second.position.head<2>()));
         }
 
         sfm_f.push_back(tmp_feature);
@@ -1554,7 +1647,7 @@ void hwa_vis::vis_base::solveGyroscopeBias(hwa_vis::CamStateServer& camstates)
         tmp_b.setZero();
         Eigen::Quaterniond q_ij(frame_i->second.orientation_b.conjugate() * frame_j->second.orientation_b);
         // j -> i
-        tmp_A = frame_i->second.pre_integration->jacobian.template block<3, 3>(hwa_vis::O_R, hwa_vis::O_BG);
+        tmp_A = frame_i->second.pre_integration->jacobian.template block<3, 3>(hwa_base::O_R, hwa_base::O_BG);
         tmp_b = 2 * (frame_i->second.pre_integration->delta_q.inverse() * q_ij).vec();
         A += tmp_A.transpose() * tmp_A;
         b += tmp_A.transpose() * tmp_b;

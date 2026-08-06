@@ -547,82 +547,6 @@ namespace hwa_lidar
         po.z = point_w.z();
         po.intensity = pi.intensity;
     }
-
-    void lidar_proc_mapping::downSample(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud, const double& leaf_size)
-    {
-        if (cloud->points.size() == 0)
-            return;
-        pcl::PointCloud<pcl::PointXYZI>::Ptr filtered(new pcl::PointCloud<pcl::PointXYZI>);
-        std::vector<int> index;
-        pcl::removeNaNFromPointCloud(*cloud, *cloud, index);
-        if (cloud->empty())
-            return;
-        pcl::PointXYZI first_pt = cloud->points[0];
-
-        ///> 为避免数值过大，降采样前先平移
-        for (int i = 0; i < cloud->points.size(); i++)
-        {
-            cloud->points[i].x = cloud->points[i].x - first_pt.x;
-            cloud->points[i].y = cloud->points[i].y - first_pt.y;
-            cloud->points[i].z = cloud->points[i].z - first_pt.z;
-        }
-
-        ///> 降采样
-        cloud->is_dense = false;
-        pcl::VoxelGrid<pcl::PointXYZI> downer;
-        downer.setInputCloud(cloud);
-        downer.setLeafSize(leaf_size, leaf_size, leaf_size);
-        downer.filter(*filtered);
-        cloud->clear();
-
-        ///> 移回去
-        for (int i = 0; i < filtered->points.size(); i++)
-        {
-            filtered->points[i].x = filtered->points[i].x + first_pt.x;
-            filtered->points[i].y = filtered->points[i].y + first_pt.y;
-            filtered->points[i].z = filtered->points[i].z + first_pt.z;
-        }
-
-        ///> 覆盖原点云
-        *cloud = *filtered;
-    }
-
-    void lidar_proc_mapping::downSample(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud, pcl::PointCloud<pcl::PointXYZI>::Ptr filtered, const double& leaf_size)
-    {
-        if (cloud->points.size() == 0)
-            return;
-        pcl::PointCloud<pcl::PointXYZI>::Ptr pcloud_ptr(new pcl::PointCloud<pcl::PointXYZI>);
-        std::vector<int> index; 
-        pcl::removeNaNFromPointCloud(*cloud, *pcloud_ptr, index);
-        if (cloud->empty())
-            return;
-        pcl::PointXYZI first_pt = pcloud_ptr->points[0];
-
-        ///> 为避免数值过大，降采样前先平移
-        for (int i = 0; i < pcloud_ptr->points.size(); i++)
-        {
-            pcloud_ptr->points[i].x = pcloud_ptr->points[i].x - first_pt.x;
-            pcloud_ptr->points[i].y = pcloud_ptr->points[i].y - first_pt.y;
-            pcloud_ptr->points[i].z = pcloud_ptr->points[i].z - first_pt.z;
-        }
-
-        ///> 降采样
-        pcloud_ptr->is_dense = false;
-        
-        pcl::VoxelGrid<pcl::PointXYZI> downer;
-        downer.setInputCloud(pcloud_ptr);
-        downer.setLeafSize(leaf_size, leaf_size, leaf_size);
-        downer.filter(*filtered);
-        cloud->clear();
-
-        ///> 移回去
-        for (int i = 0; i < filtered->points.size(); i++)
-        {
-            filtered->points[i].x = filtered->points[i].x + first_pt.x;
-            filtered->points[i].y = filtered->points[i].y + first_pt.y;
-            filtered->points[i].z = filtered->points[i].z + first_pt.z;
-        }
-    }
 }
 
 namespace hwa_lidar {
@@ -637,7 +561,7 @@ namespace hwa_lidar {
     {
         isRunning = true;
         
-        global_map = std::make_shared<CloudType>();
+        global_map = std::make_shared<CloudRGBType>();
 
         mapping_thread = std::thread(
             &lidar_proc_global_mapping::process,
@@ -661,7 +585,7 @@ namespace hwa_lidar {
         }
 
         savePCDFileBinary("./map/global_map.pcd",
-            0.2);
+            0.02);
     }
 
     void lidar_proc_global_mapping::process()
@@ -692,28 +616,50 @@ namespace hwa_lidar {
         }
     }
 
-    CloudPtr lidar_proc_global_mapping::point_management(CloudPtr cloudin) {
-		CloudPtr cloudout(new CloudType());
+    CloudRGBPtr lidar_proc_global_mapping::point_management(CloudPtr cloudin) {
+        CloudRGBPtr cloudout(new CloudRGBType());
+        float zmin = -5.0f;
+        float zmax = 20.0f;
+
         for (int i = 0; i < cloudin->points.size(); i++)
         {
             pcl::PointXYZI pointSel = cloudin->points[i];
 
-            int cubeI = int((pointSel.x + 25.0) / 50.0);
-            int cubeJ = int((pointSel.y + 25.0) / 50.0);
-            int cubeK = int((pointSel.z + 25.0) / 50.0);
+            int cubeI = int((pointSel.x + 15.0) / 30.0);
+            int cubeJ = int((pointSel.y + 15.0) / 30.0);
+            int cubeK = int((pointSel.z + 15.0) / 30.0);
 
-            if (pointSel.x + 25.0 < 0)
+            if (pointSel.x + 15.0 < 0)
                 cubeI--;
-            if (pointSel.y + 25.0 < 0)
+            if (pointSel.y + 15.0 < 0)
                 cubeJ--;
-            if (pointSel.z + 25.0 < 0)
+            if (pointSel.z + 15.0 < 0)
                 cubeK--;
 
             if (abs(cubeI) < laserCloudWidth &&
                 abs(cubeJ) < laserCloudHeight &&
                 abs(cubeK) < laserCloudDepth)
             {
-				cloudout->points.push_back(pointSel);
+                float t = (pointSel.z - zmin) / (zmax - zmin);
+
+                t = std::max(0.0f, std::min(1.0f, t));
+
+                uint8_t r, g, b;
+
+                jetColor(t, r, g, b);
+                //binaryColor(t, r, g, b);
+
+                pcl::PointXYZRGB pt;
+
+                pt.x = pointSel.x;
+                pt.y = pointSel.y;
+                pt.z = pointSel.z;
+
+                pt.r = r;
+                pt.g = g;
+                pt.b = b;
+
+				cloudout->points.push_back(pt);
             }
         }
         return cloudout;
@@ -722,15 +668,11 @@ namespace hwa_lidar {
     void lidar_proc_global_mapping::processKeyFrame(
         const KeyFrame& kf)
     {
-        CloudPtr dsCloud(new CloudType());
+        CloudRGBPtr dsCloud = point_management(kf.cloud);
 
-        CloudPtr cloud_in = point_management(kf.cloud);
+        downSampleChunked<pcl::PointXYZRGB>(dsCloud, 0.02, 5);
 
-        lidar_proc_mapping::downSample(cloud_in, dsCloud, 0.2);
-
-        CloudPtr worldCloud(new CloudType());
-
-        //transformAssociateToMap(kf.R.matrix(), kf.t);
+        CloudRGBPtr worldCloud(new CloudRGBType());
 
         Eigen::Matrix4d T = Eigen::Matrix4d::Identity();
 
@@ -754,7 +696,7 @@ namespace hwa_lidar {
         const std::string& save_path,
         const double& leaf_size)
     {
-        CloudPtr save_cloud(new CloudType());
+        CloudRGBPtr save_cloud(new CloudRGBType());
 
         {
             std::lock_guard<std::mutex> lock(global_map_mutex);
@@ -771,9 +713,10 @@ namespace hwa_lidar {
         std::cout << "[Global Mapping] Raw points: "
             << save_cloud->size() << std::endl;
 
-        lidar_proc_mapping::downSample(
+        downSampleChunked<pcl::PointXYZRGB>(
             save_cloud,
-            leaf_size
+            leaf_size,
+            leaf_size * 200
         );
 
         std::cout << "[Global Mapping] Downsampled points: "

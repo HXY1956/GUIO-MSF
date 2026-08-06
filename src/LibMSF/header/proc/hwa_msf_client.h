@@ -42,6 +42,7 @@ namespace hwa_msf
         std::unique_ptr<trackprocesser> trackworker = nullptr;
         std::unique_ptr<lidarprocesser> lidarworker = nullptr;
         std::map<int, std::unique_ptr<visprocesser>> visworker;
+        std::vector<baseprocesser*> all_workers;
 
     private:
         base_log _spdlog;

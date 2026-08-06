@@ -8,9 +8,15 @@
 #include "hwa_set_vis.h"
 #include "hwa_vis_proc_utility.h"
 #include "hwa_vis_coder.h"
+#include "hwa_vis_yolo_base.h"
+#include <unordered_set>
 
 using namespace hwa_base;
 using namespace hwa_set;
+
+namespace hwa_vis {
+    class vis_yolo_v8ov;
+}
 
 namespace hwa_vis {
     struct IMU_MSG
@@ -31,14 +37,25 @@ namespace hwa_vis {
 
     class vis_imgproc_base {
     public:
+        vis_imgproc_base() {};
+        vis_imgproc_base(set_base* _set, int cam_group_id);
         void load_imuobs(const double& t, const std::vector<Triple>& gyro, const std::vector<Triple>& acc, double imu_ts);
         void load_imgobs(const double& t, const IMG_PATH& img_path);
         void add_camera_pose(SO3 R, Triple t);
         virtual PointCloud ProcessBatch();
         virtual void ProcessBatchT(const double& t, PointCloud& pointcloud);
         virtual cv::Mat get_out_img() = 0;
+        void removeDynamicPoints(
+            const std::vector<cv::Point2f>& curr_pts,
+            const std::vector<Detection>& dyna_box,
+            std::vector<unsigned char>& inliers);
+        void dyna_detect(const cv::Mat& img);
 
     public:
+        std::unordered_set<int> dynamic_classes;
+        vis_yolo_v8ov* _yolo;
+		std::vector<Detection> dyna_box;            ///< std::vector store dynamic box
+
         IMG_PATH cur_img_path;            ///<current image path
         std::vector<IMU_MSG> _vecimu;            ///< std::vector store imu data between pre frame and cur frame
         double ts = 0;                        ///< camera sample interval. 
@@ -132,78 +149,7 @@ namespace hwa_vis {
     public:
         vis_imgproc() {};
 
-        vis_imgproc(set_base* _set, int cam_group_id) : vis_imgproc_base()
-        {
-            auto set = dynamic_cast<set_vis*>(_set);
-            /*  ***Basic Parameters*** */
-            ts = set->ts(cam_group_id);
-            freq = set->freq(cam_group_id);
-            cam0_resolution = set->cam0_resolution(cam_group_id);
-            cam1_resolution = set->cam1_resolution(cam_group_id);
-            cam0_distortion_model = set->cam0_distortion_model(cam_group_id);
-            cam1_distortion_model = set->cam1_distortion_model(cam_group_id);
-            cam0_intrinsics = set->cam0_intrinsics(cam_group_id);
-            cam1_intrinsics = set->cam1_intrinsics(cam_group_id);
-            cam0_distortion_coeffs = set->cam0_distortion_coeffs(cam_group_id);
-            cam1_distortion_coeffs = set->cam1_distortion_coeffs(cam_group_id);
-
-            stereo = set->stereo(cam_group_id);
-            R_cam0_cam1 = set->R_cam0_cam1(cam_group_id);
-            t_cam0_cam1 = set->t_cam0_cam1(cam_group_id);
-            T_cam0_cam1 = set->T_cam0_cam1(cam_group_id);
-
-            R_cam0_imu = set->R_cam0_imu(cam_group_id);
-            t_cam0_imu = set->t_cam0_imu(cam_group_id);
-            T_cam0_imu = set->T_cam0_imu(cam_group_id);
-
-            T_cam1_imu = T_cam0_imu * T_cam0_cam1.inverse();
-            R_cam1_imu = T_cam1_imu.linear();
-            t_cam1_imu = T_cam1_imu.translation();
-            dt_cam0_imu = set->dt_cam0_imu(cam_group_id);
-
-            grid_row = set->grid_row(cam_group_id);
-            grid_col = set->grid_col(cam_group_id);
-            grid_min_feature_num = set->grid_min_feature_num(cam_group_id);
-            grid_max_feature_num = set->grid_max_feature_num(cam_group_id);
-            pyramid_levels = set->pyramid_levels(cam_group_id);
-            patch_size = set->patch_size(cam_group_id);
-            fast_threshold = set->fast_threshold(cam_group_id);
-            ransac_threshold = set->ransac_threshold(cam_group_id);
-            stereo_threshold = set->stereo_threshold(cam_group_id);
-            max_iteration = set->max_iteration(cam_group_id);
-            track_precision = set->track_precision(cam_group_id);
-            equalize = set->_equalize(cam_group_id);
-            max_cam_state_size = set->max_cam_state_size(cam_group_id);
-            position_std_threshold = set->position_std_threshold(cam_group_id);
-            rotation_threshold = set->rotation_threshold(cam_group_id);
-
-            feature_observation_noise = set->feature_observation_noise(cam_group_id);
-            estimate_extrinsic = set->estimate_extrinsic(cam_group_id);
-            estimate_t = set->estimate_t(cam_group_id);
-
-            if (estimate_extrinsic)
-                ex_param_num += 6;
-            if (estimate_t)
-                ex_param_num += 1;
-
-            _cam_group_id = cam_group_id;
-            if (estimate_t)
-            {
-                initial_cam_t_cov = set->initial_t_cov(cam_group_id);
-                estimate_t_allcam = set->estimate_t_allcam(cam_group_id);
-            }
-            if (estimate_extrinsic)
-            {
-                initial_cam_extrinsic_rotation_cov = set->initial_extrinsic_rotation_cov(cam_group_id);
-                initial_cam_extrinsic_translation_cov = set->initial_extrinsic_translation_cov(cam_group_id);
-                estimate_extrinsic_seperately = set->estimate_extrinsic_seperately(cam_group_id);
-                estimate_extrinsic_allcam = set->estimate_extrinsic_allcam(cam_group_id);
-            }
-            cam_update_skip = set->cam_update_skip(cam_group_id);
-            _pose_history_max_size = 40;
-            max_cnt = set->max_cnt(cam_group_id);
-            usingstereorecify = set->usingstereorecify();
-        }
+        vis_imgproc(set_base* _set, int cam_group_id) : vis_imgproc_base(_set, cam_group_id){}
 
         ~vis_imgproc() {}
 

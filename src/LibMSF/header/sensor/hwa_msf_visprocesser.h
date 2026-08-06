@@ -28,7 +28,8 @@ namespace hwa_msf {
         void RemoveLostFeatures();
         void PruneCamState();
         bool GatingTest(const Matrix& H, const Vector& r, const int& dof);
-        void meas_update(const Matrix& H, const Vector& r);
+        bool GatingTest(const Matrix& H, const Vector& r, const Matrix& R, const int& dof);
+        void meas_update(const Matrix& H, const Vector& r, const Matrix& R);
         void _write_calib();
         bool _extrinsic_init();
         bool align_vins();

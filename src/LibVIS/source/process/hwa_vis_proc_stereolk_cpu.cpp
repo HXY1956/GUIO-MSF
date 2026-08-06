@@ -32,6 +32,8 @@ PointCloud vis_stereo_lk_cpu::ProcessBatch()
     cam0_curr_img = *(_img_msg.img0);
     cam1_curr_img = *(_img_msg.img1);
 
+    dyna_detect(cam0_curr_img);
+
     curr_img_msg = _img_msg;
 
     if (!IsInitialized)
@@ -352,6 +354,86 @@ void vis_stereo_lk_cpu::drawFeaturesStereo()
     cv::cvtColor(cam0_curr_img, out_img->colRange(0, img_width), cv::COLOR_GRAY2BGR);
     cv::cvtColor(cam1_curr_img, out_img->colRange(img_width, img_width * 2), cv::COLOR_GRAY2BGR);
 
+    //------------------------------------------------------
+    // Draw YOLO detections
+    //------------------------------------------------------
+    for (const auto& det : dyna_box)
+    {
+        //========================
+        // 左目
+        //========================
+        cv::rectangle(
+            *out_img,
+            det.box,
+            cv::Scalar(0, 0, 255),
+            2);
+
+        //========================
+        // 右目（x方向偏移一个图像宽度）
+        //========================
+        cv::Rect right_box = det.box;
+        right_box.x += img_width;
+        right_box.x -= 20;
+
+        cv::rectangle(
+            *out_img,
+            right_box,
+            cv::Scalar(0, 0, 255),
+            2);
+
+        // 标签
+        std::string label =
+            det.classname + " " +
+            cv::format("%.2f", det.confidence);
+
+        int baseline = 0;
+        cv::Size text_size = cv::getTextSize(
+            label,
+            cv::FONT_HERSHEY_SIMPLEX,
+            0.5,
+            1,
+            &baseline);
+
+        //========================
+        // 左目标签
+        //========================
+        cv::Rect bg_left(
+            det.box.x,
+            std::max(det.box.y - text_size.height - 5, 0),
+            text_size.width + 6,
+            text_size.height + 6);
+
+        cv::rectangle(*out_img, bg_left, cv::Scalar(0, 0, 255), cv::FILLED);
+
+        cv::putText(
+            *out_img,
+            label,
+            cv::Point(det.box.x + 3, det.box.y - 3),
+            cv::FONT_HERSHEY_SIMPLEX,
+            0.5,
+            cv::Scalar(255, 255, 255),
+            1);
+
+        //========================
+        // 右目标签
+        //========================
+        cv::Rect bg_right(
+            right_box.x,
+            std::max(right_box.y - text_size.height - 5, 0),
+            text_size.width + 6,
+            text_size.height + 6);
+
+        cv::rectangle(*out_img, bg_right, cv::Scalar(0, 0, 255), cv::FILLED);
+
+        cv::putText(
+            *out_img,
+            label,
+            cv::Point(right_box.x + 3, right_box.y - 3),
+            cv::FONT_HERSHEY_SIMPLEX,
+            0.5,
+            cv::Scalar(255, 255, 255),
+            1);
+    }
 
 
     for (int i = 1; i < grid_row; ++i)
@@ -617,8 +699,20 @@ void vis_stereo_lk_cpu::trackFeatures()
     removeUnmarkedElements(curr_tracked_cam0_points, match_inliers, curr_matched_cam0_points);
     removeUnmarkedElements(curr_cam1_points, match_inliers, curr_matched_cam1_points);
 
-    // 记录匹配后的特征点数量
     after_matching = curr_matched_cam0_points.size();
+
+    vector<unsigned char> static_idx;
+    removeDynamicPoints(
+        curr_matched_cam0_points,
+        dyna_box,
+        static_idx);
+
+    removeUnmarkedElements(prev_matched_ids, static_idx, prev_matched_ids);
+    removeUnmarkedElements(prev_matched_lifetime, static_idx, prev_matched_lifetime);
+    removeUnmarkedElements(prev_matched_cam0_points, static_idx, prev_matched_cam0_points);
+    removeUnmarkedElements(prev_matched_cam1_points, static_idx, prev_matched_cam1_points);
+    removeUnmarkedElements(curr_matched_cam0_points, static_idx, curr_matched_cam0_points);
+    removeUnmarkedElements(curr_matched_cam1_points, static_idx, curr_matched_cam1_points);
 
     // 对匹配的特征点进行 RANSAC 去除外点
     vector<int> cam0_ransac_inliers(0);
@@ -660,6 +754,10 @@ void vis_stereo_lk_cpu::trackFeatures()
         grid_new_feature.lifetime = ++prev_matched_lifetime[i];
         grid_new_feature.cam0_point = curr_matched_cam0_points[i];
         grid_new_feature.cam1_point = curr_matched_cam1_points[i];
+        cv::Point2f vel = (curr_matched_cam0_points[i] - prev_matched_cam0_points[i]) /
+			(curr_img_msg.t - prev_img_msg.t);
+        grid_new_feature.velocity[0] = vel.x; 
+        grid_new_feature.velocity[1] = vel.y;
 
         ++after_ransac;
     }
@@ -832,8 +930,8 @@ void vis_stereo_lk_cpu::twoPointRansac(
     {
         Vec3f pt_h(pt.x, pt.y, 1.0f);
         Vec3f pt_hc = R_p_c * pt_h;
-        pt.x = pt_hc[0];
-        pt.y = pt_hc[1];
+        pt.x = pt_hc[0] / pt_hc[2];
+        pt.y = pt_hc[1] / pt_hc[2];
     }
 
     // 计算归一化比例因子
@@ -1019,7 +1117,7 @@ void vis_stereo_lk_cpu::twoPointRansac(
         this_error /= inlier_set.size();
 
         // 如果当前模型比之前的好，更新最佳模型
-        if (inlier_set.size() > best_inlier_set.size())
+        if (inlier_set.size() > best_inlier_set.size() || (inlier_set.size() == best_inlier_set.size() && this_error < best_error))
         {
             best_error = this_error;
             best_inlier_set = inlier_set;
@@ -1065,6 +1163,14 @@ void vis_stereo_lk_cpu::addNewFeatures()
             Range col_range(left_lim, right_lim);
             mask(row_range, col_range) = 0;
         }
+    }
+
+    for (const auto& det : dyna_box)
+    {
+        cv::rectangle(mask,
+            det.box,
+            cv::Scalar(0),
+            cv::FILLED);
     }
 
     // 通过特征点检测器（如 FAST, ORB）检测新特征点
@@ -1137,6 +1243,8 @@ void vis_stereo_lk_cpu::addNewFeatures()
         new_feature.response = response_inliers[i];
         new_feature.cam0_point = cam0_inliers[i];
         new_feature.cam1_point = cam1_inliers[i];
+        new_feature.velocity[0] = 0.0;
+        new_feature.velocity[1] = 0.0;
         grid_new_features[code].push_back(new_feature);
     }
 
@@ -1306,9 +1414,13 @@ void vis_stereo_lk_cpu::removeUnmarkedElements(
         printf("The input size of raw_vec(%d) and markers(%d) does not match...\n",
             raw_vec.size(), markers.size());
     }
+
+    refined_vec.clear();
+
     for (int i = 0; i < markers.size(); ++i)
     {
-        if (markers[i] == 0) continue;
+        if (markers[i] == 0) 
+            continue;
         refined_vec.push_back(raw_vec[i]);
     }
     return;

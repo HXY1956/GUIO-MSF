@@ -229,6 +229,26 @@ double hwa_set::set_lidar::prior_map_resolution()
     return tmp_double;
 }
 
+double hwa_set::set_lidar::keyframe_trans_thresh()
+{
+    std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_LIDAR).child_value("keyframe_trans_thresh");
+    str_erase(tmp);
+    double tmp_double = 1; // default value
+    if (tmp != "")
+        tmp_double = std::stod(tmp);
+    return tmp_double;
+}
+
+double hwa_set::set_lidar::keyframe_rot_thresh()
+{
+    std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_LIDAR).child_value("keyframe_rot_thresh");
+    str_erase(tmp);
+    double tmp_double = 10 * D2R; // default value
+    if (tmp != "")
+        tmp_double = std::stod(tmp) * D2R;
+    return tmp_double;
+}
+
 double hwa_set::set_lidar::map_resolution_sharp()
 {
     std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_LIDAR).child_value("map_resolution_sharp");

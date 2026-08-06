@@ -2,6 +2,8 @@
 #define hwa_set_vis_h
 #define XMLKEY_VIS "vis"
 #define XMLKEY_YOLO "yolo"
+#define XMLKEY_YOLO_CIRCLE "circle"
+#define XMLKEY_YOLO_DYNA "dyna"
 #include "hwa_set_base.h"
 #include "hwa_base_eigendef.h"
 
@@ -152,14 +154,14 @@ namespace hwa_set
         std::vector<int> camera_list();
         int group_number();
 
-        bool detect();
-        std::string modelpath();
-        std::vector<std::string> clsname();
-        std::pair<int, int> inputsize();
-        int numpred();
-        int classnumber();
-        float conf();
-        float nms();
+        bool detect(const char* _class_name);
+        std::string modelpath(const char* _class_name);
+        std::vector<std::string> clsname(const char* _class_name);
+        std::pair<int, int> inputsize(const char* _class_name);
+        int numpred(const char* _class_name);
+        int classnumber(const char* _class_name);
+        float conf(const char* _class_name);
+        float nms(const char* _class_name);
 
     protected:
     };

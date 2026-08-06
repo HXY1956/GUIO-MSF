@@ -22,18 +22,32 @@ namespace hwa_msf {
         UseHgt = dynamic_cast<set_ign*>(gset.get())->Hgt();
 
         baseworker = baseprocesser(gset, spdlog, site, _beg, _end);
-        insworker = std::make_unique<insprocesser>(baseworker, data->operator[](base_data::ID_TYPE::IMUDATA));
-        if (UseUwb) 
+
+        if (UseIns) {
+            insworker = std::make_unique<insprocesser>(baseworker, data->operator[](base_data::ID_TYPE::IMUDATA));
+            all_workers.push_back(insworker.get());
+        }
+
+        if (UseUwb) {
             uwbworker = std::make_unique<uwbprocesser>(baseworker, data->operator[](base_data::ID_TYPE::UWBDATA));
-        if(UseLidar)
+            all_workers.push_back(uwbworker.get());
+        }
+
+        if (UseLidar) {
             lidarworker = std::make_unique<lidarprocesser>(baseworker, data->operator[](base_data::ID_TYPE::LIDARDATA));
-        if(UseGnss)
+            all_workers.push_back(lidarworker.get());
+        }
+
+        if (UseGnss) {
             gnssworker = std::make_unique<gnssprocesser>(baseworker, site, site_base, gset, spdlog, data);
-        if(UseVis)
+            all_workers.push_back(gnssworker.get());
+        }
+
+        if (UseVis)
             for (int i = 0; i < dynamic_cast<set_vis*>(gset.get())->num_of_cam_group(); i++) {
                 visworker[i] = std::make_unique<visprocesser>(baseworker, i, data->operator[](base_data::ID_TYPE::CAMDATA));
+                all_workers.push_back(visworker[i].get());
             }
-        // trackworker = std::make_unique<trackprocesser>(baseworker);
     }
 
     int msf_client::ProcessBatchFB()
@@ -337,10 +351,8 @@ namespace hwa_msf {
     }
 
     void msf_client::crt_feed_back() {
-        if (UseGnss) gnssworker->_feed_back();
-        if (UseUwb) uwbworker->_feed_back();
-        if (UseVis) visworker[0]->_feed_back();
-        if (UseLidar) lidarworker->_feed_back();
-        if (UseIns) insworker->_feed_back();
+        for (auto worker : all_workers) {
+            worker->_feed_back();
+        }
     }
 }

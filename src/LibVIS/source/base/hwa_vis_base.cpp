@@ -1193,9 +1193,12 @@ bool hwa_vis::GlobalSFM::construct(int frame_num, std::vector<Eigen::Quaterniond
         c_rotation[i][3] = c_Quat[i].z();
         problem.AddParameterBlock(c_rotation[i], 4, local_parameterization);
         problem.AddParameterBlock(c_translation[i], 3);
-        if (i == l || i == frame_num - 1)
+        if (i == l)
         {
             problem.SetParameterBlockConstant(c_rotation[i]);
+        }
+        if (i == l || i == frame_num - 1)
+        {
             problem.SetParameterBlockConstant(c_translation[i]);
         }
     }
@@ -1285,7 +1288,7 @@ bool hwa_vis::vis_base::relativePose(SO3& relative_R, Triple& relative_T, int& l
             average_parallax = 1.0 * sum_parallax / int(corres.size());
 
             if (average_parallax * 460 < 30) {
-                //std::cout << "Not Enough parallax" << std::endl;
+                std::cout << "Not Enough parallax" << std::endl;
                 return false;
             }
             if (average_parallax * 460 > 30 && solveRelativeRT(corres, relative_R, relative_T))
@@ -1314,7 +1317,7 @@ std::vector<std::pair<Eigen::Vector2d, Eigen::Vector2d>> hwa_vis::vis_base::getC
             auto tmp_it = it.observations.begin();
             std::advance(tmp_it, idx_l);  
             a = tmp_it->second.position.head<2>();
-            std::advance(tmp_it, idx_r);  
+            std::advance(tmp_it, idx_r - idx_l);  
             b = tmp_it->second.position.head<2>();
             corres.push_back(std::make_pair(a, b));
         }
@@ -1455,6 +1458,9 @@ bool hwa_vis::vis_base::checkStaticMotion()
             common_feature_size++;
         }
     }
+
+    if (common_feature_size == 0) return false;
+
     mean_motion = mean_motion / common_feature_size;
 
     if (mean_motion < static_threshold)
@@ -1504,7 +1510,7 @@ bool hwa_vis::vis_base::initialStructure()
         var = sqrt(var / ((int)cam_states.size() - 1));
         if (var < 0.25)
         {
-            return false;
+             return false;
         }
     }
 
@@ -1597,24 +1603,52 @@ bool hwa_vis::vis_base::visualInitialAlign()
 
     g = frame_l->second.orientation.conjugate() * g;
     SO3 R0 = hwa_vis::vis_base::g2R(g);
-    R0 = hwa_vis::vis_base::ypr2R(Triple{ hwa_vis::vis_base::R2ypr(frame_l->second.qnc.toRotationMatrix()).x(), 0, 0 }) * R0;
+    double yaw = hwa_vis::vis_base::R2ypr(frame_l->second.qnc.toRotationMatrix()).x();
+    R0 = hwa_vis::vis_base::ypr2R(Triple{ yaw , 0, 0 }) * R0;
     Eigen::Quaterniond orientation_store = frame_l->second.orientation;
     frame_l->second.orientation = frame_l->second.R_e_n.transpose() * R0;
 
     Eigen::Quaterniond delta_q = frame_l->second.orientation * orientation_store.conjugate();
+
     g = R0 * g; //ENU
     std::cout << "Gravity N" << g.transpose() << std::endl;
+    std::cout << std::setprecision(6) << "Scale: " << s << std::endl;
+
     SO3 rot_diff = delta_q.toRotationMatrix();
+
+    Eigen::Vector3d prev_position = Eigen::Vector3d::Zero();
+    bool first = true;
 
     for (auto it = cam_states.begin(); it != cam_states.end(); it++, i++)
     {
-        it->second.pre_integration->repropagate(Bas[i], Bgs[i]);
+        it->second.pre_integration->repropagate(Triple::Zero(), Bgs[i]);
         it->second.orientation = rot_diff * it->second.orientation;
         it->second.position = rot_diff * s * (it->second.position - frame_b->second.position) + frame_b->second.position;
         it->second.TCI();
         it->second.ve = it->second.orientation_b * x.segment<3>(i * 3);
         std::cout << "Velocity " << i << ": " << it->second.ve.transpose() << std::endl;
         it->second.qnb = it->second.R_e_n * it->second.orientation_b;
+
+        // Output position
+        std::cout << "Position " << i << ": ["
+            << std::fixed << std::setprecision(4)
+            << it->second.position.x() << ", "
+            << it->second.position.y() << ", "
+            << it->second.position.z() << "]";
+
+        // Output displacement from previous position
+        if (!first)
+        {
+            double displacement = (it->second.position - prev_position).norm();
+            std::cout << "  |disp| = " << std::setprecision(4) << displacement;
+        }
+        else
+        {
+            std::cout << "  (start)";
+            first = false;
+        }
+
+        prev_position = it->second.position;
     }
     return true;
 }
@@ -1647,8 +1681,8 @@ void hwa_vis::vis_base::solveGyroscopeBias(hwa_vis::CamStateServer& camstates)
         tmp_b.setZero();
         Eigen::Quaterniond q_ij(frame_i->second.orientation_b.conjugate() * frame_j->second.orientation_b);
         // j -> i
-        tmp_A = frame_i->second.pre_integration->jacobian.template block<3, 3>(hwa_base::O_R, hwa_base::O_BG);
-        tmp_b = 2 * (frame_i->second.pre_integration->delta_q.inverse() * q_ij).vec();
+        tmp_A = frame_j->second.pre_integration->jacobian.template block<3, 3>(hwa_base::O_R, hwa_base::O_BG);
+        tmp_b = 2 * (frame_j->second.pre_integration->delta_q.inverse() * q_ij).vec();
         A += tmp_A.transpose() * tmp_A;
         b += tmp_A.transpose() * tmp_b;
     }
@@ -1657,10 +1691,10 @@ void hwa_vis::vis_base::solveGyroscopeBias(hwa_vis::CamStateServer& camstates)
     for (int i = 0; i < frame_count; i++)
         Bgs[i] += delta_bg;
 
-    int i = 0;
-    for (frame_i = camstates.begin(); next(frame_i) != camstates.end(); frame_i++, i++)
+    for (frame_i = camstates.begin(); next(frame_i) != camstates.end(); frame_i++)
     {
-        frame_i->second.pre_integration->repropagate(Bas[i], Bgs[i]);   // 0 -> i
+        frame_j = next(frame_i);
+        frame_j->second.pre_integration->repropagate(Triple::Zero(), Bgs[0]);
     }
 }
 
@@ -1688,15 +1722,15 @@ bool hwa_vis::vis_base::LinearAlignment(hwa_vis::CamStateServer& camstates, Trip
         tmp_b.setZero();
 
         // j -> i
-        double dt = frame_i->second.pre_integration->sum_dt;
+        double dt = frame_j->second.pre_integration->sum_dt;
         tmp_A.block<3, 3>(0, 0) = -dt * SO3::Identity();
         tmp_A.block<3, 3>(0, 6) = frame_i->second.orientation_b.toRotationMatrix().transpose() * dt * dt / 2 * SO3::Identity();
         tmp_A.block<3, 1>(0, 9) = frame_i->second.orientation_b.toRotationMatrix().transpose() * (frame_j->second.position - frame_i->second.position) / 100.0;
-        tmp_b.block<3, 1>(0, 0) = frame_i->second.pre_integration->delta_p + frame_i->second.orientation_b.toRotationMatrix().transpose() * frame_j->second.orientation_b.toRotationMatrix() * frame_j->second.Tbc - frame_j->second.Tbc;
+        tmp_b.block<3, 1>(0, 0) = frame_j->second.pre_integration->delta_p + frame_i->second.orientation_b.toRotationMatrix().transpose() * frame_j->second.orientation_b.toRotationMatrix() * frame_j->second.Tbc - frame_j->second.Tbc;
         tmp_A.block<3, 3>(3, 0) = -SO3::Identity();
         tmp_A.block<3, 3>(3, 3) = frame_i->second.orientation_b.toRotationMatrix().transpose() * frame_j->second.orientation_b.toRotationMatrix();
         tmp_A.block<3, 3>(3, 6) = frame_i->second.orientation_b.toRotationMatrix().transpose() * dt * SO3::Identity();
-        tmp_b.block<3, 1>(3, 0) = frame_i->second.pre_integration->delta_v;
+        tmp_b.block<3, 1>(3, 0) = frame_j->second.pre_integration->delta_v;
 
         Eigen::Matrix<double, 6, 6> cov_inv = Eigen::Matrix<double, 6, 6>::Zero();
         cov_inv.setIdentity();
@@ -1724,21 +1758,10 @@ bool hwa_vis::vis_base::LinearAlignment(hwa_vis::CamStateServer& camstates, Trip
     {
         return false;
     }
-    Triple Gravity_store = g;
     RefineGravity(camstates, g, x);
-    Triple delta_ba = Gravity_store - g;
-
-    std::cout << " Estimated Acc Bias:  " << delta_ba.transpose() << std::endl;
-
-    i = 0;
-    //for (auto it = cam_states.begin(); it != cam_states.end(); it++, i++) {
-    //    Bas[i] += it->second.orientation_b.conjugate() * delta_ba; // transform �� ��ǰ֡
-    //}
-
     s = (x.tail<1>())(0) / 100.0;
     (x.tail<1>())(0) = s;
     std::cout << " Refined Gravity:  " << g.norm() << " " << g.transpose() << std::endl;
-
     std::cout << "Refined estimated scale: " << s << std::endl;
 
     if (s < 0.0)
@@ -1777,17 +1800,17 @@ void hwa_vis::vis_base::RefineGravity(hwa_vis::CamStateServer& camstates, Triple
             tmp_b.setZero();
 
             // j -> i
-            double dt = frame_i->second.pre_integration->sum_dt;
+            double dt = frame_j->second.pre_integration->sum_dt;
 
             tmp_A.block<3, 3>(0, 0) = -dt * SO3::Identity();
             tmp_A.block<3, 2>(0, 6) = frame_i->second.orientation_b.toRotationMatrix().transpose() * dt * dt / 2 * SO3::Identity() * lxly;
             tmp_A.block<3, 1>(0, 8) = frame_i->second.orientation_b.toRotationMatrix().transpose() * (frame_j->second.position - frame_i->second.position) / 100.0;
-            tmp_b.block<3, 1>(0, 0) = frame_i->second.pre_integration->delta_p + frame_i->second.orientation_b.toRotationMatrix().transpose() * frame_j->second.orientation_b.toRotationMatrix() * frame_j->second.Tbc - frame_j->second.Tbc - frame_i->second.orientation_b.toRotationMatrix().transpose() * dt * dt / 2 * g0;
+            tmp_b.block<3, 1>(0, 0) = frame_j->second.pre_integration->delta_p + frame_i->second.orientation_b.toRotationMatrix().transpose() * frame_j->second.orientation_b.toRotationMatrix() * frame_j->second.Tbc - frame_j->second.Tbc - frame_i->second.orientation_b.toRotationMatrix().transpose() * dt * dt / 2 * g0;
 
             tmp_A.block<3, 3>(3, 0) = -SO3::Identity();
             tmp_A.block<3, 3>(3, 3) = frame_i->second.orientation_b.toRotationMatrix().transpose() * frame_j->second.orientation_b.toRotationMatrix();
             tmp_A.block<3, 2>(3, 6) = frame_i->second.orientation_b.toRotationMatrix().transpose() * dt * SO3::Identity() * lxly;
-            tmp_b.block<3, 1>(3, 0) = frame_i->second.pre_integration->delta_v - frame_i->second.orientation_b.toRotationMatrix().transpose() * dt * SO3::Identity() * g0;
+            tmp_b.block<3, 1>(3, 0) = frame_j->second.pre_integration->delta_v - frame_i->second.orientation_b.toRotationMatrix().transpose() * dt * SO3::Identity() * g0;
 
             Eigen::Matrix<double, 6, 6> cov_inv = Eigen::Matrix<double, 6, 6>::Zero();
             cov_inv.setIdentity();

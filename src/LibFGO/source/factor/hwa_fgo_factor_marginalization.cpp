@@ -203,6 +203,8 @@ namespace hwa_fgo
 		A.setZero();
 		b.setZero();
 
+
+		TicToc t_thread_summing;
 		std::thread tids[NUM_THREADS];
 		ThreadsStruct threadsstruct[NUM_THREADS];
 		int i = 0;
@@ -226,6 +228,7 @@ namespace hwa_fgo
 			A += threadsstruct[i].A;
 			b += threadsstruct[i].b;
 		}
+		std::cout << "thread summing up costs " << t_thread_summing.toc() << " ms" << std::endl;
 
 		//Eigen::IOFormat fmt(
 		//	6,                  // precision 小数位数
@@ -244,21 +247,60 @@ namespace hwa_fgo
 		//std::cout << "========== Margin b ==========" << std::endl;
 		//std::cout << b.format(fmt) << std::endl;
 
-		//TODO
+		//std::cout<<"A Size: ["<<A.rows()<<","<<A.cols()<<"]"<<std::endl;
+
+		TicToc t_compute;
+		TicToc t_step;
+
+		t_step.tic();
 		Matrix Amm = 0.5 * (A.block(0, 0, m, m) + A.block(0, 0, m, m).transpose());
-		Eigen::SelfAdjointEigenSolver<Matrix> saes(Amm);
+		std::cout << "  Amm computation: " << t_step.toc() << " ms" << std::endl;
 
-		Matrix Amm_inv = saes.eigenvectors() * Vector((saes.eigenvalues().array() > eps).select(saes.eigenvalues().array().inverse(), 0)).asDiagonal() * saes.eigenvectors().transpose();
+		//t_step.tic();
+		//Eigen::SelfAdjointEigenSolver<Matrix> saes(Amm);
+		//std::cout << "  Eigen decomposition: " << t_step.toc() << " ms" << std::endl;
 
+		//t_step.tic();
+		//Matrix Amm_inv = saes.eigenvectors() * Vector((saes.eigenvalues().array() > eps).select(saes.eigenvalues().array().inverse(), 0)).asDiagonal() * saes.eigenvectors().transpose();
+		//std::cout << "  Amm_inv computation: " << t_step.toc() << " ms" << std::endl;
+
+		//Eigen::LDLT<Matrix> ldlt(Amm);
+		//Matrix Amm_inv;
+
+		//if (ldlt.info() == Eigen::Success) {
+		//	Amm_inv = ldlt.solve(Matrix::Identity(m, m));
+		//}
+		//else {
+		//	throw std::runtime_error("Matrix Amm is not positive definite or is singular.");
+		//}
+
+		double eps = 1e-6;
+		Matrix Amm_damped = Amm;
+		Amm_damped.diagonal().array() += eps;
+
+		Eigen::LLT<Matrix> llt(Amm_damped);
+
+		Matrix Amm_inv = llt.solve(Matrix::Identity(m, m));
+
+		t_step.tic();
 		Vector bmm = b.segment(0, m);
 		Matrix Amr = A.block(0, m, m, n);
 		Matrix Arm = A.block(m, 0, n, m);
 		Matrix Arr = A.block(m, m, n, n);
 		Vector brr = b.segment(m, n);
-		A = Arr - Arm * Amm_inv * Amr;
-		b = brr - Arm * Amm_inv * bmm;
+		std::cout << "  Matrix/vector extraction: " << t_step.toc() << " ms" << std::endl;
 
-		A = 0.5 * (A + A.transpose());
+		t_step.tic();
+		A = Arr - Arm * Amm_inv * Amr;
+		std::cout << "  A matrix update: " << t_step.toc() << " ms" << std::endl;
+
+		t_step.tic();
+		b = brr - Arm * Amm_inv * bmm;
+		std::cout << "  b vector update: " << t_step.toc() << " ms" << std::endl;
+
+		std::cout << "Total A,b computation: " << t_compute.toc() << " ms" << std::endl;
+
+		TicToc t_compute1;
 
 		Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> saes2(A);
 		Eigen::VectorXd S = Eigen::VectorXd((saes2.eigenvalues().array() > eps).select(saes2.eigenvalues().array(), 0));
@@ -319,7 +361,7 @@ namespace hwa_fgo
 		linearized_jacobians = S_sqrt.asDiagonal() * saes2.eigenvectors().transpose();
 		linearized_residuals = S_inv_sqrt.asDiagonal() * saes2.eigenvectors().transpose() * b;
 
-
+		std::cout << "Compute B " << t_compute1.toc() << " ms" << std::endl;
 		//std::cout << "========== Margin Amm  ==========" << std::endl;
 		//std::cout << Amm.format(fmt) << std::endl;
 

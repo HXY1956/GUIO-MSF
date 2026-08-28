@@ -32,7 +32,7 @@ PointCloud vis_stereo_lk_cpu::ProcessBatch()
     cam0_curr_img = *(_img_msg.img0);
     cam1_curr_img = *(_img_msg.img1);
 
-    dyna_detect(cam0_curr_img);
+    //dyna_detect(cam0_curr_img);
 
     curr_img_msg = _img_msg;
 
@@ -540,6 +540,7 @@ void vis_stereo_lk_cpu::publish()
     vector<long long int> curr_ids(0);
     vector<Point2f> curr_cam0_points(0);
     vector<Point2f> curr_cam1_points(0);
+    vector<Eigen::Vector2d> curr_velocities(0);
 
 
     for (const auto& grid_features : (*curr_features_ptr))
@@ -549,6 +550,7 @@ void vis_stereo_lk_cpu::publish()
             curr_ids.push_back(feature.id);
             curr_cam0_points.push_back(feature.cam0_point);
             curr_cam1_points.push_back(feature.cam1_point);
+            curr_velocities.push_back(feature.velocity);
         }
     }
     vector<Point2f> curr_cam0_points_undistorted(0);
@@ -561,7 +563,6 @@ void vis_stereo_lk_cpu::publish()
         curr_cam1_points, _cam1_intrinsics, _cam1_distortion_model,
         _cam1_distortion_coeffs, curr_cam1_points_undistorted);
 
-
     for (int i = 0; i < curr_ids.size(); ++i)
     {
         //cout << "imgproc_id" << feature_msg.id << endl;
@@ -569,6 +570,8 @@ void vis_stereo_lk_cpu::publish()
         feature_msg.cam0_point = curr_cam0_points_undistorted[i];
 
         feature_msg.cam1_point = curr_cam1_points_undistorted[i];
+
+		feature_msg.velocity = curr_velocities[i];
 
         _pointCloud.features.push_back(feature_msg);
     }
@@ -731,6 +734,16 @@ void vis_stereo_lk_cpu::trackFeatures()
         0.99, cam1_ransac_inliers
     );
 
+    vector<Point2f> curr_cam0_points_undistorted;
+    vector<Point2f> prev_cam0_points_undistorted;
+
+    undistortPoints(
+        curr_matched_cam0_points, _cam0_intrinsics, _cam0_distortion_model,
+        _cam0_distortion_coeffs, curr_cam0_points_undistorted);
+    undistortPoints(
+        prev_matched_cam0_points, _cam0_intrinsics, _cam0_distortion_model,
+        _cam0_distortion_coeffs, prev_cam0_points_undistorted);
+
     // 记录经过 RANSAC 筛选后的特征点数量
     after_ransac = 0;
     for (int i = 0; i < cam0_ransac_inliers.size(); ++i)
@@ -754,7 +767,7 @@ void vis_stereo_lk_cpu::trackFeatures()
         grid_new_feature.lifetime = ++prev_matched_lifetime[i];
         grid_new_feature.cam0_point = curr_matched_cam0_points[i];
         grid_new_feature.cam1_point = curr_matched_cam1_points[i];
-        cv::Point2f vel = (curr_matched_cam0_points[i] - prev_matched_cam0_points[i]) /
+        cv::Point2f vel = (curr_cam0_points_undistorted[i] - prev_cam0_points_undistorted[i]) /
 			(curr_img_msg.t - prev_img_msg.t);
         grid_new_feature.velocity[0] = vel.x; 
         grid_new_feature.velocity[1] = vel.y;

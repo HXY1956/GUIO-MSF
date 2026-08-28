@@ -297,10 +297,10 @@ namespace hwa_gnss
 
         dx = K * l;
 
-        Qx.matrixW() = (I - K * A) * Qx.matrixR();
-        Qx.matrixW() = 0.5 * (Qx.matrixR() + Qx.matrixR().transpose());
+        //Qx.matrixW() = (I - K * A) * Qx.matrixR();
+        //Qx.matrixW() = 0.5 * (Qx.matrixR() + Qx.matrixR().transpose());
 
-        //Qx.matrixW() = I_KA * Qx.matrixR() * I_KA.transpose() + K * R * K.transpose();
+        Qx.matrixW() = I_KA * Qx.matrixR() * I_KA.transpose() + K * R * K.transpose();
     }
 
     void gnss_proc_kalman::update(

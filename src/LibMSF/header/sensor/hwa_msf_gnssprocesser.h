@@ -41,6 +41,7 @@ namespace hwa_msf {
     private:
         Triple lever;
         bool time_lock = false;
+        base_time align_time = FIRST_TIME;
     };
 }
 

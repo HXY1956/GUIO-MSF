@@ -423,6 +423,14 @@ namespace hwa_msf {
     void insprocesser::merge_init(const Triple& pos, const Triple& lever, const Matrix& var, SENSOR_TYPE sensor)
     {
         if (pos.norm() == 0) return;
+
+        //std::cout << "======== " << "gnss merge details" << " ========" << std::endl;
+        //std::cout << "Epoch: " << TimeStamp.str_ymdhms() << std::endl;
+        //std::cout << std::setiosflags(std::ios::fixed) << std::setprecision(6);
+        //std::cout << "GNSS POS: " << pos.transpose() << std::endl;
+        //std::cout << "GNSS QUAT:\n " << _sins->Cnb << "\n";
+        //std::cout << "GNSS LEVER:\n " << lever.transpose() << "\n";
+
         _sins->eth.Update(Cart2Geod(Eigen::Vector3d(pos[0], pos[1], pos[2]), false), Eigen::Vector3d::Zero());
         _sins->Cnb = base_att_trans::q2mat(_sins->qnb);
         _sins->Ceb = _sins->eth.Cen * _sins->Cnb;
@@ -882,6 +890,5 @@ namespace hwa_msf {
                 }
             }
         }
-        _sins->Xk = Vector::Zero(_sins->Pk.rows());
     }
 }

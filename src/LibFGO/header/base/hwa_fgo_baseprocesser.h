@@ -47,6 +47,11 @@ namespace hwa_fgo {
 		DEFAULT_NODE
     };
 
+    enum SOLVER_FLAG {
+        INITIAL,
+        NON_LINEAR
+    };
+
     inline std::string sensor_node2str(SENSOR_NODE node) {
         switch (node)
         {
@@ -332,6 +337,7 @@ namespace hwa_fgo {
         int _window_size = 10;
         Eigen::Vector3d _gravity;				///< gravity
         bool _first_imu = false;
+		SOLVER_FLAG _solver_flag = INITIAL;
     };
 
     class baseprocesser {
@@ -407,6 +413,13 @@ namespace hwa_fgo {
         void reset_status(){
             _fgo_info->new_state_inserted = false;
         }
+        void set_solver_flag(SOLVER_FLAG flag) {
+            _fgo_info->_solver_flag = flag;
+		}
+        SOLVER_FLAG _get_solver_flag() {
+            return _fgo_info->_solver_flag;
+		}
+
         void _set_frame_pose()
         {
             if (check_same_node()) {
@@ -425,8 +438,8 @@ namespace hwa_fgo {
             _fgo_info->_Time[_fgo_info->rover_count] = dTime();
             _fgo_info->new_state_inserted = true;
 
-            _fgo_info->_pre_integration(_fgo_info->_last_pre_integration_time, dTime());
-            _fgo_info->_last_pre_integration_time = dTime();
+            _fgo_info->_pre_integration(_fgo_info->_last_pre_integration_time, dTime() + _fgo_info->_para_td[0][0]);
+            _fgo_info->_last_pre_integration_time = dTime() + _fgo_info->_para_td[0][0];
 
             _fgo_info->rover_count++;
         }

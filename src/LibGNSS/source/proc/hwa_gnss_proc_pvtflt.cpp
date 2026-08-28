@@ -921,6 +921,7 @@ int hwa_gnss::gnss_proc_pvtflt::_combineDD(Matrix &A, Symmetric &P, Vector &l)
 
 					//std::cout << "RefSatellite: " << sat_ref << " Freq: " << f << " system: " << sys << " number of double-differenced observations: " << iobs << std::endl;
                 }      //end f
+				//std::cout << "SAT REF DETAIL: " << sys << " " << sat_ref << " " << iobs << std::endl;
             }          //end sys
         }
 
@@ -940,8 +941,13 @@ int hwa_gnss::gnss_proc_pvtflt::_combineDD(Matrix &A, Symmetric &P, Vector &l)
 
         DD = DD.block(0, 0, iobs, DD.cols()).eval();
 
+        //std::cout << setprecision(6) << std::fixed;
+        //std::cout << "BEFORE DD L:\n" << l << "\n";
+
         A = DD * A;
         l = DD * l;
+
+        //std::cout <<"AFTER DD L:\n" << l << "\n";
 
         P.matrixW() = (DD * P.matrixR().inverse() * DD.transpose()).inverse().eval();
 
@@ -1837,11 +1843,14 @@ int hwa_gnss::gnss_proc_pvtflt::_processEpoch(const base_time &runEpoch)
 
         Qsav = _Qx;
 
-        //std::cout << "time" << runEpoch.sow() + runEpoch.dsec() << "; After DD: " << "\n";
-        //t_out("A", A);
-        //t_out("P", P.matrixR());
-        //t_out("l", l);
-        //t_out("Qx", _Qx.matrixR());
+   //     std::cout << "time" << runEpoch.sow() + runEpoch.dsec() << "; After DD: " << "\n";
+   //     Triple xyz;
+   //     if (_param->getCrdParam(_site, xyz) > 0)
+			//t_out("crd", xyz);
+   //     t_out("A", A);
+   //     t_out("P", P.matrixR());
+   //     t_out("l", l);
+   //     t_out("Qx", _Qx.matrixR());
 
         try
         {
@@ -1980,6 +1989,9 @@ int hwa_gnss::gnss_proc_pvtflt::_processEpoch(const base_time &runEpoch)
             _param->operator[](iPar).amb_ini = !_amb_state;
         //std::cout << _param->operator[](iPar).str_type() << " " << _param->operator[](iPar).value() << std::endl;
     }
+    //Triple xyz;
+    //if (_param->getCrdParam(_site, xyz) > 0)
+    //    t_out("after update crd", xyz);
 
     //std::cout << "Time: " << runEpoch.sow() + runEpoch.dsec() << " After ambiguity resolution: " << std::fixed << std::setprecision(4) << _param->operator[](6).value() << " " << _param->operator[](7).value() << " " << _param->operator[](8).value() << std::endl;
 
@@ -5805,6 +5817,9 @@ void hwa_gnss::gnss_proc_pvtflt::_predictAmb()
 unsigned int hwa_gnss::gnss_proc_pvtflt::_cmp_equ(gnss_proc_lsq_equationmatrix &equ)
 {
     std::vector<gnss_data_sats>::iterator it = _data.begin();
+    //std::cout << "======== EQU DETAILS ========" << std::endl;
+    //std::cout << "FEEDBACK Epoch: " << _epoch.str_ymdhms() << std::endl;
+
     for (it = _data.begin(); it != _data.end();)
     {
         if (!_base_model->cmb_equ(_epoch, *_param, *it, equ))

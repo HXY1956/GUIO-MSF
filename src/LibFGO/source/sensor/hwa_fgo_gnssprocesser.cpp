@@ -954,7 +954,7 @@ namespace hwa_fgo {
 		return true;
 	}
 
-	Triple gnssprocesser::_getRobustFixedPosition()
+	bool gnssprocesser::_getRobustFixedPosition()
 	{
 		std::set<std::string> ambs = _param->amb_prns();
 		int nsat = ambs.size();
@@ -986,17 +986,7 @@ namespace hwa_fgo {
 			<< "\n";
 		std::cout << "=============================================================\n";
 
-		Triple pos;
-		if (valid)
-		{
-			_param_fixed.getCrdParam(_site, pos);
-		}
-		else
-		{
-			pos = Triple::Zero();
-		}
-
-		return pos;
+		return valid;
 	}
 
 	bool gnssprocesser::_remove_outlier_sat(const pair<string, int>& outlier)
@@ -1368,19 +1358,19 @@ namespace hwa_fgo {
 	}
 
 	int gnssprocesser::ProcessOneEpoch() {
-		//if (_get_gnss_measurements() == NO_MEAS) 
-		//	return 0;
+		if (_get_gnss_measurements() == NO_MEAS) 
+			return 0;
 
-		//_set_frame_pose();
-		//_set_initial_value();
+		_set_frame_pose();
+		_set_initial_value();
 
-		//if (_combine_DD() < 0)
-		//{
-		//	if (baseprocesser::_spdlog) SPDLOG_LOGGER_ERROR(baseprocesser::_spdlog, string("t_gfgo_gins "), ("Combining the Double-Difference Pairs Failed!"));
-		//	cur_sat_prn.clear();
-		//	_initial_prior = true;
-		//	return  0;
-		//}
+		if (_combine_DD() < 0)
+		{
+			if (baseprocesser::_spdlog) SPDLOG_LOGGER_ERROR(baseprocesser::_spdlog, string("t_gfgo_gins "), ("Combining the Double-Difference Pairs Failed!"));
+			cur_sat_prn.clear();
+			_initial_prior = true;
+			return  0;
+		}
 
 		return 1;
 	}
@@ -1397,7 +1387,7 @@ namespace hwa_fgo {
 
 		_obs_index.clear();
 
-		std::cout << "Current Time: " << TimeStamp.str_ymdhms() << std::endl;
+		//std::cout << "Current Time: " << TimeStamp.str_ymdhms() << std::endl;
 
 		std::vector<double> residuals;
 
@@ -1428,49 +1418,49 @@ namespace hwa_fgo {
 					PseudorangeDDINGFactor* pinsf = new PseudorangeDDINGFactor(dd_iter.time, base_rover_site, param_iter->second, DD_sat_data, _gbias_model, freq_band, lever);
 					problem.AddResidualBlock(pinsf, NULL, _fgo_info->_para_pose[obs_node]);
 				}
-				//if (obstype == GOBSTYPE::TYPE_L)
-				//{
-				//	int id1, id2;
-				//	id1 = _amb_manager->getAmbSearchIndex(make_pair(dd_iter.ref_sat_global_id, dd_iter.freq));
-				//	id2 = _amb_manager->getAmbSearchIndex(make_pair(dd_iter.nonref_sat_global_id, dd_iter.freq));
-				//	if (id1 == -1 || id2 == -1)
-				//		continue;
-				//	CarrierphaseDDINGFactor* linsf = new CarrierphaseDDINGFactor(dd_iter.time, base_rover_site, param_iter->second, DD_sat_data, _gbias_model, freq_band, lever);
-				//	problem.AddResidualBlock(linsf, NULL, _fgo_info->_para_pose[obs_node], _fgo_info->_para_amb[id1], _fgo_info->_para_amb[id2]);
-				//}
+				if (obstype == GOBSTYPE::TYPE_L)
+				{
+					int id1, id2;
+					id1 = _amb_manager->getAmbSearchIndex(make_pair(dd_iter.ref_sat_global_id, dd_iter.freq));
+					id2 = _amb_manager->getAmbSearchIndex(make_pair(dd_iter.nonref_sat_global_id, dd_iter.freq));
+					if (id1 == -1 || id2 == -1)
+						continue;
+					CarrierphaseDDINGFactor* linsf = new CarrierphaseDDINGFactor(dd_iter.time, base_rover_site, param_iter->second, DD_sat_data, _gbias_model, freq_band, lever);
+					problem.AddResidualBlock(linsf, NULL, _fgo_info->_para_pose[obs_node], _fgo_info->_para_amb[id1], _fgo_info->_para_amb[id2]);
+				}
 				dd_equ_count++;
 			}
 			assert(dd_equ_count == DD_tmp.size());
 
-			problem.Evaluate(
-				ceres::Problem::EvaluateOptions(),
-				&_fgo_info->cost,
-				&residuals,
-				nullptr,
-				nullptr);
+			//problem.Evaluate(
+			//	ceres::Problem::EvaluateOptions(),
+			//	&_fgo_info->cost,
+			//	&residuals,
+			//	nullptr,
+			//	nullptr);
 
-			std::cout
-				<< std::fixed
-				<< std::setprecision(10)
-				<< "range cost [" << i << "] = "
-				<< _fgo_info->cost - cost_save
-				<< std::endl;
+			//std::cout
+			//	<< std::fixed
+			//	<< std::setprecision(10)
+			//	<< "range cost [" << i << "] = "
+			//	<< _fgo_info->cost - cost_save
+			//	<< std::endl;
 		}
 
-		//if (1)
-		//{
-		//	for (int i = 0; i < _amb_manager->ambiguity_ids.size(); i++)
-		//	{
-		//		int amb_id = _amb_manager->ambiguity_ids[i];
-		//		double initial_amb = _fgo_info->_para_amb[amb_id][0];
-		//		InitialGnssAMB* amb_prior = new InitialGnssAMB(initial_amb);
-		//		problem.AddResidualBlock(amb_prior, NULL, _fgo_info->_para_amb[amb_id]);
+		if (1)
+		{
+			for (int i = 0; i < _amb_manager->ambiguity_ids.size(); i++)
+			{
+				int amb_id = _amb_manager->ambiguity_ids[i];
+				double initial_amb = _fgo_info->_para_amb[amb_id][0];
+				InitialGnssAMB* amb_prior = new InitialGnssAMB(initial_amb);
+				problem.AddResidualBlock(amb_prior, NULL, _fgo_info->_para_amb[amb_id]);
 
-		//		std::cout << "AMB[" << std::setw(3) << amb_id << "] = "
-		//			<< std::fixed << std::setprecision(6)
-		//			<< initial_amb << std::endl;
-		//	}
-		//}
+				std::cout << "AMB[" << std::setw(3) << amb_id << "] = "
+					<< std::fixed << std::setprecision(6)
+					<< initial_amb << std::endl;
+			}
+		}
 
 		//double cost_save = _fgo_info->cost;
 		//problem.Evaluate(
@@ -1515,34 +1505,34 @@ namespace hwa_fgo {
 					ResidualBlockInfo* residual_block_info = new ResidualBlockInfo(pinsf, NULL, vector<double*>{_fgo_info->_para_pose[0]}, vector<int>{0});
 					_fgo_info->marginalization_info->addResidualBlockInfo(residual_block_info);
 				}
-				//if (obstype == GOBSTYPE::TYPE_L)
-				//{
-				//	int id1, id2;
-				//	id1 = _amb_manager->getAmbSearchIndex(make_pair(dd_iter.ref_sat_global_id, dd_iter.freq));
-				//	id2 = _amb_manager->getAmbSearchIndex(make_pair(dd_iter.nonref_sat_global_id, dd_iter.freq));
-				//	if (id1 == -1 || id2 == -1)
-				//		continue;
-				//	vector<int> drop_set{ 0 };
-				//	if (_amb_manager->getAmbStartRoverID(id1) == 0 && _amb_manager->getAmbStartRoverID(id2) == 0)
-				//	{
-				//		if (_amb_manager->getAmbEndRoverID(id1) == 0)
-				//			drop_set.push_back(1);
-				//		if (_amb_manager->getAmbEndRoverID(id2) == 0)
-				//			drop_set.push_back(2);
+				if (obstype == GOBSTYPE::TYPE_L)
+				{
+					int id1, id2;
+					id1 = _amb_manager->getAmbSearchIndex(make_pair(dd_iter.ref_sat_global_id, dd_iter.freq));
+					id2 = _amb_manager->getAmbSearchIndex(make_pair(dd_iter.nonref_sat_global_id, dd_iter.freq));
+					if (id1 == -1 || id2 == -1)
+						continue;
+					vector<int> drop_set{ 0 };
+					if (_amb_manager->getAmbStartRoverID(id1) == 0 && _amb_manager->getAmbStartRoverID(id2) == 0)
+					{
+						if (_amb_manager->getAmbEndRoverID(id1) == 0)
+							drop_set.push_back(1);
+						if (_amb_manager->getAmbEndRoverID(id2) == 0)
+							drop_set.push_back(2);
 
-				//		CarrierphaseDDINGFactor* linsf = new CarrierphaseDDINGFactor(dd_iter.time, base_rover_site, param_iter->second, DD_sat_data, _gbias_model, freq_band, lever);
-				//		ResidualBlockInfo* residual_block_info = new ResidualBlockInfo(linsf, NULL, vector<double*>{_fgo_info->_para_pose[0], _fgo_info->_para_amb[id1], _fgo_info->_para_amb[id2]}, drop_set);
-				//		_fgo_info->marginalization_info->addResidualBlockInfo(residual_block_info);
-				//	}
-				//}
+						CarrierphaseDDINGFactor* linsf = new CarrierphaseDDINGFactor(dd_iter.time, base_rover_site, param_iter->second, DD_sat_data, _gbias_model, freq_band, lever);
+						ResidualBlockInfo* residual_block_info = new ResidualBlockInfo(linsf, NULL, vector<double*>{_fgo_info->_para_pose[0], _fgo_info->_para_amb[id1], _fgo_info->_para_amb[id2]}, drop_set);
+						_fgo_info->marginalization_info->addResidualBlockInfo(residual_block_info);
+					}
+				}
 			}
 		}
 		
-		//vector<int> cur_amb = _amb_manager->getCurWinAmb();
-		//for (int i = 0; i < cur_amb.size(); i++)
-		//{
-		//	_fgo_info->addr_shift[reinterpret_cast<long>(_fgo_info->_para_amb[cur_amb[i]])] = _fgo_info->_para_amb[cur_amb[i]];
-		//}
+		vector<int> cur_amb = _amb_manager->getCurWinAmb();
+		for (int i = 0; i < cur_amb.size(); i++)
+		{
+			_fgo_info->addr_shift[reinterpret_cast<long>(_fgo_info->_para_amb[cur_amb[i]])] = _fgo_info->_para_amb[cur_amb[i]];
+		}
 	}
 
 	void gnssprocesser::slide_window() {
@@ -1561,6 +1551,6 @@ namespace hwa_fgo {
 			_vDD_msg.erase(_vDD_msg.begin());
 		}
 
-		//_amb_manager->slidingWindow();
+		_amb_manager->slidingWindow();
 	}
 }

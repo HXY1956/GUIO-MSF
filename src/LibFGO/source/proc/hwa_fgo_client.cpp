@@ -12,6 +12,7 @@ namespace hwa_fgo {
         startenv = str2startenv(dynamic_cast<set_ign*>(gset.get())->start_env());
         align_type = dynamic_cast<set_ign*>(gset.get())->align_type();
         _aligned = align_type == NONE ? true : false;
+        if(_aligned) insworker->set_solver_flag(NON_LINEAR);
         UseGnss = dynamic_cast<set_ign*>(gset.get())->GNSS() && (_ign_type == IGN_TYPE::IGN_DEFAULT || _ign_type == IGN_TYPE::GUVI_TCI || _ign_type == IGN_TYPE::GVI_TCI || _ign_type == IGN_TYPE::GI_TCI || _ign_type == IGN_TYPE::GI_LCI || _ign_type == IGN_TYPE::GLVI_TCI || _ign_type == IGN_TYPE::GLI_TCI || _ign_type == IGN_TYPE::GULVI_TCI);
         UseUwb = dynamic_cast<set_ign*>(gset.get())->UWB() && (_ign_type == IGN_TYPE::IGN_DEFAULT || _ign_type == IGN_TYPE::UVI_TCI || _ign_type == IGN_TYPE::UI_LCI || _ign_type == IGN_TYPE::UI_TCI || _ign_type == IGN_TYPE::ULI_TCI || _ign_type == IGN_TYPE::ULVI_TCI || _ign_type == IGN_TYPE::GUI_TCI || _ign_type == IGN_TYPE::GUVI_TCI || _ign_type == IGN_TYPE::GULVI_TCI);
         UseVis = dynamic_cast<set_ign*>(gset.get())->VISION() && (_ign_type == IGN_TYPE::IGN_DEFAULT || _ign_type == IGN_TYPE::VIO_TCI || _ign_type == IGN_TYPE::VIO_LCI || _ign_type == IGN_TYPE::UVI_TCI || _ign_type == IGN_TYPE::ULVI_TCI || _ign_type == IGN_TYPE::GVI_TCI || _ign_type == IGN_TYPE::GUVI_TCI || _ign_type == IGN_TYPE::GLVI_TCI || _ign_type == IGN_TYPE::GULVI_TCI);
@@ -82,10 +83,9 @@ namespace hwa_fgo {
 
             if (!_aligned) {
                 _aligned = align_process();
-                continue;
             }
 
-            if (initial_merge)
+            if (_aligned && initial_merge)
                 merge_init();
 
             insworker->ProcessOneEpoch();
@@ -136,19 +136,33 @@ namespace hwa_fgo {
                 default:
                     break;
                 }
+
                 if (std::next(it) == _Meas_Type.end() && new_node() && _time_to_margin()) {
                     
-                    //if (UseGnss && gnssworker->is_last_node())
-                    //    this->optimization_with_poterior();
-                    //else
+                    if (!_aligned) {
+                        this->slide_window();
+                        break;
+                    }
+
+                    TicToc t_opt;
+
+                    if (UseGnss && gnssworker->is_last_node())
+                        this->optimization_with_poterior();
+                    else
                         this->optimization();
-                    prtState();
+                    TicToc t_marg;
                     this->marginalizaiton();
                     this->slide_window();
                     this->feed_back();
                     this->reset();
+
+                    std::cout << "Total SPENT: " << t_opt.toc() << "\n";
                 }
             }
+
+            if (!_aligned)
+                continue;
+
             if (_Meas_Type.size()) {
 
                 if (UseGnss)
@@ -188,20 +202,18 @@ namespace hwa_fgo {
     void fgo_client::optimization_with_poterior() {
 
         std::pair<string, int>  outlier = make_pair(" ", -1);
+
         do
         {
              _vector_to_double();
-             prtState();
+             //prtState();
              double cost = 0;
             ceres::Problem problem;
+            gnssworker->_remove_outlier_sat(outlier);
+
             for (auto worker : all_workers) {
-                if (worker == gnssworker.get())
-                    continue;
                 worker->_addResidualBlocks(problem);
             }
-
-            gnssworker->_remove_outlier_sat(outlier);
-            gnssworker->_addResidualBlocks(problem);
 
             ceres::Solver::Options options;
             options.minimizer_progress_to_stdout = true;
@@ -216,8 +228,10 @@ namespace hwa_fgo {
             gnssworker->_posteriori_test(problem);
 
         } while (gnssworker->_gobs_outlier_detection(outlier) >= 0);
-        //gnssworker->_gnss_amb_resolution();
+
+        gnssworker->_gnss_amb_resolution();
         _double_to_vector();
+        isGNSSUpdate = true;
     }
 
     void fgo_client::optimization() {
@@ -225,25 +239,29 @@ namespace hwa_fgo {
         ceres::Problem problem;
 
         _vector_to_double();
-        prtState();
+        //prtState();
 
         for(auto worker : all_workers) {
             worker->_addResidualBlocks(problem);
         }
-
+		TicToc t_opt;
         ceres::Solver::Options options;
         options.minimizer_progress_to_stdout = true;
         options.linear_solver_type = ceres::DENSE_SCHUR;
         options.trust_region_strategy_type = ceres::DOGLEG;
+        options.max_solver_time_in_seconds = 0.05;
+        options.max_num_iterations = 8;
         //options.trust_region_strategy_type = ceres::LEVENBERG_MARQUARDT;
         //options.use_nonmonotonic_steps = false;
         //options.min_trust_region_radius = options.max_trust_region_radius = 1e6;
-        options.max_num_iterations = 5;
+
         ceres::Solver::Summary summary;
         ceres::Solve(options, &problem, &summary);
         std::cout << summary.BriefReport() << endl;
+		std::cout << "Optimization SPENT: " << t_opt.toc() << "\n";
 
         _double_to_vector();
+        isGNSSUpdate = false;
     }
 
     void fgo_client::marginalizaiton() {
@@ -324,6 +342,9 @@ namespace hwa_fgo {
 
         Flag = NO_MEAS;
 
+        if (UseIns)
+            insworker->_getPOS(posdata);
+
         if (UseGnss && gnssworker->_time_valid(insworker->Time()) && gnssworker->load_data())
             Flag = gnssworker->_getPOS(insworker->Time(), posdata, measinfo);
 
@@ -339,7 +360,7 @@ namespace hwa_fgo {
 
         Eigen::Vector3d blh = Cart2Geod(pos, false);
 
-        Eigen::Vector3d vn = Cen(blh).transpose() * vel;
+        Eigen::Vector3d vn = vel;
 
         insworker->set_posvel(blh, vn);
 
@@ -369,6 +390,7 @@ namespace hwa_fgo {
             std::cerr << "Alignment finished successfully" << std::endl;
             std::cerr << "TimeStamp: " << insworker->Time().sow() + insworker->Time().dsec() << "\n";
             insworker->_aligned = true;
+            insworker->set_solver_flag(NON_LINEAR);
         }
 
         return ok;
@@ -379,6 +401,16 @@ namespace hwa_fgo {
         _Meas_Type.clear(); Flag = NO_MEAS;
 
         double ins_crt = insworker->Time().sow() + insworker->Time().dsec();
+
+        if (UseVis) visworker[0]->load_imuobs();
+
+		//USED FOR VINS ALIGNMENT, ONLY VIS MEAS IS USED FOR ALIGNMENT
+        if (baseworker._get_solver_flag() == INITIAL && align_type == hwa_ins::VINS) {
+            if (UseVis && visworker[0]->_time_valid(insworker->Time()) && visworker[0]->load_data() && visworker[0]->timecheck()) {
+                _Meas_Type.insert(MEAS_TYPE::VIS_MEAS);
+            }
+            return _Meas_Type.size() > 0;
+        }
 
         if (UseGnss && gnssworker->_time_valid(insworker->Time()) && gnssworker->load_data() && gnssworker->timecheck()) {
             _Meas_Type.insert(MEAS_TYPE::GNSS_MEAS);
@@ -410,8 +442,6 @@ namespace hwa_fgo {
                 baseworker.motion_insert(insworker->Time(), MOTION_TYPE::m_default);
             }
         }
-
-        if (UseVis) visworker[0]->load_imuobs();
 
         if (double_eq(fabs(ins_crt - int(ins_crt)), 0.001) && insworker->MimuMeas())
         {

@@ -47,7 +47,14 @@ namespace hwa_fgo {
             {
                 auto& feature = it_per_id.second;
                 if (feature.inv_depth < 0) continue;
+
+                int used_num = feature.observations.size();
+                int start_frame = feature.start_frame;
+                if (!(used_num >= 2 && start_frame < _fgo_info->_window_size - 3))
+                    continue;
+
                 feature_index++;
+                if (feature_index >= 1000) break;
                 feature.inv_depth = _fgo_info->_para_feature[feature_index][0];
             }
             tic[0].x() = _fgo_info->_para_ex_pose[0][0];
@@ -66,8 +73,16 @@ namespace hwa_fgo {
             {
                 auto& feature = it_per_id.second;
                 if (feature.inv_depth < 0) continue;
+
+                int used_num = feature.observations.size();
+                int start_frame = feature.start_frame;
+                if (!(used_num >= 2 && start_frame < _fgo_info->_window_size - 3))
+                    continue;
+
                 feature_index++;
+                if (feature_index >= 1000) break;
 				_fgo_info->_para_feature[feature_index][0] = feature.inv_depth;
+                //std::cout << std::setprecision(15) << "feature inv_depth [" << feature_index << "]:" << _fgo_info->_para_feature[feature_index][0] << "\n";
             }
             _fgo_info->_para_ex_pose[0][0] = tic[0].x();
             _fgo_info->_para_ex_pose[0][1] = tic[0].y();
@@ -94,6 +109,7 @@ namespace hwa_fgo {
         std::ofstream TimeCostDebugOutFile;
         bool TimeCostDebugStatus = false;
 		bool time_lock = false;
+        double _initial_last_time = 0;
     };
 }
 #endif

@@ -43,11 +43,12 @@ namespace hwa_msf {
             all_workers.push_back(gnssworker.get());
         }
 
-        if (UseVis)
+        if (UseVis) {
             for (int i = 0; i < dynamic_cast<set_vis*>(gset.get())->num_of_cam_group(); i++) {
                 visworker[i] = std::make_unique<visprocesser>(baseworker, i, data->operator[](base_data::ID_TYPE::CAMDATA));
                 all_workers.push_back(visworker[i].get());
             }
+        }
     }
 
     int msf_client::ProcessBatchFB()
@@ -302,11 +303,13 @@ namespace hwa_msf {
 
     void msf_client::merge_init() {
 
+        //insworker->prtStates("Before Merge Init");
         if (UseGnss && startenv == OUTDOOR)
             insworker->merge_init(gnssworker->get_site_pos(), gnssworker->get_lever(), gnssworker->_get_Pk(), GNSS);
 
         if (UseUwb && startenv == INDOOR)
             insworker->merge_init(uwbworker->get_site_pos(), uwbworker->get_lever(), uwbworker->_get_Pk(), UWB);
+        //insworker->prtStates("After Merge Init");
 
         initial_merge = false;
     };

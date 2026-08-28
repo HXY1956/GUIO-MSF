@@ -50,7 +50,8 @@ namespace hwa_fgo {
 		void _fgo_double_to_vector() override { 
 			baseprocesser::_fgo_double_to_vector(); 
 		};
-		void _feed_back(const base_posdata::data_pos& pos, const Triple RobustFixedPos);
+		void _getPOS(base_posdata::data_pos& pos);
+		void _feed_back(const base_posdata::data_pos& pos, bool flag);
 		void MeasCrt();
 		void _input_imu_data(const double& t, const std::vector<Eigen::Vector3d>& wm, const std::vector<Eigen::Vector3d>& vm);
 		void slide_window() override {

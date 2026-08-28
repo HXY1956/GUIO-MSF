@@ -15,6 +15,7 @@ namespace hwa_fgo {
             ric[1] = R_cam0_imu * R_cam0_cam1.transpose();
             tic[1] = t_cam0_imu - ric[1] * t_cam0_cam1;
         }
+        _fgo_info->_para_td[0][0] = 0.0;
 		double FOCAL_LENGTH = dynamic_cast<set_vis*>(_gset.get())->cam0_intrinsics(cam_group_id)[0];
         ProjectionFactor::sqrt_info = FOCAL_LENGTH / 1.5 * Eigen::Matrix2d::Identity();
         ProjectionTdFactor::sqrt_info = FOCAL_LENGTH / 1.5 * Eigen::Matrix2d::Identity();
@@ -32,6 +33,7 @@ namespace hwa_fgo {
             ric[1] = R_cam0_imu * R_cam0_cam1.transpose();
             tic[1] = t_cam0_imu - ric[1] * t_cam0_cam1;
         }
+        _fgo_info->_para_td[0][0] = 0.0;
         double FOCAL_LENGTH = dynamic_cast<set_vis*>(_gset.get())->cam0_intrinsics(cam_group_id)[0];
         ProjectionFactor::sqrt_info = FOCAL_LENGTH / 1.5 * Eigen::Matrix2d::Identity();
         ProjectionTdFactor::sqrt_info = FOCAL_LENGTH / 1.5 * Eigen::Matrix2d::Identity();
@@ -154,7 +156,9 @@ namespace hwa_fgo {
                 ++tracked_feature_num;
                 map_server[feature.id].frame_size++;
             }
-            
+
+            map_server[feature.id].observations[cam_state_id].cur_td = _fgo_info->_para_td[0][0];
+			map_server[feature.id].observations[cam_state_id].velocity = feature.velocity;
         }
 
         return true;
@@ -165,20 +169,28 @@ namespace hwa_fgo {
         for (auto& it_per_id : map_server)
         {
             auto& feature = it_per_id.second;
-            if (!(feature.observations.size() >= 2 && feature.start_frame < WINDOW_SIZE - 3))
+            int used_num = feature.observations.size();
+            int start_frame = feature.start_frame;
+            if (!(used_num >= 2 && start_frame < _fgo_info->_window_size - 3))
                 continue;
 
             if (feature.inv_depth > 0)
                 continue;
 
-            int imu_i = feature.start_frame, imu_j = imu_i - 1;
+            int node_i = start_frame;
+            const auto& node_index = _node_index_copy();
+            auto it = std::find(node_index.begin(), node_index.end(), node_i);
+            int imu_i = (it != node_index.end())
+                ? std::distance(node_index.begin(), it)
+                : -1;
+            int imu_j = imu_i - 1;
 
             Eigen::MatrixXd svd_A(2 * feature.observations.size(), 4);
             int svd_idx = 0;
 
             Eigen::Matrix<double, 3, 4> P0;
-            Eigen::Vector3d t0 = _fgo_info->_Ps[imu_i] +_fgo_info->_Rs[imu_i] * tic[0];
-            Eigen::Matrix3d R0 = _fgo_info->_Rs[imu_i] * ric[0];
+            Eigen::Vector3d t0 = _fgo_info->_Ps[node_i] +_fgo_info->_Rs[node_i] * tic[0];
+            Eigen::Matrix3d R0 = _fgo_info->_Rs[node_i] * ric[0];
             P0.leftCols<3>() = Eigen::Matrix3d::Identity();
             P0.rightCols<1>() = Eigen::Vector3d::Zero();
 
@@ -217,9 +229,10 @@ namespace hwa_fgo {
             for (auto& it_per_frame : feature.observations)
             {
                 imu_j++;
+				int node_j = _node_index_copy()[imu_j];
 
-                Eigen::Vector3d t1 = _fgo_info->_Ps[imu_j] +_fgo_info->_Rs[imu_j] * tic[0];
-                Eigen::Matrix3d R1 = _fgo_info->_Rs[imu_j] * ric[0];
+                Eigen::Vector3d t1 = _fgo_info->_Ps[node_j] +_fgo_info->_Rs[node_j] * tic[0];
+                Eigen::Matrix3d R1 = _fgo_info->_Rs[node_j] * ric[0];
                 Eigen::Vector3d t = R0.transpose() * (t1 - t0);
 				Eigen::Matrix3d R = R0.transpose() * R1; // transform from imu_j to imu_i
                 Eigen::Matrix<double, 3, 4> P;  // transform from imu_i to imu_j
@@ -331,30 +344,54 @@ namespace hwa_fgo {
     }
 
     bool visprocesser::align_vins() {
-        if (frame_count > 0) {
-            double image_time = cam_states[cam_state_id].time;
-            double dt = _sins->t - image_time;
-            if (dt >= 0) {
-                if (dt < 1.0 / imu_frequency) {
-                    if (pre_cam_state_id >= 0) {
-                        cam_states[pre_cam_state_id].pre_integration->processIMU(1.0 / imu_frequency - dt, _sins->obs_fb,
-                            _sins->obs_wib, Bgs[frame_count - 2], Bas[frame_count - 2]);
-                    }
-                    cam_states[cam_state_id].pre_integration->processIMU(dt, _sins->obs_fb, _sins->obs_wib,
-                        Bgs[frame_count - 1], Bas[frame_count - 1]);
-                }
-                else {
-                    cam_states[cam_state_id].pre_integration->processIMU(1.0 / imu_frequency, _sins->obs_fb, _sins->obs_wib,
-                        Bgs[frame_count - 1], Bas[frame_count - 1]);
-                }
-            }
+
+        if (_fgo_info->rover_count < _fgo_info->_window_size - 1 || _initial_last_time == _fgo_info->_Time[_fgo_info->rover_count - 1]) {
+            return 0;
         }
-        if (frame_count == max_camstate_size - 1) {
-            if (initialStructure()) {
-                align_feedback();
-                return 1;
-            }
+		_initial_last_time = _fgo_info->_Time[_fgo_info->rover_count - 1];
+
+        for (int i = 0; i < _fgo_info->rover_count; i++) {
+            cam_states[i] = hwa_vis::CamState(i);
+            cam_states[i].orientation = _fgo_info->_Rs[i] * ric[0];
+            cam_states[i].position = _fgo_info->_Ps[i] + _fgo_info->_Rs[i] * tic[0];
+            cam_states[i].ve = _fgo_info->_Vs[i];
+            cam_states[i].time = _fgo_info->_Time[i];
+            cam_states[i].pre_integration = _fgo_info->_pre_integrations[i];
+
+            Triple XYZ = cam_states[i].position;
+            Triple BLH = Cart2Geod(XYZ, false);
+
+            SO3 R_n_e = hwa_base::Cen(BLH);
+            const SO3& R_i_n = R_n_e.transpose() * _fgo_info->_Rs[i];
+            const SO3& R_i_c = ric[0].transpose();
+            const Triple& t_c_i = tic[0];
+            const Triple& t_i_c = -R_i_c * tic[0];
+
+            cam_states[i].qnc = R_i_n * R_i_c.transpose();
+            cam_states[i].qcb = R_i_c;
+            cam_states[i].Tcb = t_i_c;
+            cam_states[i].qbc = R_i_c.transpose();
+            cam_states[i].Tbc = t_c_i;
+            cam_states[i].R_e_n = R_n_e.transpose();
+
+            base_earth eth;
+			eth.Update(BLH, R_n_e.transpose() * cam_states[i].ve);
+            cam_states[i].gravity = eth.gcc;
         }
+
+		frame_count = _fgo_info->rover_count;
+
+        if (initialStructure()) {
+            align_feedback();
+            return 1;
+        }
+        else {
+            for (int i = 0; i < _fgo_info->rover_count; i++) {
+                _fgo_info->_Bgs[i] = Bgs[i];
+            }
+            _sins->eb = Bgs[frame_count - 1];
+        }
+
         return 0;
     }
 
@@ -364,7 +401,7 @@ namespace hwa_fgo {
         _sins->qeb = hwa_base::base_quat(cam_states.rbegin()->second.orientation_b.w(), cam_states.rbegin()->second.orientation_b.x(),
             cam_states.rbegin()->second.orientation_b.y(), cam_states.rbegin()->second.orientation_b.z());
         _sins->ve = cam_states.rbegin()->second.ve;
-        _sins->pos_ecef = cam_states.rbegin()->second.position_b + initCamPos;
+        _sins->pos_ecef = cam_states.rbegin()->second.position_b;
 
         _sins->Ceb = hwa_base::base_att_trans::q2mat(_sins->qeb);
         _sins->pos = Cart2Geod(_sins->pos_ecef, false);
@@ -373,9 +410,17 @@ namespace hwa_fgo {
         _sins->qnb = hwa_base::base_att_trans::m2qua(_sins->eth.Cne) * _sins->qeb;
         _sins->att = hwa_base::base_att_trans::q2att(_sins->qnb);
         _sins->Cnb = hwa_base::base_att_trans::q2mat(_sins->qnb);
-        _sins->orientation = _sins->Ceb.transpose();
+        _sins->orientation = _sins->Ceb;
         _sins->velocity = _sins->ve;
         _sins->position = Geod2Cart(_sins->pos, false);
+
+        for (int i = 0; i < _fgo_info->rover_count; i++) {
+			_fgo_info->_Rs[i] = cam_states[i].orientation * ric[0].transpose();
+			_fgo_info->_Ps[i] = cam_states[i].position - _fgo_info->_Rs[i] * tic[0];
+            _fgo_info->_Vs[i] = cam_states[i].ve;
+            _fgo_info->_Bas[i] = Bas[i];
+            _fgo_info->_Bgs[i] = Bgs[i];
+        }
 
         std::cout << " Refined Gyo Bias: " << _sins->eb.transpose() << std::endl;
         std::cout << " Refined Acc Bias: " << _sins->db.transpose() << std::endl;
@@ -424,32 +469,49 @@ namespace hwa_fgo {
                 problem.SetParameterBlockConstant(_fgo_info->_para_ex_pose[i]);
             }
         }
-        problem.AddParameterBlock(_fgo_info->_para_td[0], 1);
         if (imgproc->estimate_t) {
-            problem.SetParameterBlockConstant(_fgo_info->_para_td[0]);
+            problem.AddParameterBlock(_fgo_info->_para_td[0], 1);
+            //problem.SetParameterBlockConstant(_fgo_info->_para_td[0]);
         }
 
         int f_m_cnt = 0;
         int feature_index = -1;
+
+        //std::cout << setprecision(15) << "ex_pose: " << _fgo_info->_para_ex_pose[0][0] <<" "<< _fgo_info->_para_ex_pose[0][1] << " "
+        //    << _fgo_info->_para_ex_pose[0][2] << "\n" << _fgo_info->_para_ex_pose[0][3] << " " << _fgo_info->_para_ex_pose[0][4] << " "
+        //    << _fgo_info->_para_ex_pose[0][5] << " "
+        //    << _fgo_info->_para_ex_pose[0][6]
+        //    << "\n";
+
         for (auto& it_per_id : map_server)
         {
 			auto& feature = it_per_id.second;
             if (feature.inv_depth < 0) continue;
 
             int used_num = feature.observations.size();
-			int start_frame = feature.start_frame_id;
-            if (!(used_num >= 2 && start_frame < WINDOW_SIZE - 3))
+			int start_frame = feature.start_frame;
+            if (!(used_num >= 2 && start_frame < _fgo_info->_window_size - 3))
                 continue;
 
             ++feature_index;
+            if (feature_index >= 1000) break;
             problem.AddParameterBlock(_fgo_info->_para_feature[feature_index], SIZE_FEATURE);
 
-            int imu_i = start_frame, imu_j = imu_i - 1;
-            int node_i = _node_index_copy()[imu_i];
+            int node_i = start_frame;
+            const auto& node_index = _node_index_copy();
+            auto it = std::find(node_index.begin(), node_index.end(), node_i);
+            int imu_i = (it != node_index.end())
+                ? std::distance(node_index.begin(), it)
+                : -1;
+            int imu_j = imu_i - 1;
 
             Triple pts_i;
-			auto feature_first_frame = feature.observations[0];
+			auto feature_first_frame = feature.observations[feature.start_frame_id];
             pts_i << feature_first_frame.position.head(2), 1;
+
+    //        for (auto iter : feature.observations) {
+				//std::cout << setprecision(10) << "feature id: " << feature.id << ", frame id: " << iter.first << ", frame pos: " << start_frame++ << ", position: " << iter.second.position.transpose() << std::endl;
+    //        }
 
             for (auto& it_next_frame : feature.observations)
             {
@@ -467,6 +529,12 @@ namespace hwa_fgo {
                     ProjectionTdFactor* f_td = new ProjectionTdFactor(pts_i, pts_j,
                         feature_first_frame.velocity, feature_next_frame.velocity,
                         feature_first_frame.cur_td, feature_next_frame.cur_td);
+
+                    //std::cout << "feature_first_frame.velocity: " << feature_first_frame.velocity << std::endl;
+                    //std::cout << "feature_next_frame.velocity: " << feature_next_frame.velocity << std::endl;
+                    //std::cout << "feature_first_frame.cur_td: " << feature_first_frame.cur_td << std::endl;
+                    //std::cout << "feature_next_frame.cur_td: " << feature_next_frame.cur_td << std::endl;
+
                     problem.AddResidualBlock(f_td, loss_function, _fgo_info->_para_pose[node_i], _fgo_info->_para_pose[node_j], _fgo_info->_para_ex_pose[0], _fgo_info->_para_feature[feature_index], _fgo_info->_para_td[0]);
                 }
                 else
@@ -475,26 +543,47 @@ namespace hwa_fgo {
                     problem.AddResidualBlock(f, loss_function, _fgo_info->_para_pose[node_i], _fgo_info->_para_pose[node_j], _fgo_info->_para_ex_pose[0], _fgo_info->_para_feature[feature_index]);
                 }
 
-                double cost_save = _fgo_info->cost;
-                std::vector<double> residuals;
+                //std::cout << setprecision(10);
+                //std::cout << "vis coordinate [" << node_i << "]: " << pts_i.transpose() << std::endl;
+                //std::cout << "vis coordinate [" << node_j << "]: " << pts_j.transpose() << std::endl;
 
-                problem.Evaluate(
-                    ceres::Problem::EvaluateOptions(),
-                    &_fgo_info->cost,
-                    &residuals,
-                    nullptr,
-                    nullptr);
+                //double cost_save = _fgo_info->cost;
+                //std::vector<double> residuals;
 
-                std::cout
-                    << std::fixed
-                    << std::setprecision(10)
-                    << "vis reprojection cost [" << node_i <<"," << node_j << "] = "
-                    << _fgo_info->cost - cost_save
-                    << std::endl;
+                //problem.Evaluate(
+                //    ceres::Problem::EvaluateOptions(),
+                //    &_fgo_info->cost,
+                //    &residuals,
+                //    nullptr,
+                //    nullptr);
+
+                //std::cout
+                //    << std::fixed
+                //    << std::setprecision(10)
+                //    << "vis reprojection cost [" << node_i <<"," << node_j << "] = "
+                //    << _fgo_info->cost - cost_save
+                //    << std::endl;
 
                 f_m_cnt++;
             }
         }
+
+        //double cost_save = _fgo_info->cost;
+        //std::vector<double> residuals;
+
+        //problem.Evaluate(
+        //    ceres::Problem::EvaluateOptions(),
+        //    &_fgo_info->cost,
+        //    &residuals,
+        //    nullptr,
+        //    nullptr);
+
+        //std::cout
+        //    << std::fixed
+        //    << std::setprecision(10)
+        //    << "vis reprojection cost: "
+        //    << _fgo_info->cost - cost_save
+        //    << std::endl;
     }
 
     void visprocesser::_addMarginInfo() {
@@ -513,17 +602,23 @@ namespace hwa_fgo {
             auto& feature = it_per_id.second;
             if (feature.inv_depth < 0) continue;
             int used_num = feature.observations.size();
-            int start_frame = feature.start_frame_id;
-            if (!(used_num >= 2 && start_frame < WINDOW_SIZE - 3))
+            int start_frame = feature.start_frame;
+            if (!(used_num >= 2 && start_frame < _fgo_info->_window_size - 3))
                 continue;
             ++feature_index;
+            if (feature_index >= 1000) break;
 
-            int imu_i = start_frame, imu_j = imu_i - 1;
-            if (imu_i != 0) continue;
-            int node_i = _node_index_copy()[imu_i];
+            int node_i = start_frame;
+            const auto& node_index = _node_index_copy();
+            auto it = std::find(node_index.begin(), node_index.end(), node_i);
+            int imu_i = (it != node_index.end())
+                ? std::distance(node_index.begin(), it)
+                : -1;
+            if (node_i != 0) continue;
+            int imu_j = imu_i - 1;
 
             Triple pts_i;
-            auto feature_first_frame = feature.observations[0];
+            auto feature_first_frame = feature.observations[feature.start_frame_id];
             pts_i << feature_first_frame.position.head(2), 1;
 
             for (auto& it_next_frame : feature.observations)
@@ -579,26 +674,38 @@ namespace hwa_fgo {
         for (auto& it : vis_node_index) {
             it--;
         }
+
         if (vis_node_index[0] < 0) {
             vis_node_index.erase(vis_node_index.begin());
-            for (auto& it_per_id : map_server)
-            {
-                auto& feature = it_per_id.second;
-                auto& start_frame = feature.start_frame;
-                start_frame--;
-
-                if (start_frame < 0) {
-                    start_frame = 0;
-                    feature.frame_size--;
-                }
-
-                if (feature.frame_size == 0) {
-                    map_server.erase(feature.id);
-                }
-            }
         }
 
+        if (vis_node_index.size() == 0) {
+			map_server.clear();
+            return;
+        }
 
+        for (auto it = map_server.begin(); it != map_server.end(); )
+        {
+            auto& feature = it->second;
+            auto& start_frame = feature.start_frame;
+            start_frame--;
 
+            if (start_frame < 0) {
+                start_frame = _node_index()[0];
+                feature.frame_size--;
+                feature.observations.erase(feature.observations.begin());
+
+                if (feature.frame_size > 0) {
+                    feature.start_frame_id = feature.observations.begin()->first;
+                    ++it;
+                }
+                else {
+                    it = map_server.erase(it);
+                }
+            }
+            else {
+                ++it;
+            }
+        }
     }
 }

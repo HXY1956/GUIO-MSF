@@ -32,6 +32,7 @@ ins_obj::ins_obj(hwa_set::set_base* set)
     nq = 15;
     Triple Cart = dynamic_cast<set_ins*>(set)->pos();
     pos = Cart2Geod(Cart, false);
+    pos_ecef = Cart;
     vn = Cen(pos).transpose() * (dynamic_cast<set_ins*>(set)->vel());
     att = dynamic_cast<set_ins*>(set)->att();
     eth.Update(pos, vn);
@@ -449,7 +450,8 @@ void ins_obj::prt_sins(std::ostringstream& os)
     // t_gbase_quat base_quat1 = hwa_base::base_att_trans::a2qua(hwa_base::base_att_trans::m2att(hwa_base::Cen(pos)*hwa_base::base_att_trans::a2mat(att)));
     Triple Car_pos = xyz_out;
     Triple Geo_pos = Cart2Geod(xyz_out, true);
-    Triple Ve = hwa_base::Cen(Geo_pos) * (vn);
+    Triple Geo_pos_deg = Cart2Geod(xyz_out, false);
+    Triple Ve = hwa_base::Cen(Geo_pos_deg) * (vn);
     // Triple Vb = Cbn * vn;
 
     Triple pos_out, vel_out, att_out;

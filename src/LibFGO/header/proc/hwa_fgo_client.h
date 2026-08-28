@@ -46,16 +46,15 @@ namespace hwa_fgo
         }
         void feed_back() {
             base_posdata::data_pos _pos;
-            Triple RobustFixedPos;
-
 			_pos.pos = Triple::Zero();
-            RobustFixedPos = Triple::Zero();
-            if (UseGnss) {
-                RobustFixedPos = gnssworker->_getRobustFixedPosition();
+            bool robustflag = false;
+
+            if (UseGnss && isGNSSUpdate) {
+                robustflag = gnssworker->_getRobustFixedPosition();
                 _pos = gnssworker->get_posdata();
             }
 
-            insworker->_feed_back(_pos, RobustFixedPos);
+            insworker->_feed_back(_pos, robustflag);
         }
         bool new_node() {
             return baseworker.new_node_inserted();
@@ -95,6 +94,7 @@ namespace hwa_fgo
         bool UseHgt;
         bool _aligned = false;
         bool initial_merge = true;
+        bool isGNSSUpdate = false;
         int irc;
         START_ENV startenv;
         MEAS_INFO measinfo;

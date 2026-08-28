@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.10)
 project(GVIO LANGUAGES CXX CUDA)
 
+if(MSVC)
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "/O2 /Ob2 /Oi /Ot /fp:fast /arch:AVX2 /DNDEBUG /Zi")
+endif()
+
 option(USE_AVX2 "Use AVX2 instruction set" ON)
 
 if(USE_AVX2)
@@ -46,6 +50,12 @@ find_package(glfw3 REQUIRED)
 find_package(Qt6 REQUIRED COMPONENTS Widgets)
 find_package(CUDAToolkit REQUIRED)
 find_package(OpenVINO REQUIRED)
+
+# 1. 强制 Eigen 调用 OpenBLAS（这是最重要的一步！）
+add_definitions(-DEIGEN_USE_BLAS)
+
+# 3. 告诉 Eigen 放弃内部调试检查（减少分支预测失败）
+add_definitions(-DEIGEN_NO_DEBUG)
 
 pkg_check_modules(GSTREAMER REQUIRED gstreamer-1.0)
 pkg_check_modules(GSTREAMER_APP REQUIRED gstreamer-app-1.0)

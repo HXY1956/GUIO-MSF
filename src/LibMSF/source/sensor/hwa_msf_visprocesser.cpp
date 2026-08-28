@@ -709,7 +709,7 @@ namespace hwa_msf {
             _sins->Zk = r;
             _sins->Rk = R;
         }
-        cal_matRank("vis measurement Hk", _sins->Hk);
+        //cal_matRank("vis measurement Hk", _sins->Hk);
         Vector delta_x;
         //TicToc timer0;
         _Updater._meas_update(_sins->Hk, _sins->Zk, _sins->Rk, delta_x, _sins->Pk);
@@ -719,25 +719,25 @@ namespace hwa_msf {
         std::string cam_id = camstate_id2str(cam_state_iter->first);
         int idx = param_of_sins->getParam(_name, hwa_base::par_type::CAM_ATT_X, cam_id);
 
-        saveMatrix(_sins->Hk, "vision_measurement_matrix.csv");
-        saveMatrix(_sins->Pk, "state_matrix.csv");
-        saveMatrix(_sins->Zk, "vision_observation_matrix.csv");
-        saveMatrix(_sins->Rk, "vision_noise_matrix.csv");
+        //saveMatrix(_sins->Hk, "vision_measurement_matrix.csv");
+        //saveMatrix(_sins->Pk, "state_matrix.csv");
+        //saveMatrix(_sins->Zk, "vision_observation_matrix.csv");
+        //saveMatrix(_sins->Rk, "vision_noise_matrix.csv");
         
-		double pre_residual_norm = _sins->Zk.transpose() * _sins->Rk.inverse() * _sins->Zk;
-        double post_residual_norm = post_residual.transpose() * _sins->Rk.inverse() * post_residual;
+		//double pre_residual_norm = _sins->Zk.transpose() * _sins->Rk.inverse() * _sins->Zk;
+  //      double post_residual_norm = post_residual.transpose() * _sins->Rk.inverse() * post_residual;
 
-        double post_residual_norm1 = delta_x.transpose() * Pk_Sav.inverse() * delta_x;
+  //      double post_residual_norm1 = delta_x.transpose() * Pk_Sav.inverse() * delta_x;
 
 
-        std::cout << "vision measurement matrix: \n" << std::fixed << std::setprecision(3) << _sins->Hk.block(0, idx, _sins->Hk.rows(), _sins->Hk.cols() - idx) << endl;
-        std::cout << "vision measurement delta_x: " << std::fixed << std::setprecision(3) << delta_x.block(idx, 0, delta_x.rows() - idx, 1).transpose() << endl;
-        std::cout << "vision ovservations: " << std::fixed << std::setprecision(5) << _sins->Zk.transpose() << endl;
+        //std::cout << "vision measurement matrix: \n" << std::fixed << std::setprecision(3) << _sins->Hk.block(0, idx, _sins->Hk.rows(), _sins->Hk.cols() - idx) << endl;
+        //std::cout << "vision measurement delta_x: " << std::fixed << std::setprecision(3) << delta_x.block(idx, 0, delta_x.rows() - idx, 1).transpose() << endl;
+        //std::cout << "vision ovservations: " << std::fixed << std::setprecision(5) << _sins->Zk.transpose() << endl;
 
-        std::cout << "vision state after residual: " << std::fixed << std::setprecision(5) << post_residual_norm1 << std::endl;
-        std::cout << "vision meas pre residual: " << std::fixed << std::setprecision(5) << pre_residual_norm << endl;
-        std::cout << "vision meas after residual: " << std::fixed << std::setprecision(5) << post_residual_norm << endl;
-        std::cout << "vision update effect: " << std::fixed << std::setprecision(2) << post_residual_norm / pre_residual_norm * 100 << "%\n";
+        //std::cout << "vision state after residual: " << std::fixed << std::setprecision(5) << post_residual_norm1 << std::endl;
+        //std::cout << "vision meas pre residual: " << std::fixed << std::setprecision(5) << pre_residual_norm << endl;
+        //std::cout << "vision meas after residual: " << std::fixed << std::setprecision(5) << post_residual_norm << endl;
+        //std::cout << "vision update effect: " << std::fixed << std::setprecision(2) << post_residual_norm / pre_residual_norm * 100 << "%\n";
 
         //std::cerr << " meas_update[0] in RemoveLostFeatures, time cost: " << timer0.toc() << " ms" << std::endl;
 
@@ -886,13 +886,22 @@ namespace hwa_msf {
             if (dt >= 0) {
                 if (dt < 1.0 / imu_frequency) {
                     if (pre_cam_state_id >= 0) {
+                        if(!cam_states[pre_cam_state_id].pre_integration)
+							cam_states[pre_cam_state_id].pre_integration = new IntegrationBase{ Triple::Zero(), Triple::Zero(), 0 };
+
                         cam_states[pre_cam_state_id].pre_integration->processIMU(1.0 / imu_frequency - dt, _sins->obs_fb,
                             _sins->obs_wib, Bgs[frame_count - 2], Bas[frame_count - 2]);
                     }
+                    if(!cam_states[cam_state_id].pre_integration)
+                        cam_states[cam_state_id].pre_integration = new IntegrationBase{ Triple::Zero(), Triple::Zero(), 0 };
+
                     cam_states[cam_state_id].pre_integration->processIMU(dt, _sins->obs_fb, _sins->obs_wib,
                         Bgs[frame_count - 1], Bas[frame_count - 1]);
                 }
                 else {
+                    if (!cam_states[cam_state_id].pre_integration)
+                        cam_states[cam_state_id].pre_integration = new IntegrationBase{ Triple::Zero(), Triple::Zero(), 0 };
+
                     cam_states[cam_state_id].pre_integration->processIMU(1.0 / imu_frequency, _sins->obs_fb, _sins->obs_wib,
                         Bgs[frame_count - 1], Bas[frame_count - 1]);
                 }

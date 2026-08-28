@@ -87,6 +87,13 @@ int main(int argc, char** argv)
     vis_data* gimg = new vis_data(gset.get()); gimg->spdlog(my_logger);
     lidar_data* glidar = new lidar_data(); glidar->spdlog(my_logger);
 
+#ifdef EIGEN_USE_BLAS
+#include <cstdlib>
+    _putenv_s("OPENBLAS_NUM_THREADS", "1");
+    _putenv_s("GOTO_NUM_THREADS", "1");
+    _putenv_s("OMP_NUM_THREADS", "1");
+#endif
+
     base_time runepoch(base_time::GPS);
     base_time lstepoch(base_time::GPS);
     if (gset->realtime() == true) {

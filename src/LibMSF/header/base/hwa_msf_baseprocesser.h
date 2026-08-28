@@ -49,18 +49,18 @@ namespace hwa_msf {
     class baseprocesser {
     public:
         baseprocesser() {};
-        explicit baseprocesser(const baseprocesser& B): 
-        _gset(B._gset), _sins(B._sins), param_of_sins(B.param_of_sins),
-        _spdlog(B._spdlog), _name(B._name), TimeStamp(B.TimeStamp), beg(B.beg),
-        end(B.end), _shm(B._shm), _Estimator(B._Estimator), _Updater(B._Updater) 
+        explicit baseprocesser(const baseprocesser& B) :
+            _gset(B._gset), _sins(B._sins), param_of_sins(B.param_of_sins),
+            _spdlog(B._spdlog), _name(B._name), TimeStamp(B.TimeStamp), beg(B.beg),
+            end(B.end), _shm(B._shm), _Estimator(B._Estimator), _Updater(B._Updater)
         {
         };
-        explicit baseprocesser(const baseprocesser& B, hwa_base::SENSOR_TYPE type) :
+        explicit baseprocesser(const baseprocesser& B, SENSOR_TYPE type) :
             _gset(B._gset), _sins(B._sins), param_of_sins(B.param_of_sins),
             _spdlog(B._spdlog), _name(B._name), TimeStamp(B.TimeStamp), beg(B.beg),
             end(B.end), _shm(B._shm), _Estimator(B._Estimator)
         {
-			_Updater = base_updater(_gset.get(), type);
+            _Updater = base_updater(_gset.get(), type);
         };
         explicit baseprocesser(std::shared_ptr<set_base> gset, base_log spdlog, std::string name, base_time _beg = FIRST_TIME, base_time _end = LAST_TIME) :
             _gset(gset), _spdlog(spdlog), _name(name), beg(_beg), end(_end), TimeStamp(_beg),
@@ -70,7 +70,7 @@ namespace hwa_msf {
         {
             _Estimator = dynamic_cast<set_ign*>(_gset.get())->fuse_type();
         };
-        explicit baseprocesser(std::shared_ptr<set_base> gset, base_log spdlog, std::string name, hwa_base::SENSOR_TYPE type, base_time _beg = FIRST_TIME, base_time _end = LAST_TIME) :
+        explicit baseprocesser(std::shared_ptr<set_base> gset, base_log spdlog, std::string name, SENSOR_TYPE type, base_time _beg = FIRST_TIME, base_time _end = LAST_TIME) :
             _gset(gset), _spdlog(spdlog), _name(name), beg(_beg), end(_end), TimeStamp(_beg),
             _sins(std::make_shared<hwa_ins::ins_obj>(gset.get())),
             _shm(std::make_shared<hwa_ins::ins_scheme>(gset.get())),
@@ -80,8 +80,16 @@ namespace hwa_msf {
             _Updater = base_updater(gset.get(), type);
         };
         ~baseprocesser() {};
+        void prtStates(std::string str = "") {
+            std::cout << "======== " << str << " ========" << std::endl;
+            std::cout << "Epoch: " << TimeStamp.str_ymdhms() << std::endl;
+            std::cout << std::setiosflags(std::ios::fixed) << std::setprecision(6);
+            std::cout << "SINS DETAILS:\n" << "SINS POS: " << _sins->pos_ecef.transpose() << std::endl;
+            std::cout << "SINS QUAT:\n " << _sins->Cnb << "\n";
+            std::cout << "SINS VE:\n " << _sins->ve << "\n";
+        };
         double dTime() { return TimeStamp.sow() + TimeStamp.dsec(); };
-        base_time& Time() { return TimeStamp;}
+        base_time& Time() { return TimeStamp; }
         base_time& _beg() { return beg; }
         base_time& _end() { return end; }
         virtual int ProcessOneEpoch() { return 1; };
@@ -104,7 +112,7 @@ namespace hwa_msf {
         };
         Matrix _getPx() {
             return _sins->Pk;
-		}
+        }
 
     protected:
         std::shared_ptr<set_base> _gset;

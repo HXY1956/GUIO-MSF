@@ -62,6 +62,7 @@ namespace hwa_msf {
                 TimeStamp.add_dsec(_sampling * nEpo);       //  >=1Hz data
             }
         }
+        align_time = TimeStamp;
     }
 
     bool gnssprocesser::load_data() {
@@ -167,6 +168,13 @@ namespace hwa_msf {
         if (_data.size() == 0) 
             return false;
 
+  //      std::cout << "======== GNSS PRE-UPDATE DETAILS ========" << std::endl;
+		//std::cout << "GNSS Epoch: " << TimeStamp.str_ymdhms() << std::endl;
+  //      std::cout << std::setiosflags(std::ios::fixed) << std::setprecision(6);
+		//std::cout << "SINS DETAILS:\n" << "SINS POS: " << _sins->pos_ecef.transpose() << std::endl;
+  //      std::cout << "SINS QUAT:\n " << _sins->Cnb << "\n";
+		//std::cout << "SINS PK:\n" << _sins->Pk << "\n";
+
         return true;
     }
 
@@ -175,6 +183,8 @@ namespace hwa_msf {
         bool res_valid = false;
         double crt = inst.sow() + inst.dsec();
         TimeStamp = _gobs->load(_site, crt);
+
+        if (TimeStamp <= align_time) return false;
 
         if (abs(inst.diff(TimeStamp)) < 1e-3) {
             time_lock = true;
@@ -196,16 +206,13 @@ namespace hwa_msf {
     {
         MEAS_TYPE res_type;
         double crt = gst.sow() + gst.dsec();
-        base_time runEpoch = _gobs->load(_site, crt);
+        TimeStamp = _gobs->load(_site, crt);
 
-        double temp_t = runEpoch.sow() + runEpoch.dsec();
-
-        int irc = gnss_proc_pvtflt::ProcessOneEpoch(runEpoch);
+        int irc = gnss_proc_pvtflt::ProcessOneEpoch(TimeStamp);
         if (irc < 0) {
             return MEAS_TYPE::NO_MEAS;
         }
-        _get_result(runEpoch, pos);
-
+        _get_result(TimeStamp, pos);
         m.MeasVel = pos.vn; m.MeasPos = pos.pos; m.tmeas = pos.t;
         m._Cov_MeasVn = pos.Rvn; m._Cov_MeasPos = pos.Rpos;
 
@@ -224,6 +231,7 @@ namespace hwa_msf {
         //if (_isBase && !pos.amb_state) res_type = NO_MEAS;
 
         time_lock = true;
+        align_time = TimeStamp;
 
         return res_type;
     }
@@ -325,6 +333,13 @@ namespace hwa_msf {
                     _param->operator[](iPar).apriori(_gModel_base->tropoModel()->getZHD(Ell, _epoch));
             }
         }
+
+        //std::cout << "======== GNSS POST-UPDATE DETAILS ========" << std::endl;
+        //for (unsigned int iPar = 0; iPar < _param->parNumber(); iPar++)
+        //{
+        //    std::cout << _param->operator[](iPar).str_type() << " " << _param->operator[](iPar).value() << "; INDEX: " << _param->operator[](iPar).index << "; XK INDEX: " << _sins->Xk(_param->operator[](iPar).index) << std::endl;
+        //}
+
         for (unsigned int Par = 0; Par < _param->parNumber(); Par++) {
             if (_param->operator[](Par).parType == par_type::CRD_X || _param->operator[](Par).parType == par_type::CRD_Y || _param->operator[](Par).parType == par_type::CRD_Z
                 || _param->operator[](Par).parType == par_type::VEL_X || _param->operator[](Par).parType == par_type::VEL_Y || _param->operator[](Par).parType == par_type::VEL_Z
@@ -340,11 +355,17 @@ namespace hwa_msf {
             }
         }
 
-        base_posdata::data_pos _pos;
-        _get_result(TimeStamp, _pos);
-        if (_pos.pos[0] != 0)
-            _sins->xyz_out = _pos.pos;
-        else
+		//std::cout << "======== GNSS POST-UPDATE DETAILS ========" << std::endl;
+  //      for (unsigned int iPar = 0; iPar < _param->parNumber(); iPar++)
+  //      {
+  //          std::cout << _param->operator[](iPar).str_type() << " " << _param->operator[](iPar).value() << "; Index: " << _param->operator[](iPar).index << std::endl;
+  //      }
+
+        //base_posdata::data_pos _pos;
+        //_get_result(TimeStamp, _pos);
+        //if (_pos.pos[0] != 0)
+        //    _sins->xyz_out = _pos.pos;
+        //else
             _sins->xyz_out = _sins->pos_ecef;
     }
 
@@ -423,10 +444,6 @@ namespace hwa_msf {
         do
         {
             _remove_sat(outlier);
-
-            if (TimeStamp.sow() + TimeStamp.dsec() == 285381) {
-                std::cerr << "DEBUG\n";
-            }
 
             valid_ins_constraint();
 
@@ -540,7 +557,7 @@ namespace hwa_msf {
 
             //std::cout << "time"<<TimeStamp.sow() + TimeStamp.dsec() << "; After DD: " << "\n";
             //m_out("A", _sins->Hk);
-            //m_out("P", _sins->Rk);
+            //m_out("P", P.matrixR());
             //m_out("l", _sins->Zk);
             //m_out("Qx", _Qx.matrixR());
 
@@ -596,18 +613,18 @@ namespace hwa_msf {
         _filter->add_data(_sins->Hk, P, _sins->Zk);
         _filter->add_data(vtpv, _sins->Hk.rows(), _sins->Hk.cols());
 
-        Vector post_residual = _sins->Zk - _sins->Hk * _sins->Xk;
-        double pre_residual_norm = _sins->Zk.transpose() * P.matrixR() * _sins->Zk;
-        double post_residual_norm = post_residual.transpose() * P.matrixR() * post_residual;
+        //Vector post_residual = _sins->Zk - _sins->Hk * _sins->Xk;
+        //double pre_residual_norm = _sins->Zk.transpose() * P.matrixR() * _sins->Zk;
+        //double post_residual_norm = post_residual.transpose() * P.matrixR() * post_residual;
 
-        double post_residual_norm1 = _sins->Xk.transpose() * Qsav.matrixR().inverse() * _sins->Xk;
+        //double post_residual_norm1 = _sins->Xk.transpose() * Qsav.matrixR().inverse() * _sins->Xk;
 
         //std::cout << "gnss measurement matrix: \n" << std::fixed << std::setprecision(3) << _sins->Hk.block(0, 0, _sins->Hk.rows(), 15) << std::endl;
         //std::cout << "gnss measurement delta_x: " << std::fixed << std::setprecision(3) << _sins->Xk.block(0, 0, 15, 1).transpose() << std::endl;
-        std::cout << "gnss state after residual: " << std::fixed << std::setprecision(5) << post_residual_norm1  << std::endl;
-        std::cout << "gnss meas pre residual: " << std::fixed << std::setprecision(5) << pre_residual_norm << std::endl;
-        std::cout << "gnss meas after residual: " << std::fixed << std::setprecision(5) << post_residual_norm << std::endl;
-        std::cout << "gnss update effect: " << std::fixed << std::setprecision(2) << post_residual_norm / pre_residual_norm * 100 << "%\n";
+        //std::cout << "gnss state after residual: " << std::fixed << std::setprecision(5) << post_residual_norm1  << std::endl;
+        //std::cout << "gnss meas pre residual: " << std::fixed << std::setprecision(5) << pre_residual_norm << std::endl;
+        //std::cout << "gnss meas after residual: " << std::fixed << std::setprecision(5) << post_residual_norm << std::endl;
+        //std::cout << "gnss update effect: " << std::fixed << std::setprecision(2) << post_residual_norm / pre_residual_norm * 100 << "%\n";
 
         //for (int i = 0; i < _param->parNumber(); i++)
         //{

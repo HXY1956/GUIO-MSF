@@ -43,6 +43,13 @@ int main(int argc, char** argv)
     base_rtlog great_log = base_rtlog(log_type, log_level, log_name);
     auto my_logger = great_log.spdlog();
 
+#ifdef EIGEN_USE_BLAS
+#include <cstdlib>
+    _putenv_s("OPENBLAS_NUM_THREADS", "1");
+    _putenv_s("GOTO_NUM_THREADS", "1");
+    _putenv_s("OMP_NUM_THREADS", "1");
+#endif
+
     bool isBase = false;
     if (gset->list_base().size()) isBase = true;
     bool isClient = dynamic_cast<set_npp*>(gset.get())->isClient();

@@ -182,8 +182,8 @@ namespace hwa_fgo {
 
     void insprocesser::_addResidualBlocks(ceres::Problem& problem) {
 
-        double cost_save = _fgo_info->cost;
-        std::vector<double> residuals;
+        //double cost_save = _fgo_info->cost;
+        //std::vector<double> residuals;
         
         for (int i = 0; i < _fgo_info->rover_count; i++)
         {
@@ -205,21 +205,21 @@ namespace hwa_fgo {
             problem.AddResidualBlock(initial_bias, NULL, _fgo_info->_para_speed_bias[i]);
         }
 
-        problem.Evaluate(
-            ceres::Problem::EvaluateOptions(),
-            &_fgo_info->cost,
-            &residuals,
-            nullptr,
-            nullptr);
+        //problem.Evaluate(
+        //    ceres::Problem::EvaluateOptions(),
+        //    &_fgo_info->cost,
+        //    &residuals,
+        //    nullptr,
+        //    nullptr);
 
-        std::cout
-            << std::fixed
-            << std::setprecision(10)
-            << "initial bias cost = "
-            << _fgo_info->cost - cost_save
-            << std::endl;
+        //std::cout
+        //    << std::fixed
+        //    << std::setprecision(10)
+        //    << "initial bias cost = "
+        //    << _fgo_info->cost - cost_save
+        //    << std::endl;
 
-        cost_save = _fgo_info->cost;
+        //cost_save = _fgo_info->cost;
 
         for (int i = 0; i < _fgo_info->rover_count - 1; i++)
         {
@@ -229,20 +229,20 @@ namespace hwa_fgo {
             IMUFactor* imu_factor = new IMUFactor(_fgo_info->_pre_integrations[j]);
             problem.AddResidualBlock(imu_factor, NULL, _fgo_info->_para_pose[i], _fgo_info->_para_speed_bias[i], _fgo_info->_para_pose[j], _fgo_info->_para_speed_bias[j]);
         
-            cost_save = _fgo_info->cost;
-            problem.Evaluate(
-                ceres::Problem::EvaluateOptions(),
-                &_fgo_info->cost,
-                &residuals,
-                nullptr,
-                nullptr);
+            //cost_save = _fgo_info->cost;
+            //problem.Evaluate(
+            //    ceres::Problem::EvaluateOptions(),
+            //    &_fgo_info->cost,
+            //    &residuals,
+            //    nullptr,
+            //    nullptr);
 
-            std::cout
-                << std::fixed
-                << std::setprecision(10)
-                << "imu preintegration cost [" << i << "] = "
-                << _fgo_info->cost - cost_save
-                << std::endl;      
+            //std::cout
+            //    << std::fixed
+            //    << std::setprecision(10)
+            //    << "imu preintegration cost [" << i << "] = "
+            //    << _fgo_info->cost - cost_save
+            //    << std::endl;      
         }
     }
 
@@ -607,7 +607,13 @@ namespace hwa_fgo {
         }
     }
 
-    void insprocesser::_feed_back(const base_posdata::data_pos& _pos, const Triple RobustFixedPos) {
+    void insprocesser::_getPOS(base_posdata::data_pos& pos)
+    {
+        pos.pos = _sins->pos_ecef;
+		pos.vn = _sins->vn;
+    }
+
+    void insprocesser::_feed_back(const base_posdata::data_pos& _pos, bool flag) {
 
 //#ifdef DEBUG_NEW
 //        std::cout << std::fixed << std::setprecision(6);
@@ -632,25 +638,24 @@ namespace hwa_fgo {
 //        std::cout << "==============================================" << std::endl;
 //#endif
 
-        Eigen::Vector3d mean_ba = _fgo_info->_Bas[_fgo_info->rover_count - 1];
-        Eigen::Vector3d mean_bg = _fgo_info->_Bgs[_fgo_info->rover_count - 1];
         Eigen::Quaterniond e_q = Eigen::Quaterniond(_fgo_info->_Rs[_fgo_info->rover_count - 1]);
         e_q.normalized();
         _sins->qeb = base_quat(e_q.w(), e_q.x(), e_q.y(), e_q.z());
         _sins->Ceb = base_att_trans::q2mat(_sins->qeb);
         _sins->ve = _fgo_info->_Vs[_fgo_info->rover_count - 1];
         _sins->pos_ecef = _fgo_info->_Ps[_fgo_info->rover_count - 1];
-        if (RobustFixedPos[0] != 0)
-            _sins->pos_ecef = RobustFixedPos;
-        Eigen::Vector3d robustpos;
-        _sins->eb = mean_bg;
-        _sins->db = mean_ba;
+        _sins->eb = _fgo_info->_Bgs[_fgo_info->rover_count - 1];
+        _sins->db = _fgo_info->_Bas[_fgo_info->rover_count - 1];
         _sins->qnb = base_att_trans::m2qua(_sins->eth.Cne) * _sins->qeb;
         _sins->Cnb = base_att_trans::q2mat(_sins->qnb);
         _sins->vn = _sins->eth.Cne * _sins->ve;
         _sins->pos = Cart2Geod(_sins->pos_ecef, false);
         _sins->att = base_att_trans::q2att(_sins->qnb);
-        if(_pos.pos[0] != 0)
+
+        if (flag)
+			_sins->pos_ecef = _pos.pos;
+
+        if (_pos.pos.norm() != 0)
             _sins->xyz_out = _pos.pos;
         else
 			_sins->xyz_out = _sins->pos_ecef;

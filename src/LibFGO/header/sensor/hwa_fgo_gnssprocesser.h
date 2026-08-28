@@ -78,7 +78,7 @@ namespace hwa_fgo {
 			_get_result(TimeStamp, pos);
 			return pos;
 		}
-		Triple _getRobustFixedPosition();
+		bool _getRobustFixedPosition();
 
 		/**
 		 * @brief Remove outlier satellite from current processing

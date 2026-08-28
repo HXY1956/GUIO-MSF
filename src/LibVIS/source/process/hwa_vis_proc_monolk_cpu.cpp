@@ -201,8 +201,6 @@ void vis_mono_lk_cpu::addnewFeatures()
 
         // 更新新特征点的属性
         grid_new_feature.cam0_point = n_pts[i];
-        cv::Point2f vel = (n_pts[i] - n_pts[i]) /
-            (curr_img_msg.t - prev_img_msg.t);
         grid_new_feature.velocity[0] = 0.0;
         grid_new_feature.velocity[1] = 0.0;
     }
@@ -468,6 +466,10 @@ void vis_mono_lk_cpu::trackFeatures()
         _cam0_distortion_coeffs, ransac_threshold,
         0.99, cam0_ransac_inliers);
 
+    status.clear();
+    for(int i = 0; i < cam0_ransac_inliers.size(); i++)
+        status.push_back(cam0_ransac_inliers[i]);
+
     _reduceVector(prev_pts, status);
     _reduceVector(cur_pts, status);
     _reduceVector(prev_ids, status);
@@ -478,6 +480,16 @@ void vis_mono_lk_cpu::trackFeatures()
 
     static int grid_height = cur_img.rows / grid_row;
     static int grid_width = cur_img.cols / grid_col;
+
+    vector<Point2f> curr_cam0_points_undistorted;
+    vector<Point2f> prev_cam0_points_undistorted;
+
+    undistortPoints(
+        cur_pts, _cam0_intrinsics, _cam0_distortion_model,
+        _cam0_distortion_coeffs, curr_cam0_points_undistorted);
+    undistortPoints(
+        prev_pts, _cam0_intrinsics, _cam0_distortion_model,
+        _cam0_distortion_coeffs, prev_cam0_points_undistorted);
 
     for (int i = 0; i < cur_pts.size(); ++i)
     {
@@ -495,7 +507,7 @@ void vis_mono_lk_cpu::trackFeatures()
         // 更新新特征点的属性
         grid_new_feature.id = cur_ids[i];
         grid_new_feature.cam0_point = cur_pts[i];
-        cv::Point2f vel = (cur_pts[i] - prev_pts[i]) /
+        cv::Point2f vel = (curr_cam0_points_undistorted[i] - prev_cam0_points_undistorted[i]) /
             (curr_img_msg.t - prev_img_msg.t);
         grid_new_feature.velocity[0] = vel.x;
         grid_new_feature.velocity[1] = vel.y;
@@ -863,6 +875,7 @@ void vis_mono_lk_cpu::publish()
 
     vector<long long int> curr_ids(0);
     vector<Point2f> curr_cam0_points(0);
+    vector<Eigen::Vector2d> curr_velocities(0);
 
     for (const auto& grid_features : (*curr_features_ptr))
     {
@@ -870,6 +883,7 @@ void vis_mono_lk_cpu::publish()
         {
             curr_ids.push_back(feature.id);
             curr_cam0_points.push_back(feature.cam0_point);
+            curr_velocities.push_back(feature.velocity);
         }
     }
     vector<Point2f> curr_cam0_points_undistorted(0);
@@ -882,6 +896,7 @@ void vis_mono_lk_cpu::publish()
     {
         feature_msg.id = curr_ids[i];
         feature_msg.cam0_point = curr_cam0_points_undistorted[i];
+        feature_msg.velocity = curr_velocities[i];
         _pointCloud.features.push_back(feature_msg);
     }
     return;

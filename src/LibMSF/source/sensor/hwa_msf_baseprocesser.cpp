@@ -156,4 +156,12 @@ void baseprocesser::_feed_back() {
     _sins->orientation = _sins->Ceb.transpose();
     _sins->velocity = _sins->ve;
     _sins->position = Geod2Cart(_sins->pos, false);
+
+    //std::cout << "======== FEEDBACK DETAILS ========" << std::endl;
+    //std::cout << "FEEDBACK Epoch: " << TimeStamp.str_ymdhms() << std::endl;
+    //std::cout << std::setiosflags(std::ios::fixed) << std::setprecision(6);
+    //std::cout << "SINS DETAILS:\n" << "SINS POS: " << _sins->pos_ecef.transpose() << std::endl;
+    //std::cout << "SINS QUAT:\n " << _sins->Cnb << "\n";
+    //std::cout << "SINS PK:\n" << _sins->Pk << "\n";
+    //std::cout << "SINS XK:\n" << _sins->Xk << "\n";
 }

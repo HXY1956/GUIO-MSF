@@ -1049,6 +1049,9 @@ namespace hwa_gnss
 
     bool gnss_model_comb_dd::cmb_equ(base_time &epoch, base_allpar &params, gnss_data_sats &obsdata, gnss_model_base_equation &result)
     {
+        //std::cout << "SAT INDEX: " << obsdata.sat() << "\n";
+        //std::cout << std::setiosflags(std::ios::fixed) << std::setprecision(6);
+
         gnss_data_sats obsdata_other(_spdlog);
         if (_data_base == nullptr)
             return false;
@@ -1359,6 +1362,8 @@ namespace hwa_gnss
                         }
                         tempL.B.back().push_back(std::make_pair(idx, 1.0));
                         tempL.l.back() -= params_temp[idx].value();
+
+						//std::cout << "BAND AMB [" << idx << "] VALUE: " << params_temp[idx].value() << "\n";
                     }
                 }
             }
@@ -1418,6 +1423,10 @@ namespace hwa_gnss
                 l_P = tempP.l[irover] - tempP.l[ibase];
                 P_L = 1 / (1 / tempL.P[irover] + 1 / tempL.P[ibase]);
                 l_L = tempL.l[irover] - tempL.l[ibase];
+
+    //            std::cout << "SAT FREQ ["<< freq_count <<"] DETAIL:\n" << "ROVER P: " << tempP.l[irover] << "; BASE P: " << tempP.l[ibase] << "\n";
+				//std::cout << "ROVER L: " << tempL.l[irover] << "; BASE L: " << tempL.l[ibase] << "\n";
+    //            std::cout << "DD P: " << l_P << "; DD L: " << l_L << "\n";
 
                 gnss_data_obscombtype typeP(obsP, OBSCOMBIN::RAW_ALL);
                 gnss_data_obscombtype typeL(obsL, OBSCOMBIN::RAW_ALL);

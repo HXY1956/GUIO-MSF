@@ -77,7 +77,7 @@ namespace hwa_vis
         Triple Tcb;       // Transform from IMU to Camera;
         Eigen::Quaterniond qbc;    // Transform from IMU to Camera;
         Triple Tbc;       // Transform from IMU to Camera;
-        IntegrationBase *pre_integration;
+        IntegrationBase *pre_integration = nullptr;
         SO3 R_e_n;
         Eigen::Quaterniond qnc;    //Transform from c to n;
         Eigen::Quaterniond qnb;    //Transform from b to n;
@@ -94,7 +94,7 @@ namespace hwa_vis
             mtracking_rate(0.0),
             mvtracking_rate(std::vector<double>()),
             isKeyFrame(false) {
-            pre_integration = new IntegrationBase{ Triple::Zero(), Triple::Zero(), 0 };
+            //pre_integration = new IntegrationBase{ Triple::Zero(), Triple::Zero(), 0 };
         }
 
         explicit CamState(const CamStateIDType& new_id) : id(new_id), time(0),
@@ -108,7 +108,7 @@ namespace hwa_vis
             mtracking_rate(0.0),
             mvtracking_rate(std::vector<double>()),
             isKeyFrame(false) {
-            pre_integration = new IntegrationBase{ Triple::Zero(), Triple::Zero(), 0 };
+            //pre_integration = new IntegrationBase{ Triple::Zero(), Triple::Zero(), 0 };
         }
 
         void TCI() {

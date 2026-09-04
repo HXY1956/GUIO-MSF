@@ -228,7 +228,7 @@ namespace hwa_fgo
 			A += threadsstruct[i].A;
 			b += threadsstruct[i].b;
 		}
-		std::cout << "thread summing up costs " << t_thread_summing.toc() << " ms" << std::endl;
+		//std::cout << "thread summing up costs " << t_thread_summing.toc() << " ms" << std::endl;
 
 		//Eigen::IOFormat fmt(
 		//	6,                  // precision 小数位数
@@ -254,7 +254,7 @@ namespace hwa_fgo
 
 		t_step.tic();
 		Matrix Amm = 0.5 * (A.block(0, 0, m, m) + A.block(0, 0, m, m).transpose());
-		std::cout << "  Amm computation: " << t_step.toc() << " ms" << std::endl;
+		//std::cout << "  Amm computation: " << t_step.toc() << " ms" << std::endl;
 
 		//t_step.tic();
 		//Eigen::SelfAdjointEigenSolver<Matrix> saes(Amm);
@@ -288,17 +288,17 @@ namespace hwa_fgo
 		Matrix Arm = A.block(m, 0, n, m);
 		Matrix Arr = A.block(m, m, n, n);
 		Vector brr = b.segment(m, n);
-		std::cout << "  Matrix/vector extraction: " << t_step.toc() << " ms" << std::endl;
+		//std::cout << "  Matrix/vector extraction: " << t_step.toc() << " ms" << std::endl;
 
 		t_step.tic();
 		A = Arr - Arm * Amm_inv * Amr;
-		std::cout << "  A matrix update: " << t_step.toc() << " ms" << std::endl;
+		//std::cout << "  A matrix update: " << t_step.toc() << " ms" << std::endl;
 
 		t_step.tic();
 		b = brr - Arm * Amm_inv * bmm;
-		std::cout << "  b vector update: " << t_step.toc() << " ms" << std::endl;
+		//std::cout << "  b vector update: " << t_step.toc() << " ms" << std::endl;
 
-		std::cout << "Total A,b computation: " << t_compute.toc() << " ms" << std::endl;
+		//std::cout << "Total A,b computation: " << t_compute.toc() << " ms" << std::endl;
 
 		TicToc t_compute1;
 
@@ -361,7 +361,7 @@ namespace hwa_fgo
 		linearized_jacobians = S_sqrt.asDiagonal() * saes2.eigenvectors().transpose();
 		linearized_residuals = S_inv_sqrt.asDiagonal() * saes2.eigenvectors().transpose() * b;
 
-		std::cout << "Compute B " << t_compute1.toc() << " ms" << std::endl;
+		//std::cout << "Compute B " << t_compute1.toc() << " ms" << std::endl;
 		//std::cout << "========== Margin Amm  ==========" << std::endl;
 		//std::cout << Amm.format(fmt) << std::endl;
 

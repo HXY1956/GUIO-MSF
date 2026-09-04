@@ -40,3 +40,7 @@ target_include_directories(LibGNSS
 PUBLIC
 ${GNSS_HEADER_DIR}
 )
+
+target_precompile_headers(LibGNSS PRIVATE
+    ${SRC_DIR}/LibGNSS/pch/pch_libgnss.h
+)

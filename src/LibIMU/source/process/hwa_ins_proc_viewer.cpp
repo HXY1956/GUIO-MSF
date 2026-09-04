@@ -10,6 +10,7 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 void MyCylinder(GLdouble r, GLdouble l, int edgenum);
 void MyFrame();
 void MyAerial(GLfloat size);
+void MyHeadingArrow(GLfloat len);
 
 std::vector<hwa_ins::ins_viewer*> hwa_ins::ins_viewer::vptr;
 bool mb_OK;
@@ -20,6 +21,9 @@ bool mb_KFs = true;
 bool mb_overlook = false;
 bool mb_grid = true;
 bool mb_axis = true;
+bool mb_show_gvio_trajectory = true;   // Display toggle (G): G-VIO raw trajectory
+bool mb_show_pg_trajectory = true;     // Display toggle (P): pose-graph optimized trajectory
+bool mb_show_loop_closure = true;      // Display toggle (L): loop-closure red lines
 double m_interval = 0.01;
 double m_dist = 5;
 double m_scale = 0.05;
@@ -205,35 +209,65 @@ void hwa_ins::ins_viewer::Run()
 
         if (mb_trajetory)
         {
-            float c_s[3] = { 250 / 255.0,167 / 255.0,85 / 255.0 };
-            float c_e[3] = { 80 / 255.0,183 / 255.0,193 / 255.0 };
-            glColor4f(c_s[0], c_s[1], c_s[2], 0.5);
-            glLineWidth(6.0f);
-            for (const auto &t : mv_trajectory)
+            // Frame-centering bookkeeping is data-driven and runs regardless
+            // of the display toggles.
+            if (!mv_frames.empty() && mv_frames.back().size() > 0 && !mv_trajectory.empty()
+                && !mv_trajectory.back().empty())
             {
-                glBegin(GL_LINE_STRIP);
-                for (int i = 0; i < t.size(); i++)
+                m_curr_X0 = -mv_trajectory.back().back()[0];
+                m_curr_Y0 = -mv_trajectory.back().back()[1];
+                m_curr_Z0 = -mv_trajectory.back().back()[2];
+            }
+
+            // 1) G-VIO raw trajectory: blue (toggle key G). Hiding it only
+            // skips the OpenGL drawing; AddNewPos keeps updating the data.
+            if (mb_show_gvio_trajectory)
+            {
+                glLineWidth(6.0f);
+                for (const auto &t : mv_trajectory)
                 {
-                    auto p = t[i];
-                    int n = 20 - (t.size() - 1 - i);
-                    if (i > t.size() - 20 && i <= t.size() - 5)
+                    glColor4f(0.0f, 0.35f, 1.0f, 0.55f);
+                    glBegin(GL_LINE_STRIP);
+                    for (int i = 0; i < (int)t.size(); i++)
                     {
-                        glColor4f(
-                            c_s[0] + (c_e[0] - c_s[0]) / 15.0 * n,
-                            c_s[1] + (c_e[1] - c_s[1]) / 15.0 * n,
-                            c_s[2] + (c_e[2] - c_s[2]) / 15.0 * n, 0.5);
+                        const auto &p = t[i];
+                        glVertex3d(p(0), p(1), p(2));
                     }
-                    glVertex3d(p(0), p(1), p(2));
-                }
-                glEnd();
-                if (mv_frames.back().size() > 0)
-                {
-                    m_curr_X0 = -mv_trajectory.back().back()[0];
-                    m_curr_Y0 = -mv_trajectory.back().back()[1];
-                    m_curr_Z0 = -mv_trajectory.back().back()[2];
+                    glEnd();
                 }
             }
 
+            // 2) Pose-graph optimized trajectory: green (toggle key P). The
+            // whole path is still replaced every refresh by SetPoseGraphPath
+            // even while hidden, so re-enabling shows the latest optimization.
+            if (mb_show_pg_trajectory)
+            {
+                glColor4f(0.0f, 0.9f, 0.1f, 0.8f);
+                glLineWidth(3.5f);
+                glBegin(GL_LINE_STRIP);
+                for (const auto &p : mv_pg_trajectory)
+                    glVertex3d(p(0), p(1), p(2));
+                glEnd();
+            }
+
+            // 3) Loop-closure connections: red (toggle key L). The loop pairs
+            // are kept in mv_loop_edges regardless; only the drawing is gated.
+            if (mb_show_loop_closure)
+            {
+                glColor3f(1.0f, 0.0f, 0.0f);
+                glLineWidth(2.5f);
+                glBegin(GL_LINES);
+                for (const auto &e : mv_loop_edges)
+                {
+                    if (e.first < 0 || e.first >= (int)mv_pg_trajectory.size()) continue;
+                    if (e.second < 0 || e.second >= (int)mv_pg_trajectory.size()) continue;
+                    const auto &pa = mv_pg_trajectory[e.first];
+                    const auto &pb = mv_pg_trajectory[e.second];
+                    glVertex3d(pa(0), pa(1), pa(2));
+                    glVertex3d(pb(0), pb(1), pb(2));
+                }
+                glEnd();
+            }
         }
         if (mb_KFs)
         {
@@ -254,6 +288,21 @@ void hwa_ins::ins_viewer::Run()
                 }
             }
         }
+        // Red arrow on the vehicle (latest IMU frame): points along the body
+        // +Y axis, which is the vehicle nose / forward direction.
+        if (mb_KFs && !mv_frames.empty() && !mv_frames.back().empty())
+        {
+            const auto &f = mv_frames.back().front();
+            Eigen::Matrix4d Twb = Eigen::Matrix4d::Identity();
+            Twb.block<3, 3>(0, 0) = f.first;
+            Twb.block<3, 1>(0, 3) = f.second;
+            glPushMatrix();
+            glMultMatrixd(Twb.data());
+            glColor3f(1.0f, 0.0f, 0.0f);
+            MyHeadingArrow(0.5f);
+            glPopMatrix();
+        }
+
         if (mb_MPs)
         {
             double c_l[3] = { 0.1,0.1,0 };
@@ -322,6 +371,8 @@ void hwa_ins::ins_viewer::ClearView()
 {
     std::unique_lock<std::mutex> lock(m_mutex);
     mv_trajectory.clear();
+    mv_pg_trajectory.clear();
+    mv_loop_edges.clear();
     mv_pointCloud.clear();
 }
 
@@ -380,6 +431,17 @@ void hwa_ins::ins_viewer::AddNewPoint(const std::vector<Triple> &pts)
     {
         mv_pointCloud.back().push_back(p);
     }
+}
+
+void hwa_ins::ins_viewer::SetPoseGraphPath(
+    const Trajectory &t, const std::vector<std::pair<int, int>> &loop_edges)
+{
+    std::unique_lock<std::mutex> lock(m_mutex);
+    // Replace (do not append): the pose-graph path must be rebuilt from the
+    // latest optimized keyframe poses every refresh so that historical points
+    // move after optimizeGraph corrects the keyframes.
+    mv_pg_trajectory = t;
+    mv_loop_edges = loop_edges;
 }
 
 void hwa_ins::ins_viewer::SetTrajectory(const Trajectory & t)
@@ -535,6 +597,13 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
         m_curr_Z = m_curr_Z0;
 
     }
+    if (key == GLFW_KEY_G && action == GLFW_PRESS)
+        mb_show_gvio_trajectory = !mb_show_gvio_trajectory;
+    if (key == GLFW_KEY_P && action == GLFW_PRESS)
+        mb_show_pg_trajectory = !mb_show_pg_trajectory;
+    if (key == GLFW_KEY_L && action == GLFW_PRESS)
+        mb_show_loop_closure = !mb_show_loop_closure;
+
 }
 
 void MyAerial(GLfloat size)
@@ -577,6 +646,50 @@ void MyAerial(GLfloat size)
         glEnd();
     }
     glPopMatrix();
+}
+
+void MyHeadingArrow(GLfloat len)
+{
+    // Red arrow along the body +Y axis (vehicle nose): thin shaft + cone head,
+    // lifted slightly above the vehicle body so it does not z-fight with the
+    // aerial model.
+    const float lift = 0.06f;
+    const float head_len = len * 0.25f;
+    const float head_r = len * 0.10f;
+    const float shaft_r = len * 0.02f;
+    const int n = 12;
+
+    // shaft: MyCylinder draws along +Z; rotate -90 deg about X to map +Z -> +Y
+    glPushMatrix();
+    glTranslatef(0, 0, lift);
+    glRotatef(-90, 1, 0, 0);
+    MyCylinder(shaft_r, len - head_len, n);
+    glPopMatrix();
+
+    // cone head: base at y = len-head_len, tip at y = len
+    const double by = len - head_len;
+    glBegin(GL_TRIANGLES);
+    for (int i = 0; i < n; i++)
+    {
+        double a1 = i * 2.0 * 3.1415926 / n;
+        double a2 = (i + 1) * 2.0 * 3.1415926 / n;
+        glVertex3d(0, len, lift);
+        glVertex3d(head_r * cos(a2), by, lift + head_r * sin(a2));
+        glVertex3d(head_r * cos(a1), by, lift + head_r * sin(a1));
+    }
+    glEnd();
+
+    // base disc
+    glBegin(GL_TRIANGLES);
+    for (int i = 0; i < n; i++)
+    {
+        double a1 = i * 2.0 * 3.1415926 / n;
+        double a2 = (i + 1) * 2.0 * 3.1415926 / n;
+        glVertex3d(0, by, lift);
+        glVertex3d(head_r * cos(a1), by, lift + head_r * sin(a1));
+        glVertex3d(head_r * cos(a2), by, lift + head_r * sin(a2));
+    }
+    glEnd();
 }
 
 void MyFrame()

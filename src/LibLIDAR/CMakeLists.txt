@@ -43,3 +43,7 @@ target_link_libraries(LibLIDAR
     ${PCL_LIBRARIES}
     ${OpenCV_LIBS}
 )
+
+target_precompile_headers(LibLIDAR PRIVATE
+    ${SRC_DIR}/LibLIDAR/pch/pch_liblidar.h
+)

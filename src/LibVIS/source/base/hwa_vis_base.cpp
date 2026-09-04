@@ -29,15 +29,36 @@ hwa_vis::vis_base::vis_base(hwa_set::set_base* _set, int cam_group_id) :cam_stat
     Bas.resize(max_camstate_size, Triple::Zero());
     if (num_of_cam == 2 && dynamic_cast<set_vis*>(_set)->stereo(cam_group_id)) stereo = true;
     else stereo = false;
+    bool vins_frontend =
+        (dynamic_cast<set_vis*>(_set)->feature_selector(cam_group_id) == "vins");
     switch (processer) {
     case CPU:
-        if (!stereo)
-            imgproc = std::make_unique<vis_mono_lk_cpu>(_set, cam_group_id);
+        if (!stereo) {
+            if (vins_frontend)
+                imgproc = std::make_unique<vis_mono_vins_cpu>(_set, cam_group_id);
+            else
+                imgproc = std::make_unique<vis_mono_lk_cpu>(_set, cam_group_id);
+        }
         else
-            imgproc = std::make_unique<vis_stereo_lk_cpu>(_set, cam_group_id);
+        {
+            if (vins_frontend)
+                imgproc = std::make_unique<vis_stereo_vins_cpu>(_set, cam_group_id);
+            else
+                imgproc = std::make_unique<vis_stereo_lk_cpu>(_set, cam_group_id);
+        }
         break;
     case GPU:
-        if (!stereo)
+        if (vins_frontend)
+        {
+            // VINS-Mono style front-end is implemented for the CPU path only;
+            // silently use the CPU implementation when GPU was requested.
+            printf("[VIS] feature_selector=vins forces CPU front-end\n");
+            if (!stereo)
+                imgproc = std::make_unique<vis_mono_vins_cpu>(_set, cam_group_id);
+            else
+                imgproc = std::make_unique<vis_stereo_vins_cpu>(_set, cam_group_id);
+        }
+        else if (!stereo)
             imgproc = std::make_unique<vis_mono_lk_gpu>(_set, cam_group_id);
         else
             imgproc = std::make_unique<vis_stereo_lk_gpu>(_set, cam_group_id);

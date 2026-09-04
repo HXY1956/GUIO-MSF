@@ -92,6 +92,7 @@ namespace hwa_set
         int grid_col(int cam_group_id = 0);
         int grid_min_feature_num(int cam_group_id = 0);
         int grid_max_feature_num(int cam_group_id = 0);
+        int min_dist(int cam_group_id = 0);
         int pyramid_levels(int cam_group_id = 0);
         int patch_size(int cam_group_id = 0);
         int fast_threshold(int cam_group_id = 0);
@@ -120,6 +121,9 @@ namespace hwa_set
         int inner_loop_max_iteration(int cam_group_id = 0);            ///< TODO
         bool estimate_extrinsic(int cam_group_id = 0);
         bool estimate_t(int cam_group_id = 0);
+        bool loop_closure(int cam_group_id = 0);
+        std::string vocabulary(int cam_group_id = 0);
+        std::string brief_pattern(int cam_group_id = 0);
         hwa_vis::CLONE_TYPE clone_type(int cam_group_id = 0);
         hwa_vis::CLONE_TYPE str2ct(const std::string& s);
         bool estimate_extrinsic_seperately(int cam_group_id = 0);
@@ -149,6 +153,7 @@ namespace hwa_set
         std::string proc_mode(int cam_group_id = 0);
 
         hwa_vis::PROCESSER_TYPE processer(int cam_group_id = 0);
+        std::string feature_selector(int cam_group_id = 0);
         std::string cam_group_name(int cam_group_id = 0);
         std::string gst_path(int cam_group_id = 0);
         std::vector<int> camera_list();

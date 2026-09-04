@@ -1,3 +1,5 @@
+// DBoW2 / boost headers must be processed before windows.h
+#include "hwa_pg_posegraph.h"
 #include "hwa_fgo_visprocesser.h"
 #include "hwa_set_ign.h"
 #include "hwa_base_globaltrans.h"
@@ -20,6 +22,8 @@ namespace hwa_fgo {
         ProjectionFactor::sqrt_info = FOCAL_LENGTH / 1.5 * Eigen::Matrix2d::Identity();
         ProjectionTdFactor::sqrt_info = FOCAL_LENGTH / 1.5 * Eigen::Matrix2d::Identity();
         TimeStamp = beg;
+
+        _init_posegraph();
     };
 
     visprocesser::visprocesser(std::shared_ptr<set_base> gset, std::string site, int ID, base_log spdlog, base_data* data, base_time _beg, base_time _end) : baseprocesser(gset, spdlog, site, VIS_NODE, _beg, _end),
@@ -38,7 +42,24 @@ namespace hwa_fgo {
         ProjectionFactor::sqrt_info = FOCAL_LENGTH / 1.5 * Eigen::Matrix2d::Identity();
         ProjectionTdFactor::sqrt_info = FOCAL_LENGTH / 1.5 * Eigen::Matrix2d::Identity();
         TimeStamp = beg;
+
+        _init_posegraph();
     };
+
+    void visprocesser::_init_posegraph()
+    {
+        if (!dynamic_cast<set_vis*>(_gset.get())->loop_closure(cam_group_id))
+            return;
+
+		auto img_proc_ptr = imgproc.get();
+
+        posegraph_ = std::make_unique<hwa_pg::PGPoseGraph>();
+        posegraph_->setCamera(R_cam0_imu, t_cam0_imu,
+                              cam0_intrinsics, img_proc_ptr->cam0_distortion_coeffs, distortion2str(img_proc_ptr->cam0_distortion_model));
+        posegraph_->setVocabularyPath(dynamic_cast<set_vis*>(_gset.get())->vocabulary(cam_group_id));
+        posegraph_->setBriefPattern(dynamic_cast<set_vis*>(_gset.get())->brief_pattern(cam_group_id));
+        std::cout << "[PG] visworker pose graph + loop closure enabled" << std::endl;
+    }
 
     visprocesser::~visprocesser() {
         if (TimeCostDebugOutFile.is_open()) TimeCostDebugOutFile.close();
@@ -164,6 +185,12 @@ namespace hwa_fgo {
         return true;
     }
 
+    void visprocesser::resetDepth() {
+        for (auto& it_per_id : map_server) {
+            it_per_id.second.inv_depth = -1;
+        }
+    }
+
     void visprocesser::initializeDepth()
     {
         for (auto& it_per_id : map_server)
@@ -230,7 +257,6 @@ namespace hwa_fgo {
             {
                 imu_j++;
 				int node_j = _node_index_copy()[imu_j];
-
                 Eigen::Vector3d t1 = _fgo_info->_Ps[node_j] +_fgo_info->_Rs[node_j] * tic[0];
                 Eigen::Matrix3d R1 = _fgo_info->_Rs[node_j] * ric[0];
                 Eigen::Vector3d t = R0.transpose() * (t1 - t0);
@@ -317,6 +343,21 @@ namespace hwa_fgo {
                 feature.inv_depth = -1;
             }
         }
+    // DEBUG(temp): inverse-depth scale statistics (remove after diagnosis)
+    {
+        static int dbg_call = 0;
+        if (dbg_call < 20) {
+            int cnt = 0;
+            double sum = 0, mn = 1e9, mx = 0;
+            for (auto& it : map_server) {
+                const double d = it.second.inv_depth;
+                if (d > 0) { cnt++; sum += d; if (d < mn) mn = d; if (d > mx) mx = d; }
+            }
+            if (cnt > 0)
+                printf("[VIS] depth stats cnt=%d avg=%.4f min=%.4f max=%.4f\n", cnt, sum / cnt, mn, mx);
+            dbg_call++;
+        }
+    }
     }
 
     void visprocesser::_write_calib()
@@ -383,6 +424,8 @@ namespace hwa_fgo {
 
         if (initialStructure()) {
             align_feedback();
+			resetDepth();
+            initializeDepth();
             return 1;
         }
         else {
@@ -454,6 +497,112 @@ namespace hwa_fgo {
         }
 
         return VIS_MEAS;
+    }
+
+    int visprocesser::currentPGNodeIndex() const
+    {
+        auto idx = _fgo_info->_Node_index.find(VIS_NODE);
+        if (idx == _fgo_info->_Node_index.end() || idx->second.empty())
+            return -1;
+        return idx->second.back();
+    }
+
+    hwa_pg::RawKeyFrame visprocesser::buildRawKeyFrame()
+    {
+        hwa_pg::RawKeyFrame raw;
+        int node = _node_index_copy().back();
+
+        if (_fgo_info->rover_count <= 0 || node != _fgo_info->rover_count - 1)
+            return raw;
+
+        raw.time = _fgo_info->_Time[node];
+        raw.rot = _fgo_info->_Rs[node];
+        raw.pos = _fgo_info->_Ps[node];
+        raw.image_path = get_curr_imgpath().img0_path;
+
+        const double fx = cam0_intrinsics(0), fy = cam0_intrinsics(1);
+        const double cx = cam0_intrinsics(2), cy = cam0_intrinsics(3);
+
+        std::vector<cv::Point2f> norm_points;
+
+        for (auto& it : map_server)
+        {
+            auto& f = it.second;
+            if (f.inv_depth <= 0) continue;
+            auto ob = f.observations.find(cam_state_id);
+            if (ob == f.observations.end()) continue;
+            int sn = f.start_frame;
+            if (sn < 0 || sn >= _fgo_info->rover_count) continue;
+            auto first = f.observations.find(f.start_frame_id);
+            if (first == f.observations.end()) continue;
+
+            Eigen::Vector3d pc(first->second.position(0) / f.inv_depth,
+                first->second.position(1) / f.inv_depth,
+                1.0 / f.inv_depth);
+            Eigen::Vector3d pb = ric[0] * pc + tic[0];
+            Eigen::Vector3d pw = _fgo_info->_Rs[sn] * pb + _fgo_info->_Ps[sn];
+            const auto& obs = ob->second.position;
+
+            raw.point_3d.emplace_back((float)pw.x(), (float)pw.y(), (float)pw.z());
+            raw.point_2d_norm.emplace_back((float)obs(0), (float)obs(1));
+            raw.point_id.push_back((double)it.first);
+            norm_points.emplace_back((float)obs(0), (float)obs(1));
+        }
+
+        // convert normalized observations to (distorted) pixel coordinates for
+        // the window-BRIEF matching locations
+        if (!norm_points.empty()) {
+            vis_stereo_lk_cpu* imgcpu = dynamic_cast<vis_stereo_lk_cpu*>(imgproc.get());
+            if (imgcpu) {
+                raw.point_2d_uv = imgcpu->distortPoints(
+                    norm_points, imgcpu->_cam0_intrinsics,
+                    imgcpu->_cam0_distortion_model, imgcpu->_cam0_distortion_coeffs);
+            } else if (vis_stereo_vins_cpu* imgvins =
+                       dynamic_cast<vis_stereo_vins_cpu*>(imgproc.get())) {
+                raw.point_2d_uv = imgvins->distortPoints(
+                    norm_points, imgvins->_cam0_intrinsics,
+                    imgvins->_cam0_distortion_model, imgvins->_cam0_distortion_coeffs);
+            } else {
+                for (const auto& p : norm_points)
+                    raw.point_2d_uv.emplace_back((float)(p.x * fx + cx),
+                                                 (float)(p.y * fy + cy));
+            }
+        }
+        return raw;
+    }
+
+    void visprocesser::updatePoseGraph()
+    {
+        if (!posegraph_) return;
+        hwa_pg::RawKeyFrame raw = buildRawKeyFrame();
+        if (raw.image_path.empty() || raw.point_3d.size() < 10)
+            return;
+        posegraph_->addKeyFrame(raw);
+
+        // The pose-graph worker detects loops asynchronously. When a loop is
+        // found it first runs the (slow) 4DoF optimizeGraph and only afterwards
+        // publishes the corrected old-frame anchor. Wait (bounded) for that
+        // anchor so the loop keyframe cannot slide out of the window while the
+        // graph is being optimized; on timeout the loop is skipped.
+        if (posegraph_->isReloPending())
+        {
+            if (!posegraph_->waitForReloReady(1000))
+                return;
+        }
+
+        // poll the latest relocalization result produced by the worker thread
+        double t = 0.0;
+        Eigen::Vector3d old_pos;
+        Eigen::Matrix3d old_rot;
+        std::vector<std::pair<double, Eigen::Vector2d>> obs;
+        if (posegraph_->getReloResult(t, old_pos, old_rot, obs) && !obs.empty()) {
+            relo_active_ = true;
+            relo_time_ = t;
+            relo_old_pos_ = old_pos;
+            relo_old_rot_ = old_rot;
+            relo_obs_ = obs;
+            std::cout << "[PG] relocalization armed: matches " << obs.size() << std::endl;
+        }
     }
 
     void visprocesser::_addResidualBlocks(ceres::Problem& problem) {
@@ -584,6 +733,139 @@ namespace hwa_fgo {
         //    << "vis reprojection cost: "
         //    << _fgo_info->cost - cost_save
         //    << std::endl;
+
+        _addRelocalizationFactors(problem);
+    }
+
+    // Strong prior on the relocalization old-frame pose: the pose is a FREE
+    // variable in the window BA (so an unreliable anchor is not silently
+    // trusted), but it is pulled toward the pose-graph-corrected anchor that
+    // the worker publishes after optimizeGraph.
+    struct ReloPosePrior {
+        ReloPosePrior(const Eigen::Vector3d& t0, const Eigen::Quaterniond& q0, double s)
+            : t0_(t0), q0_(q0), s_(s) {}
+
+        template <typename T>
+        bool operator()(const T* const pose, T* residuals) const {
+            Eigen::Map<const Eigen::Matrix<T, 3, 1>> t(pose);
+            // pose storage is [x,y,z,qx,qy,qz,qw]
+            Eigen::Quaternion<T> q(pose[6], pose[3], pose[4], pose[5]);
+            Eigen::Quaternion<T> q0(T(q0_.w()), T(q0_.x()), T(q0_.y()), T(q0_.z()));
+
+            residuals[0] = (t(0) - T(t0_(0))) * T(s_);
+            residuals[1] = (t(1) - T(t0_(1))) * T(s_);
+            residuals[2] = (t(2) - T(t0_(2))) * T(s_);
+
+            // small-angle rotation residual between the anchor and the pose
+            Eigen::Quaternion<T> dq = q0.conjugate() * q;
+            residuals[3] = dq.x() * T(2.0 * s_);
+            residuals[4] = dq.y() * T(2.0 * s_);
+            residuals[5] = dq.z() * T(2.0 * s_);
+            return true;
+        }
+
+        static ceres::CostFunction* Create(const Eigen::Vector3d& t0,
+                                           const Eigen::Quaterniond& q0, double s) {
+            return new ceres::AutoDiffCostFunction<ReloPosePrior, 6, 7>(
+                new ReloPosePrior(t0, q0, s));
+        }
+
+        Eigen::Vector3d t0_;
+        Eigen::Quaterniond q0_;
+        double s_;
+    };
+
+    void visprocesser::_addRelocalizationFactors(ceres::Problem& problem)
+    {
+        if (!relo_active_ || relo_obs_.empty()) return;
+
+        // the loop (relo) frame = current keyframe that triggered the loop;
+        // find it in the sliding window by timestamp (VINS relo_frame_local_index)
+        int node = -1;
+        for (int i = 0; i < _fgo_info->rover_count; ++i)
+        {
+            if (std::fabs(_fgo_info->_Time[i] - relo_time_) < 0.01) { node = i; break; }
+        }
+        if (node < 0)
+        {
+            // relocalized node already slid out of the window
+            relo_active_ = false;
+            relo_obs_.clear();
+            return;
+        }
+
+        // Old (loop) keyframe pose in ECEF, used as a CONSTANT anchor so the
+        // sliding-window feature structure is pulled toward the old map
+        // observations (VINS FAST_RELOCALIZATION anchors on the old kf pose).
+        relo_old_pose_[0] = relo_old_pos_.x();
+        relo_old_pose_[1] = relo_old_pos_.y();
+        relo_old_pose_[2] = relo_old_pos_.z();
+        Eigen::Quaterniond q_old(relo_old_rot_);
+        relo_old_pose_[3] = q_old.x();
+        relo_old_pose_[4] = q_old.y();
+        relo_old_pose_[5] = q_old.z();
+        relo_old_pose_[6] = q_old.w();
+        problem.AddParameterBlock(relo_old_pose_, SIZE_POSE, new PoseLocalParameterization());
+        // Free variable + strong prior anchored at the corrected old-frame pose
+        // (published by the worker after optimizeGraph).
+        problem.AddResidualBlock(
+            ReloPosePrior::Create(
+                Eigen::Vector3d(relo_old_pose_[0], relo_old_pose_[1], relo_old_pose_[2]),
+                Eigen::Quaterniond(relo_old_pose_[6], relo_old_pose_[3],
+                                   relo_old_pose_[4], relo_old_pose_[5]),
+                10.0),
+            nullptr, relo_old_pose_);
+
+        ceres::LossFunction* loss = new ceres::CauchyLoss(1.0);
+
+        // Same feature-index traversal as _addResidualBlocks so the correct
+        // para_Feature slot is used for every matched feature.
+        int feature_index = -1;
+        int added = 0;
+        for (auto& it_per_id : map_server)
+        {
+            auto& feature = it_per_id.second;
+            if (feature.inv_depth < 0) continue;
+            int used_num = feature.observations.size();
+            int start_frame = feature.start_frame;
+            if (!(used_num >= 2 && start_frame < _fgo_info->_window_size - 3))
+                continue;
+            ++feature_index;
+            if (feature_index >= 1000) break;
+
+            // is this feature among the loop matches?
+            auto relo_it = std::find_if(relo_obs_.begin(), relo_obs_.end(),
+                [&feature](const std::pair<double, Eigen::Vector2d>& m) {
+                    return std::fabs(m.first - feature.id) < 0.5; });
+            if (relo_it == relo_obs_.end()) continue;
+            if (start_frame > node) continue;   // VINS: start_frame <= relo_frame_local_index
+
+            // start-frame normalized observation (same as _addResidualBlocks)
+            auto first = feature.observations.find(feature.start_frame_id);
+            if (first == feature.observations.end()) continue;
+            Triple pts_i;
+            pts_i << first->second.position.head(2), 1;
+            Eigen::Vector3d pts_j(relo_it->second.x(), relo_it->second.y(), 1.0);
+
+            // reproject the start-frame feature (pose_i + inverse depth) into
+            // the old keyframe camera frame and compare with the old observation
+            ProjectionFactor* f = new ProjectionFactor(pts_i, pts_j);
+            problem.AddResidualBlock(f, loss,
+                _fgo_info->_para_pose[start_frame], relo_old_pose_,
+                _fgo_info->_para_ex_pose[0], _fgo_info->_para_feature[feature_index]);
+            ++added;
+        }
+
+        if (added == 0)
+        {
+            // no matched feature survived in the window; deactivate
+            relo_active_ = false;
+            relo_obs_.clear();
+            return;
+        }
+        std::cout << "[PG] adding " << added
+                  << " relocalization factors (old-frame anchor) on node "
+                  << node << std::endl;
     }
 
     void visprocesser::_addMarginInfo() {

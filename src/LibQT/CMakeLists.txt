@@ -53,6 +53,10 @@ if(MSVC)
     target_compile_options(LibQT PRIVATE /bigobj)
 endif()
 
+target_precompile_headers(LibQT PRIVATE
+    ${SRC_DIR}/LibQT/pch/pch_libqt.h
+)
+
 add_executable(AppQT ${QT_MAIN})
 target_link_libraries(AppQT
 LibQT

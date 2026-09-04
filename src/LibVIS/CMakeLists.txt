@@ -39,6 +39,10 @@ target_compile_definitions(LibVIS PRIVATE
 EIGEN_HAS_CUDA_FP16=0
 NOMINMAX)
 
+target_precompile_headers(LibVIS PRIVATE
+    ${SRC_DIR}/LibVIS/pch/pch_libvis.h
+)
+
 target_include_directories(LibVIS
   PUBLIC
     ${SRC_DIR}/LibVIS/HikVision_Includes
@@ -84,3 +88,6 @@ LINKER_LANGUAGE CUDA
    AUTORCC ON
    AUTOUIC ON
 )
+
+# Note: keep this file newer than the sources so the file(GLOB ...) targets
+# pick up newly added VINS-style front-end sources (hwa_vis_proc_*_vins_cpu.cpp).

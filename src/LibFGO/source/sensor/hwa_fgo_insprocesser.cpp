@@ -228,6 +228,28 @@ namespace hwa_fgo {
                 continue;
             IMUFactor* imu_factor = new IMUFactor(_fgo_info->_pre_integrations[j]);
             problem.AddResidualBlock(imu_factor, NULL, _fgo_info->_para_pose[i], _fgo_info->_para_speed_bias[i], _fgo_info->_para_pose[j], _fgo_info->_para_speed_bias[j]);
+
+            // DEBUG(temp): compare preintegrated rotation vs optimized rotation per node pair
+            {
+                if (_fgo_info->_pre_integrations[j] != nullptr) {
+                    const auto* pre = _fgo_info->_pre_integrations[j];
+                    const double w = pre->delta_q.w();
+                    double rot_meas = (w > 1.0 ? 0.0 : (w < -1.0 ? 3.141592653589793 : acos(w))) * 2.0;
+                    Eigen::Quaterniond qi(_fgo_info->_para_pose[i][6], _fgo_info->_para_pose[i][3],
+                                          _fgo_info->_para_pose[i][4], _fgo_info->_para_pose[i][5]);
+                    Eigen::Quaterniond qj(_fgo_info->_para_pose[j][6], _fgo_info->_para_pose[j][3],
+                                          _fgo_info->_para_pose[j][4], _fgo_info->_para_pose[j][5]);
+                    Eigen::Quaterniond dq_opt = qi.conjugate() * qj;
+                    dq_opt.normalize();
+                    const double cw = dq_opt.w();
+                    double rot_opt = (cw > 1.0 ? 0.0 : (cw < -1.0 ? 3.141592653589793 : acos(cw))) * 2.0;
+                    Eigen::Vector3d dp(_fgo_info->_para_pose[j][0] - _fgo_info->_para_pose[i][0],
+                                       _fgo_info->_para_pose[j][1] - _fgo_info->_para_pose[i][1],
+                                       _fgo_info->_para_pose[j][2] - _fgo_info->_para_pose[i][2]);
+                    //printf("[IMU] pair i=%d j=%d rot_meas=%.5f rot_opt=%.5f dist=%.4f dt=%.4f\n",
+                    //       i, j, rot_meas, rot_opt, dp.norm(), pre->sum_dt);
+                }
+            }
         
             //cost_save = _fgo_info->cost;
             //problem.Evaluate(
@@ -581,6 +603,15 @@ namespace hwa_fgo {
         _imu_state.orientation = Eigen::Quaterniond(base_att_trans::q2mat(_sins->qnb));
         _imu_state.position = Geod2Cart(_sins->pos, false);
         _publisher.UpdateNewState(_imu_state);
+    }
+
+    void insprocesser::UpdatePoseGraphView(const std::vector<Eigen::Vector3d>& ecef_positions,
+                                           const std::vector<std::pair<int, int>>& loop_pairs) {
+        _publisher.UpdatePoseGraphPath(ecef_positions, loop_pairs);
+    }
+
+    std::string insprocesser::output_ins_path() const {
+        return (_fins) ? _fins->name() : std::string();
     }
 
     void insprocesser::prt_sins(std::ostringstream& os) {

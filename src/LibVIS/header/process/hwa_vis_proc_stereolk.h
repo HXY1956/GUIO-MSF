@@ -343,6 +343,162 @@ namespace hwa_vis {
 
     };
 
+    // VINS-Mono style CPU stereo front-end. The left (cam0) image is managed
+    // like VINS feature_tracker: global budget (max_cnt), MIN_DIST spacing and
+    // lifetime sorted mask; candidates are then stereo matched to cam1 with the
+    // existing stereoMatch(). LK + RANSAC reuse the vis_stereo_lk_cpu
+    // implementation. Kept as a separate class so the original grid based
+    // front-end stays untouched.
+    class vis_stereo_vins_cpu : public vis_imgproc<cv::Mat>
+    {
+    public:
+        vis_stereo_vins_cpu(set_base* _set, int cam_group_id = 0);
+
+        ~vis_stereo_vins_cpu() {}
+
+        bool Initialize();
+
+        virtual PointCloud ProcessBatch();
+
+        void createImagePyramids();
+
+        // First frame: detect max_cnt corners uniformly (min distance
+        // vins_min_dist) then stereo-match them.
+        void initializeFirstFrame();
+        void initializeFirstFrameVins();
+
+        void stereoMatch(
+            const std::vector<cv::Point2f>& cam0_points,
+            std::vector<cv::Point2f>& cam1_points,
+            std::vector<unsigned char>& inlier_markers);
+
+        void drawFeaturesStereo();
+
+        void publish();
+
+        void trackFeatures();
+
+        void integrateImuData(cv::Matx33f& cam0_R_p_c, cv::Matx33f& cam1_R_p_c);
+
+        void predictFeatureTracking(
+            const std::vector<cv::Point2f>& input_pts,
+            const cv::Matx33f& R_p_c,
+            const cv::Vec4d& intrinsics,
+            std::vector<cv::Point2f>& compensated_pts);
+
+        void twoPointRansac(
+            const std::vector<cv::Point2f>& pts1, const std::vector<cv::Point2f>& pts2,
+            const cv::Matx33f& R_p_c, const cv::Vec4d& intrinsics,
+            const std::string& distortion_model,
+            const cv::Vec4d& distortion_coeffs,
+            const double& inlier_error,
+            const double& success_probability,
+            std::vector<int>& inlier_markers);
+
+        // VINS setMask(): rebuild mask with MIN_DIST circles around tracked
+        // features (longest lifetime first) and keep the points that pass it.
+        void setMaskVins();
+
+        // Fill the remaining global budget (max_cnt - kept) with
+        // goodFeaturesToTrack(minDistance=vins_min_dist) + stereo match.
+        void addNewFeatures();
+        void addNewFeaturesVins();
+
+        void pruneGridFeatures();
+
+        std::vector<cv::Point2f> distortPoints(
+            const std::vector<cv::Point2f>& pts_in,
+            const cv::Vec4d& intrinsics,
+            const std::string& distortion_model,
+            const cv::Vec4d& distortion_coeffs);
+
+        void undistortPoints(
+            const std::vector<cv::Point2f>& pts_in,
+            const cv::Vec4d& intrinsics,
+            const std::string& distortion_model,
+            const cv::Vec4d& distortion_coeffs,
+            std::vector<cv::Point2f>& pts_out,
+            const cv::Matx33d& rectification_matrix = cv::Matx33d::eye(),
+            const cv::Vec4d& new_intrinsics = cv::Vec4d(1, 1, 0, 0));
+
+        static bool featureCompareByResponse(
+            const FeaturePoint& f1,
+            const FeaturePoint& f2);
+
+        template <typename T>
+        void removeUnmarkedElements(
+            const std::vector<T>& raw_vec,
+            const std::vector<unsigned char>& markers,
+            std::vector<T>& refined_vec);
+
+        void rescalePoints(
+            std::vector<cv::Point2f>& pts1, std::vector<cv::Point2f>& pts2,
+            float& scaling_factor);
+
+        static bool keyPointCompareByResponse(
+            const cv::KeyPoint& pt1,
+            const cv::KeyPoint& pt2);
+
+        static bool featureCompareByLifetime(
+            const FeaturePoint& f1,
+            const FeaturePoint& f2);
+
+        std::vector<Eigen::Vector3d> stereoSemiDenseMatch(cv::Mat& disparity);
+        void calculateIPM(cv::Mat& ipm);
+
+    public:
+        typedef std::map<int, std::vector<FeaturePoint> > GridFeatures;
+
+        cv::Ptr<cv::Feature2D> detector_ptr;                ///< Fast feature point detector (created for parity)
+
+        ONE_FRAME curr_img_msg;                             ///< store information about cur img
+        ONE_FRAME prev_img_msg;                             ///< store information about pre img, used for tracking in next frame
+        cv::Mat mask;                                       ///< detection mask built by setMaskVins
+        cv::Mat cam0_curr_img;                              ///< cur img0 clone
+        cv::Mat cam1_curr_img;                              ///< cur img1 clone
+        std::vector<cv::Mat> curr_cam0_pyramid;             ///< cur img0 pyramid
+        std::vector<cv::Mat> curr_cam1_pyramid;             ///< cur img1 pyramid
+        std::vector<cv::Mat> prev_cam0_pyramid;             ///< pre img0 pyramid used for optical flow
+        long long int next_feature_id = 0;                  ///< ID for the next new feature
+        std::shared_ptr<GridFeatures> prev_features_ptr;    ///< store all feature observations in pre frame
+        std::shared_ptr<GridFeatures> curr_features_ptr;    ///< store all feature observations in cur frame
+
+        int before_tracking = 0;                            ///< cur feature number before tracking
+        int after_tracking = 0;                             ///< cur feature number after tracking
+        int after_matching = 0;                             ///< cur feature number after stereomatch
+        int after_ransac = 0;                               ///< cur feature number after two point ransac
+        int after_setmask = 0;                              ///< cur feature number after VINS setMask
+        int new_added_num = 0;                              ///< number of successfully added new features
+        std::map<long long int, int> track_cnt;             ///< not used in stereo optical flow
+        bool isFirstImg;                                    ///< A indicator to show if it is the first frame
+        bool IsInitialized;                                 ///< A indicator to show if the system is initialized
+        int vins_min_dist = 30;                             ///< MIN_DIST for goodFeaturesToTrack / mask
+
+        /* some parameter in parent class, but form from eigen to cv */
+        cv::Matx33d _R_cam0_cam1;
+        cv::Vec3d _t_cam0_cam1;
+        cv::Matx33d _R_cam0_imu;
+        cv::Vec3d _t_cam0_imu;
+        cv::Matx33d _R_cam1_imu;
+
+        std::string _cam0_distortion_model;
+        cv::Vec4d _cam0_intrinsics;
+        cv::Vec4d _cam0_distortion_coeffs;
+
+        std::string _cam1_distortion_model;
+        cv::Vec4d _cam1_intrinsics;
+        cv::Vec4d _cam1_distortion_coeffs;
+
+        int _stereo_match_count = 0;
+        int _init_IPM_mapping_function = 0;
+        cv::Mat _IPM_mapx;
+        cv::Mat _IPM_mapy;
+        cv::Mat _IPM_M0_1;
+        cv::Mat _IPM_M0_2;
+        /* some parameter in parent class, but form from eigen to cv */
+
+    };
+
 }
 
 #endif

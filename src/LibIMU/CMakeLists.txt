@@ -41,3 +41,7 @@ target_compile_definitions(LibIMU PUBLIC
 WIN32_LEAN_AND_MEAN   
 NOMINMAX
 )
+
+target_precompile_headers(LibIMU PRIVATE
+    ${SRC_DIR}/LibIMU/pch/pch_libimu.h
+)

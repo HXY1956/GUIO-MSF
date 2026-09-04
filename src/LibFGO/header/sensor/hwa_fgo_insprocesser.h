@@ -60,6 +60,15 @@ namespace hwa_fgo {
 		MOTION_TYPE motion_state();
 		MEAS_TYPE meas_state();
 		void UpdateViewer();
+		// Forward the current pose-graph snapshot (ECEF keyframe positions +
+		// loop pairs as indices) to the GLFW viewer. Called by fgo_client from
+		// the main processing thread; the snapshot is taken under the pose
+		// graph's own mutex and handed to the viewer under its mutex.
+		void UpdatePoseGraphView(const std::vector<Eigen::Vector3d>& ecef_positions,
+								 const std::vector<std::pair<int, int>>& loop_pairs);
+		// Resolved path of the per-second INS (.ins) trajectory output file
+		// (used to derive the pose-graph result file name).
+		std::string output_ins_path() const;
 		bool MimuMeas() { return _num_of_imu_axiliary > 0 && FuseType == STACK; }
 		double dsec() { return _sins->t - int(_sins->t); }
 		double _delay() { return _shm->delay; }

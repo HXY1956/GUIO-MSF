@@ -31,6 +31,10 @@ WIN32_LEAN_AND_MEAN
 NOMINMAX
 )
 
+target_precompile_headers(LibPICK PRIVATE
+    ${SRC_DIR}/LibPICK/pch/pch_libpick.h
+)
+
 add_executable(AppPICK ${PICK_MAIN})
 target_link_libraries(AppPICK
 LibPICK

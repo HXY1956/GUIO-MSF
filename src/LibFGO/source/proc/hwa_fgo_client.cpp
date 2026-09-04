@@ -1,4 +1,5 @@
 #include "hwa_fgo_client.h"
+#include <fstream>
 using namespace hwa_set;
 using namespace hwa_gnss;
 using namespace hwa_uwb;
@@ -150,6 +151,7 @@ namespace hwa_fgo {
                         this->optimization_with_poterior();
                     else
                         this->optimization();
+                    if (UseVis) visworker[0]->updatePoseGraph();
                     TicToc t_marg;
                     this->marginalizaiton();
                     this->slide_window();
@@ -170,6 +172,18 @@ namespace hwa_fgo {
 
                 insworker->UpdateViewer();
 
+                // Refresh the pose-graph optimized trajectory / loop lines:
+                // the snapshot is taken under the pose-graph mutex and the
+                // viewer path is fully replaced, so after optimizeGraph moves
+                // historical keyframes the previously drawn path is rebuilt.
+                if (UseVis)
+                {
+                    std::vector<Eigen::Vector3d> pg_pos;
+                    std::vector<std::pair<int, int>> pg_loops;
+                    visworker[0]->getPoseGraphPath(pg_pos, pg_loops);
+                    insworker->UpdatePoseGraphView(pg_pos, pg_loops);
+                }
+
                 double percent = insworker->Time().diff(insworker->_beg()) / insworker->_end().diff(insworker->_beg()) * 100.0;
                 cerr << "\r" << insworker->Time().str_ymdhms("Processing Epoch: ") << " Meas = " << meas2str(*_Meas_Type.begin()) << fixed << setprecision(1) << setw(6) << percent << "%";
             }
@@ -183,6 +197,9 @@ namespace hwa_fgo {
         }
 
         std::cout << "Total SPENT: " << t_total.toc() << "\n";
+
+        // Write the FINAL pose-graph optimized trajectory once at program end.
+        this->writePoseGraphFinalFile();
 
         return 1;
     }
@@ -500,5 +517,48 @@ namespace hwa_fgo {
         os << endl;
         insworker->write_sins(os);
         os.str("");
+    }
+
+    void fgo_client::writePoseGraphFinalFile() {
+        if (!UseVis || visworker.find(0) == visworker.end() || !visworker[0])
+            return;
+
+        std::vector<std::pair<double, Eigen::Vector3d>> rows;
+        if (!visworker[0]->getPoseGraphFinalTrajectory(rows) || rows.empty())
+            return;
+
+        // Derive the pose-graph output file from the INS (.ins) trajectory
+        // file: "<ins file without .ins>.pg" in the same directory.
+        std::string pg_path = "pose_graph_result.pg";
+        std::string ins_path = insworker ? insworker->output_ins_path() : std::string();
+        if (!ins_path.empty()) {
+            if (ins_path.size() > 4 && ins_path.compare(ins_path.size() - 4, 4, ".ins") == 0)
+                pg_path = ins_path.substr(0, ins_path.size() - 4) + ".pg";
+            else
+                pg_path = ins_path + ".pg";
+        }
+
+        std::ofstream ofs(pg_path);
+        if (!ofs.is_open()) {
+            std::cerr << "[PG] cannot open pose-graph result file: " << pg_path << std::endl;
+            return;
+        }
+
+        // Same column format as ins_obj::prt_sins (fixed width 18), but only
+        // time + XYZ (ECEF) are written. Time keeps its fractional part so the
+        // sub-second keyframes are distinguishable.
+        ofs << std::fixed;
+        for (const auto& r : rows) {
+            ofs << std::setprecision(4) << std::setw(18) << r.first
+                << std::setprecision(3)
+                << std::setw(18) << r.second(0)
+                << std::setw(18) << r.second(1)
+                << std::setw(18) << r.second(2)
+                << "\n";
+        }
+        ofs.close();
+
+        std::cout << "[PG] pose-graph final result written: " << pg_path
+                  << " (" << rows.size() << " keyframes)" << std::endl;
     }
 }

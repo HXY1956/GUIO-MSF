@@ -41,6 +41,7 @@ namespace hwa_fgo
         void marginalizaiton();
         void slide_window();
         void write2file();
+        void writePoseGraphFinalFile();
         void prtState() const {
             baseworker.printSlidingWindowStates();
         }

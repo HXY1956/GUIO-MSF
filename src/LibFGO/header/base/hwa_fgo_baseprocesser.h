@@ -502,6 +502,7 @@ namespace hwa_fgo {
         const std::vector<int>& _node_index_copy() {
             return _fgo_info->_Node_index[_node];
         }
+        std::shared_ptr<fgo_info> _fgo() { return _fgo_info; }
         std::vector<int>& _node_index() {
             return _fgo_info->_Node_index[_node];
         }

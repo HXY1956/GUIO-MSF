@@ -36,7 +36,7 @@ void hwa_ins::ins_publish::UpdateNewState(const ImuState& imu_state)
         SO3 atti;
 
         Position = R_e_n * (imu_state.position - _init_imupos);
-        atti = imu_state.orientation.toRotationMatrix();
+        atti = R_e_n * imu_state.orientation.toRotationMatrix();   // body->ENU (display frame)
         frames.push_back(std::make_pair(atti, Position));
 
         //att
@@ -74,7 +74,7 @@ void hwa_ins::ins_publish::UpdateNewState(const ImuState &imu_state, const CamSt
         SO3 atti;
 
         Position = R_e_n * (imu_state.position - _init_imupos);
-        atti = imu_state.orientation.toRotationMatrix();
+        atti = R_e_n * imu_state.orientation.toRotationMatrix();   // body->ENU (display frame)
         frames.push_back(std::make_pair(atti, Position));
         if (cam_states.size() > 0)
         {
@@ -120,7 +120,7 @@ void hwa_ins::ins_publish::UpdateNewState(const ImuState &imu_state, const Lidar
         VPointCloud lpc;
 
         Position = R_e_n * (imu_state.position - _init_imupos);
-        atti = imu_state.orientation.toRotationMatrix();
+        atti = R_e_n * imu_state.orientation.toRotationMatrix();   // body->ENU (display frame)
         frames.push_back(std::make_pair(atti, Position));
         if (lidar_states.size() > 0)
         {
@@ -245,4 +245,24 @@ void hwa_ins::ins_publish::UpdatePlanePoints(const std::vector<Triple> & pcs, co
         viewer->SetPlaneCloud(centers, surroundings);
     }
 
+}
+
+void hwa_ins::ins_publish::UpdatePoseGraphPath(const std::vector<Triple> &ecef_positions,
+                                               const std::vector<std::pair<int, int>> &loop_pairs)
+{
+    if (viewer == nullptr) return;
+
+    // The pose-graph keyframe positions are ECEF; convert them into the same
+    // local (ENU) frame as the G-VIO trajectory for a side-by-side display.
+    // If the local-frame origin is not initialized yet there is nothing to do.
+    if (firstFlag_imu) return;
+
+    Trajectory path;
+    path.reserve(ecef_positions.size());
+    for (const auto &p : ecef_positions)
+    {
+        path.push_back(R_e_n * (p - _init_imupos));
+    }
+
+    viewer->SetPoseGraphPath(path, loop_pairs);
 }

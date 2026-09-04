@@ -287,6 +287,119 @@ namespace hwa_vis {
         cv::Matx33d _R_cam0_imu;                ///<  rotation from camera to IMU
         cv::Vec3d _t_cam0_imu;                    ///<  translation from camera to IMU
     };
+
+    // VINS-Mono style CPU mono front-end. Feature extraction/management follows
+    // VINS feature_tracker: global budget (max_cnt), MIN_DIST spacing over the
+    // whole image, lifetime sorted mask; LK + RANSAC reuse the implementation
+    // of vis_mono_lk_cpu. Kept as a separate class so the original grid based
+    // front-end stays untouched.
+    class vis_mono_vins_cpu : public vis_imgproc<cv::Mat>
+    {
+    public:
+        vis_mono_vins_cpu(set_base* _set, int cam_group_id = 0);
+
+        ~vis_mono_vins_cpu() {}
+
+        virtual PointCloud ProcessBatch();
+
+        bool Initialize();
+
+        bool inBorder(const cv::Point2f& pt);
+
+        void _reduceVector(std::vector<cv::Point2f>& v, std::vector<uchar> status);
+
+        void _reduceVector(std::vector<int>& v, std::vector<uchar> status);
+
+        // VINS setMask(): mask already tracked points with MIN_DIST circles,
+        // preferring long living features.
+        void setMask();
+
+        // VINS addPoints(): fill the remaining global budget with
+        // goodFeaturesToTrack(minDistance=MIN_DIST) instead of per-grid quotas.
+        void addnewFeatures();
+
+        // Kept for interface parity with vis_mono_lk_cpu (no F-matrix RANSAC in
+        // this project's mono CPU pipeline; outlier removal is two-point RANSAC).
+        void rejectWithF();
+
+        double distance(cv::Point2f& pt1, cv::Point2f& pt2);
+
+        void integrateImuData(cv::Matx33f& cam0_R_p_c);
+
+        void predictFeatureTracking(
+            const std::vector<cv::Point2f>& input_pts,
+            const cv::Matx33f& R_p_c,
+            const cv::Vec4d& intrinsics,
+            std::vector<cv::Point2f>& compensated_pts);
+
+        void trackFeatures();
+
+        void publish();
+
+        void drawFeatures();
+
+        void undistortPoints(
+            const std::vector<cv::Point2f>& pts_in,
+            const cv::Vec4d& intrinsics,
+            const std::string& distortion_model,
+            const cv::Vec4d& distortion_coeffs,
+            std::vector<cv::Point2f>& pts_out,
+            const cv::Matx33d& rectification_matrix = cv::Matx33d::eye(),
+            const cv::Vec4d& new_intrinsics = cv::Vec4d(1, 1, 0, 0));
+
+        void rescalePoints(
+            std::vector<cv::Point2f>& pts1, std::vector<cv::Point2f>& pts2,
+            float& scaling_factor);
+
+        void twoPointRansac(
+            const std::vector<cv::Point2f>& pts1, const std::vector<cv::Point2f>& pts2,
+            const cv::Matx33f& R_p_c, const cv::Vec4d& intrinsics,
+            const std::string& distortion_model,
+            const cv::Vec4d& distortion_coeffs,
+            const double& inlier_error,
+            const double& success_probability,
+            std::vector<int>& inlier_markers);
+
+        static bool featureCompareByLifetime(
+            const FeaturePoint& f1,
+            const FeaturePoint& f2)
+        {
+            return f1.lifetime > f2.lifetime;
+        }
+
+    public:
+        int row = 0, col = 0;                    ///< rows and columns
+        cv::Mat mask;                            ///< remove features that stay close
+        cv::Mat prev_img, cur_img;               ///< mat form used for KLT
+        std::vector<cv::Point2f> n_pts;          ///< used in add new features
+        std::vector<cv::Point2f> prev_pts, cur_pts;    ///< record pts in cur and prev feature point
+        std::vector<int> prev_ids, cur_ids;      ///< record id in cur and prev img
+        std::vector<int> track_cnt;              ///< track number
+        std::vector<Eigen::Vector2d> cur_velocities; ///< normalized velocity aligned with cur_pts
+        ONE_FRAME curr_img_msg;                  ///< store information about cur img
+        ONE_FRAME prev_img_msg;                  ///< store information about pre img, used for tracking in next frame
+
+        double cur_time = 0;                     ///< current time
+        double prev_time = 0;                    ///< previous time
+        int n_id = 0;                            ///< ID number
+
+        bool IsInitialized = false;              ///< used for class parameter initial
+        bool flow_back = true;                   ///< KLT back to check
+
+        int before_tracking = 0;                 ///< cur feature number before tracking
+        int after_tracking = 0;                  ///< cur feature number after tracking
+        int after_setmask = 0;                   ///< cur feature number after set mask
+        int after_ransac = 0;                    ///< cur feature number after ransac
+        int after_twopoint_ransac = 0;           ///< cur feature number after two point ransac
+        int vins_min_dist = 30;                  ///< MIN_DIST for goodFeaturesToTrack / mask
+
+        std::string _cam0_distortion_model;      ///< distortion model of camera
+        cv::Vec4d _cam0_intrinsics;              ///< intrinsics of camera
+        cv::Vec4d _cam0_distortion_coeffs;       ///< distortion coeffs of camera
+
+        cv::Matx33d _R_cam0_imu;                 ///< rotation from camera to IMU
+        cv::Vec3d _t_cam0_imu;                   ///< translation from camera to IMU
+    };
 }
 
 #endif

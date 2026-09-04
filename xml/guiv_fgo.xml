@@ -330,9 +330,16 @@
   <grid_col> 8 </grid_col>
   <grid_min_feature_num> 3 </grid_min_feature_num> <!--Min Number of Feature Point In One Grid-->
   <grid_max_feature_num> 8 </grid_max_feature_num> <!--Max Number of Feature Point In One Grid-->
+  <!-- Front-end feature management mode: original (grid-based) | vins (VINS-Mono global MIN_DIST) -->
+  <feature_selector> vins </feature_selector>
+  <!-- Minimum feature distance in pixels used by the VINS-Mono mode -->
+  <min_dist> 30 </min_dist>
   <maxcnt> 350 </maxcnt>  <!-- Max Good Point In AddNewFeature() -->
   <equalize> 0 </equalize>
   <usingstereorecify> false </usingstereorecify>
+  <loop_closure> true </loop_closure>
+  <vocabulary> xml/brief_k10L6.bin </vocabulary> <!-- DBoW2 vocabulary (VINS binary); missing -> train at runtime -->
+  <brief_pattern> xml/brief_pattern.yml </brief_pattern> <!-- BRIEF pair pattern, must match the vocabulary -->
 
   <!-- Feature Tracking Settings -->
   <pyramid_levels> 3 </pyramid_levels>

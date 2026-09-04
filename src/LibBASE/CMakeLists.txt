@@ -67,3 +67,7 @@ target_link_libraries(LibBASE
     Boost::thread
     Boost::filesystem
 )
+
+target_precompile_headers(LibBASE PRIVATE
+    ${SRC_DIR}/LibBASE/pch/pch_libbase.h
+)

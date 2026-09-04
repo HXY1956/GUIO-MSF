@@ -912,6 +912,43 @@ bool hwa_set::set_vis::estimate_t(int cam_group_id)
     return res;
 }
 
+bool hwa_set::set_vis::loop_closure(int cam_group_id)
+{
+    bool res = true;
+    std::string tmp;
+
+    if (!_doc.child(XMLKEY_ROOT).child(XMLKEY_VIS).find_child_by_attribute("cam_group", "id", std::to_string(cam_group_id).c_str()).empty())
+    {
+        tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_VIS).find_child_by_attribute("cam_group", "id", std::to_string(cam_group_id).c_str()).child_value("loop_closure");
+        str_erase(tmp);
+        if (tmp != "")
+            res = (tmp == "true" || tmp == "1" || tmp == "yes");
+    }
+    return res;
+}
+
+std::string hwa_set::set_vis::vocabulary(int cam_group_id)
+{
+    std::string res;
+    if (!_doc.child(XMLKEY_ROOT).child(XMLKEY_VIS).find_child_by_attribute("cam_group", "id", std::to_string(cam_group_id).c_str()).empty())
+    {
+        res = _doc.child(XMLKEY_ROOT).child(XMLKEY_VIS).find_child_by_attribute("cam_group", "id", std::to_string(cam_group_id).c_str()).child_value("vocabulary");
+        str_erase(res);
+    }
+    return res;
+}
+
+std::string hwa_set::set_vis::brief_pattern(int cam_group_id)
+{
+    std::string res;
+    if (!_doc.child(XMLKEY_ROOT).child(XMLKEY_VIS).find_child_by_attribute("cam_group", "id", std::to_string(cam_group_id).c_str()).empty())
+    {
+        res = _doc.child(XMLKEY_ROOT).child(XMLKEY_VIS).find_child_by_attribute("cam_group", "id", std::to_string(cam_group_id).c_str()).child_value("brief_pattern");
+        str_erase(res);
+    }
+    return res;
+}
+
 bool hwa_set::set_vis::estimate_extrinsic_seperately(int cam_group_id)
 {
     bool res = false;
@@ -1341,6 +1378,33 @@ hwa_vis::PROCESSER_TYPE hwa_set::set_vis::processer(int cam_group_id) {
     }
     if (res == "") res = "cpu";
     return hwa_vis::str2processer(res);
+}
+
+std::string hwa_set::set_vis::feature_selector(int cam_group_id)
+{
+    std::string res;
+    if (!_doc.child(XMLKEY_ROOT).child(XMLKEY_VIS).find_child_by_attribute("cam_group", "id", std::to_string(cam_group_id).c_str()).empty())
+    {
+        res = _doc.child(XMLKEY_ROOT).child(XMLKEY_VIS).find_child_by_attribute("cam_group", "id", std::to_string(cam_group_id).c_str()).child_value("feature_selector");
+        str_erase(res);
+    }
+    std::transform(res.begin(), res.end(), res.begin(), ::tolower);
+    if (res == "vins" || res == "vins-mono" || res == "vinsmono")
+        return std::string("vins");
+    return std::string("original");
+}
+
+int hwa_set::set_vis::min_dist(int cam_group_id)
+{
+    int res = 30;
+    if (!_doc.child(XMLKEY_ROOT).child(XMLKEY_VIS).find_child_by_attribute("cam_group", "id", std::to_string(cam_group_id).c_str()).empty())
+    {
+        std::string tmp = _doc.child(XMLKEY_ROOT).child(XMLKEY_VIS).find_child_by_attribute("cam_group", "id", std::to_string(cam_group_id).c_str()).child_value("min_dist");
+        str_erase(tmp);
+        if (tmp != "")
+            res = std::stoi(tmp);
+    }
+    return res;
 }
 
 std::string hwa_set::set_vis::cam_group_name(int cam_group_id)

@@ -62,6 +62,17 @@ namespace hwa_ins
         void UpdateVisualPoints(const std::vector<Triple> & map_points);
         void UpdatePlanePoints(const std::vector<Triple> & pcs, const std::vector<std::vector<Triple>>& _near_points, SO3 R_l_e, Triple t_l_e);
 
+        /**
+        * @brief update the pose-graph optimized trajectory display
+        *
+        * Positions are ECEF keyframe positions from the pose graph (the same
+        * frame as imu_state.position); they are converted into the viewer's
+        * local frame with the stored R_e_n/_init_imupos. loop_pairs are
+        * indices into the position list.
+        */
+        void UpdatePoseGraphPath(const std::vector<Triple> &ecef_positions,
+                                 const std::vector<std::pair<int, int>> &loop_pairs);
+
     private:
         
         ins_viewer *viewer=nullptr;                // the core class of trajectory display

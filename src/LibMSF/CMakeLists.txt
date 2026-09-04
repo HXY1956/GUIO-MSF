@@ -42,6 +42,10 @@ PUBLIC
 ${MSF_HEADER_DIR}
 )
 
+target_precompile_headers(LibMSF PRIVATE
+    ${SRC_DIR}/LibMSF/pch/pch_libmsf.h
+)
+
 add_executable(AppMSF ${MSF_MAIN})
 target_link_libraries(AppMSF
 LibMSF

@@ -38,3 +38,7 @@ PUBLIC
 ${UWB_HEADER_DIR}
 )
 
+target_precompile_headers(LibUWB PRIVATE
+    ${SRC_DIR}/LibUWB/pch/pch_libuwb.h
+)
+

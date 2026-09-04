@@ -7,6 +7,10 @@ build/
 *.lib
 *.dll
 *.exe
+*.md
+*.png
+*.py
+*.obj
 
 # User-specific files
 *.rsuser

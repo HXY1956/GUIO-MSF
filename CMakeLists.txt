@@ -51,10 +51,7 @@ find_package(Qt6 REQUIRED COMPONENTS Widgets)
 find_package(CUDAToolkit REQUIRED)
 find_package(OpenVINO REQUIRED)
 
-# 1. 强制 Eigen 调用 OpenBLAS（这是最重要的一步！）
 add_definitions(-DEIGEN_USE_BLAS)
-
-# 3. 告诉 Eigen 放弃内部调试检查（减少分支预测失败）
 add_definitions(-DEIGEN_NO_DEBUG)
 
 pkg_check_modules(GSTREAMER REQUIRED gstreamer-1.0)
@@ -64,6 +61,7 @@ pkg_check_modules(GSTREAMER_VIDEO REQUIRED gstreamer-video-1.0)
 set(SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
 add_subdirectory(${SRC_DIR}/LibBASE)
 add_subdirectory(${SRC_DIR}/LibIMU)
+add_subdirectory(${SRC_DIR}/LibPG)
 add_subdirectory(${SRC_DIR}/LibVIS)
 add_subdirectory(${SRC_DIR}/LibGNSS)
 add_subdirectory(${SRC_DIR}/LibUWB)

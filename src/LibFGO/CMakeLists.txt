@@ -37,6 +37,7 @@ LibVIS
 LibGNSS
 LibUWB
 LibLIDAR
+LibPG
 )
 target_include_directories(LibFGO
 PUBLIC
@@ -44,6 +45,10 @@ ${FGO_HEADER_DIR}
 )
 
 target_compile_definitions(LibFGO PRIVATE DEBUG_NEW)
+
+target_precompile_headers(LibFGO PRIVATE
+    ${SRC_DIR}/LibFGO/pch/pch_libfgo.h
+)
 
 add_executable(AppFGO ${FGO_MAIN})
 target_link_libraries(AppFGO

@@ -36,6 +36,13 @@ namespace hwa_ins
         void SetTrajectory(const Trajectory &t);
         void SetTrajectory(const std::vector<Trajectory> &vt);
         void AddNewPos(const Triple &p);
+        // Pose-graph optimized trajectory + loop-closure pairs. The path is
+        // REPLACED (not appended) on every call, so after optimizeGraph moves
+        // historical keyframes the whole drawn path is rebuilt. loop edges are
+        // indices into the pose-graph trajectory list and are redrawn from the
+        // current positions on every frame.
+        void SetPoseGraphPath(const Trajectory &t,
+                              const std::vector<std::pair<int, int>> &loop_edges);
         void Hide();
     private:
         void Run();
@@ -46,6 +53,8 @@ namespace hwa_ins
         std::thread *t;
         std::mutex m_mutex;
         std::vector<Trajectory> mv_trajectory;
+        Trajectory mv_pg_trajectory;                    // optimized pose-graph path
+        std::vector<std::pair<int, int>> mv_loop_edges; // loop pairs (indices)
         std::vector<VPointCloud> mv_pointCloud;
         std::vector<Triple> pcs;
         std::vector<std::vector<Triple>> near_points;
